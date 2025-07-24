@@ -8,7 +8,7 @@ import matplotlib.animation as animation
 # Add the parent directory to the path to import from lib
 import os
 import sys
-from lib.media import save_matplotlib_figure, save_media
+from shared_lib.media import save_matplotlib_figure, save_media
 
 
 def plot_training_progress(

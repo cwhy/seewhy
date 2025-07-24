@@ -14,7 +14,7 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from lib.media import save_media, save_matplotlib_figure
+from shared_lib.media import save_media, save_matplotlib_figure
 import matplotlib.pyplot as plt
 import numpy as np
 
