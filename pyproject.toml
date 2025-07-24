@@ -18,7 +18,7 @@ dependencies = [
 ]
 
 [tool.setuptools.packages.find]
-include = ["lib*"]
+include = ["shared_lib*"]
 
 [tool.uv]
 package = true

@@ -10,9 +10,9 @@ from jax import Array
 import jax.numpy as jnp
 from typing import Dict, Any, Iterable, Tuple
 
-from lib.random_utils import infinite_safe_keys_from_key
-from lib.datasets import load_supervised_image
-from lib.media import save_media
+from shared_lib.random_utils import infinite_safe_keys_from_key
+from shared_lib.datasets import load_supervised_image
+from shared_lib.media import save_media
 from visualize import plot_training_progress, plot_sample_predictions, plot_section_accuracies, create_section_accuracies_animation_mp4
 from online_eval import evaluate_model_performance, evaluate_training_sections_with_permutation, get_section_statistics
 
