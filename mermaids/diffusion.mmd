@@ -1,0 +1,70 @@
+flowchart TB
+    %% ===== MODERN CLASS STYLES =====
+    classDef noise   fill:#f8fafc,stroke:#94a3b8,stroke-width:1px,color:#1e293b,border-radius:10px;
+    classDef output  fill:#f0fdfa,stroke:#34d399,stroke-width:1px,color:#134e4a,border-radius:10px;
+    classDef text    fill:#f9fafb,stroke:#d946ef,stroke-width:1px,color:#701a75,border-radius:10px;
+    classDef embed   fill:#f3f4f6,stroke:#6366f1,stroke-width:1px,color:#312e81,border-radius:10px;
+    classDef tstep   fill:#fefce8,stroke:#fbbf24,stroke-width:1px,color:#92400e,border-radius:10px;
+    classDef enc     fill:#e0f2fe,stroke:#38bdf8,stroke-width:1px,color:#0369a1,border-radius:10px;
+    classDef bridge  fill:#fdf2f8,stroke:#f472b6,stroke-width:1px,color:#be185d,border-radius:10px;
+    classDef dec     fill:#f0fdfa,stroke:#2dd4bf,stroke-width:1px,color:#134e4a,border-radius:10px;
+    classDef pred    fill:#fef9c3,stroke:#fbbf24,stroke-width:1px,color:#713f12,border-radius:10px;
+    classDef denoise fill:#f8fafc,stroke:#cbd5e1,stroke-width:1px,color:#334155,border-radius:10px;
+
+    %% ===== EXTERNAL INPUTS =====
+    A["Pure Random Noise<br/>x_T ~ N(0, I)"]:::noise
+    M((x_t)):::noise
+    A --> M
+
+    TT((Timestep t)):::tstep
+    TS["Timestep Embedding"]:::tstep
+    TT --> TS
+
+    %% ===== TEXT PIPELINE =====
+    subgraph TP["Text Pipeline"]
+        direction LR
+        T["Text Prompt<br/>'a cat on a table'"]:::text
+        TC["Text Encoder<br/>(CLIP · T5 · BERT)"]:::text
+        TF["Text Embedding c"]:::embed
+        T --> TC --> TF
+    end
+
+    %% ===== U-NET =====
+    subgraph UN["U-Net εθ(x_t, t, c)"]
+        direction LR
+        E1["Encoder<br/>ResNet ↓"]:::enc
+        B["Bridge<br/>Self + Cross-Attn"]:::bridge
+        D1["Decoder<br/>ResNet ↑"]:::dec
+        E1 --> B --> D1
+        E1 -.-> D1
+    end
+
+    %% conditioning & main flow
+    M  --> E1
+    TS --> E1
+    TS --> B
+    TS --> D1
+    TF -. "Cross-Attn" .-> B
+
+    %% ===== OUTPUT & LOOP =====
+    D1 --> N["Predicted Noise<br/>εθ(x_t, t, c)"]:::pred
+    G["Denoise Step<br/>x_{t-1} = μ_θ(x_t, t, c) + σ_t·z"]:::denoise
+    N --> G
+    G -->|t > 0| M
+    G -->|t = 0| J((Generated Image<br/>x_0)):::output
+
+    %% ===== CLASS ASSIGNMENTS =====
+    class A,M noise
+    class J output
+    class T,TC text
+    class TF embed
+    class TT,TS tstep
+    class E1 enc
+    class B bridge
+    class D1 dec
+    class N pred
+    class G denoise
+
+    %% ===== SUBGRAPH STYLES: NO BORDER, NO BACKGROUND =====
+    style TP fill:#f9fafb,stroke-width:0px;
+    style UN fill:#f3f4f6,stroke-width:0px;
