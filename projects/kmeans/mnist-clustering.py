@@ -1,0 +1,330 @@
+import time
+import jax
+import os, sys
+import optax
+import logging
+import random
+import string
+from functools import partial
+from jax import Array
+import jax.numpy as jnp
+from typing import Dict, Any, Iterable, Tuple
+import numpy as np
+
+# Update import paths for the new location
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
+from shared_lib.random_utils import infinite_safe_keys_from_key
+from shared_lib.datasets import load_supervised_image
+from projects.kmeans.visualize import (
+    create_probability_animation, 
+    plot_training_progress, 
+    plot_final_probabilities,
+    create_clustering_visualization
+)
+
+def generate_uid() -> str:
+    """Generate a 4-character UID using alphanumeric characters"""
+    return ''.join(random.choices(string.ascii_letters + string.digits, k=4))
+
+# Generate UID for this run
+run_uid = generate_uid()
+print(f"Run UID: {run_uid}")
+
+# Set up logging (simple like mnist-base.py)
+logging.basicConfig(level=logging.INFO)
+
+def init() -> Tuple[Dict[str, Any], Dict[str, Array], Any]:
+    """Initialize all model parameters in a single flat dictionary"""
+
+    config = {
+        "dataset_name": "mnist",
+        "batch_size": 256,
+        "learning_rate": 1e-3,
+        "random_seed": 2,
+        "img_dims": (28, 28),  # Image dimensions
+        "K": 10,  # Number of clusters
+        "n_samples": 20000,
+        "n_hidden": 128,  # Hidden layer dimension
+        "ema_decay": 0.99,  # EMA decay factor
+    }
+    
+    key = jax.random.PRNGKey(config["random_seed"])
+    key_gen = infinite_safe_keys_from_key(key)
+    
+    # For MNIST, we know the flattened input dimension is 28*28 = 784
+    input_dim = 784
+    K = config["K"]
+    n_hidden = config["n_hidden"]
+    
+    # Initialize parameters using Kaiming He initialization - KEEPING YOUR WORKING LOGIC
+    params = {
+        'l1_w': jax.random.normal(next(key_gen).get(), (K, input_dim, n_hidden)) * jnp.sqrt(2./input_dim),
+        'l1_b': jnp.zeros((K, n_hidden)),
+        'l2_w': jax.random.normal(next(key_gen).get(), (K, n_hidden, 2)) * jnp.sqrt(2./n_hidden),
+        'l2_b': jnp.zeros((K, 2))
+    }
+    
+    # Debug: print parameter shapes
+    logging.info(f"Parameter shapes:")
+    logging.info(f"  l1_w: {params['l1_w'].shape}")
+    logging.info(f"  l1_b: {params['l1_b'].shape}")
+    logging.info(f"  l2_w: {params['l2_w'].shape}")
+    logging.info(f"  l2_b: {params['l2_b'].shape}")
+    logging.info(f"  input_dim: {input_dim}")
+    
+    return config, params, key_gen
+
+# KEEPING YOUR WORKING MODEL FUNCTIONS
+def mlp_single_label(params: Dict[str, Array], x: Array) -> Array:
+    """Simple MLP forward pass for a single sample using a flat dictionary for parameters."""
+    h1 = jnp.dot(x, params['l1_w']) + params['l1_b']
+    h1 = jax.nn.relu(h1)
+    logits = jnp.dot(h1, params['l2_w']) + params['l2_b']
+    return logits
+
+def mlp(params: Dict[str, Array], x: Array) -> Array:
+    """Vectorized MLP forward pass for multiple samples."""
+    return jax.vmap(mlp_single_label, in_axes=(0, None))(params, x)
+
+def mlp_batch(params: Dict[str, Array], x: Array) -> Array:
+    """Vectorized MLP forward pass for batches."""
+    return jax.vmap(mlp, in_axes=(None, 0))(params, x)
+
+def get_K(params: Dict[str, Array], x: Array, key: Array) -> Array:
+    """Get cluster assignment for a single sample."""
+    y_hat_logits = mlp(params, x)[:, 1]
+    return jax.random.categorical(key, y_hat_logits)
+
+def get_K_batch(params: Dict[str, Array], x: Array, key: Array) -> Array:
+    """Get cluster assignments for a batch of samples."""
+    return jax.jit(jax.vmap(get_K, in_axes=(None, 0, None)))(params, x, key)
+
+def get_probabilities(params: Dict[str, Array], x: Array) -> Array:
+    """Get probability distribution across all K labels for a sample."""
+    y_hat_logits = mlp(params, x)[:, 1]
+    probabilities = jax.nn.softmax(y_hat_logits)
+    return probabilities
+
+def get_probabilities_batch(params: Dict[str, Array], x: Array) -> Array:
+    """Get probability distributions across all K labels for a batch of samples."""
+    return jax.jit(jax.vmap(get_probabilities, in_axes=(None, 0)))(params, x)
+
+def update_ema(ema_values: Array, cluster_assignments: Array, cluster_probs: Array, decay: float) -> Array:
+    """Update EMA values for cluster activations."""
+    K = len(ema_values)
+    
+    # Calculate current activation for each cluster (max probability assigned to it in this batch)
+    current_activations = jnp.zeros(K)
+    for k in range(K):
+        mask = cluster_assignments == k
+        if jnp.sum(mask) > 0:
+            current_activations = current_activations.at[k].set(jnp.max(cluster_probs[mask, k]))
+    
+    # Update EMA: ema = decay * ema + (1 - decay) * current
+    new_ema = decay * ema_values + (1 - decay) * current_activations
+    return new_ema
+
+
+# KEEPING YOUR WORKING LOSS FUNCTIONS
+def loss_fn_symbol(params: Dict[str, Array], x: Array, d: Array) -> Array:
+    """Cross-entropy loss function for a single sample."""
+    logits = mlp_single_label(params, x)
+    loss = -jnp.mean(d * jax.nn.log_softmax(logits))
+    return loss
+
+def loss_fn(params: Dict[str, Array], x: Array, ds: Array) -> Array:
+    """Loss function for multiple samples."""
+    return jnp.mean(jax.vmap(loss_fn_symbol, in_axes=(0, None, 0))(params, x, ds))
+
+def loss_batch(params: Dict[str, Array], xs: Array, ys: Array) -> Array:
+    """Batch loss function."""
+    y_one_hot = jax.nn.one_hot(ys, num_classes=10)
+    dss = jnp.stack([1 - y_one_hot, y_one_hot], axis=-1)
+    return jnp.mean(jax.vmap(loss_fn, in_axes=(None, 0, 0))(params, xs, dss))
+
+@jax.jit
+def train_step(params: Dict[str, Array], optimizer_state: Any, x: Array, y: Array) -> Tuple[Dict[str, Array], Any, Array, Any]:
+    """Performs a single training step."""
+    loss, grads = jax.value_and_grad(loss_batch)(params, x, y)
+    updates, optimizer_state = optimizer.update(grads, optimizer_state, params)
+    params = optax.apply_updates(params, updates)
+    return params, optimizer_state, loss, grads
+
+if __name__ == "__main__":
+    # Initialize model and config
+    config, params, key_gen = init()
+    
+    # Load dataset
+    logging.info("Loading MNIST dataset...")
+    data = load_supervised_image(config["dataset_name"])
+    
+    # Normalize pixel values to [0, 1] and flatten
+    X_train = data.X.reshape(data.n_samples, -1) / 255.0
+    X_test = data.X_test.reshape(data.n_test_samples, -1) / 255.0
+    y_train = data.y
+    y_test = data.y_test
+    
+    logging.info(f"Training set: {X_train.shape}, Test set: {X_test.shape}")
+    
+    # Limit samples for faster training
+    num_samples = config["n_samples"]
+    X_train = X_train[:num_samples]
+    y_train = y_train[:num_samples]
+    
+    logging.info(f"Using {num_samples} samples for training")
+    
+    # Initialize EMA values for cluster activations
+    ema_values = jnp.ones(config["K"]) * 0.1  # Start with low baseline
+    
+    # Select 12 examples for visualization
+    num_examples = 12
+    example_indices = np.random.choice(num_samples, num_examples, replace=False)
+    X_examples = X_train[example_indices]
+    y_examples = y_train[example_indices]
+    
+    logging.info(f"Selected {num_examples} examples for visualization: {example_indices}")
+    
+    # Initialize optimizer
+    optimizer = optax.adam(config["learning_rate"])
+    opt_state = optimizer.init(params)
+    
+    # Training loop
+    logging.info("Starting training...")
+    start_time = time.perf_counter()
+    
+    train_losses = []
+    train_accuracies = []
+    animation_frames = []
+    ema_history = []  # Track EMA values over time
+    samples_trained_per_batch = []  # Track how many samples we actually train
+    
+    num_batches = num_samples // config["batch_size"]
+    frames_per_epoch = min(200, num_batches)  # Collect more frames for longer animation
+    
+    # Safety check: ensure we have at least one batch
+    if num_batches == 0:
+        logging.warning(f"num_samples ({num_samples}) is smaller than batch_size ({config['batch_size']}). Setting num_batches to 1.")
+        num_batches = 1
+        frames_per_epoch = 1
+    
+    epoch_loss = 0.0
+    epoch_accuracy = 0.0
+    
+    for batch in range(num_batches):
+        start_idx = batch * config["batch_size"]
+        end_idx = min(start_idx + config["batch_size"], num_samples)
+        
+        batch_x = X_train[start_idx:end_idx]
+        batch_y = y_train[start_idx:end_idx]
+        
+        # Get probability distributions and cluster assignments for this batch
+        batch_probs = get_probabilities_batch(params, batch_x)
+        batch_key = next(key_gen).get()
+        k = get_K_batch(params, batch_x, batch_key)
+        
+        # Update EMA values based on current batch
+        ema_values = update_ema(ema_values, k, batch_probs, config["ema_decay"])
+        
+        # Vectorized filtering: get probabilities for assigned clusters
+        assigned_cluster_probs = batch_probs[jnp.arange(len(k)), k]
+        ema_thresholds = ema_values[k]
+        
+        # Create mask for samples that should be trained (prob > EMA threshold)
+        train_mask = assigned_cluster_probs > ema_thresholds
+        num_samples_to_train = jnp.sum(train_mask)
+        samples_trained_per_batch.append(int(num_samples_to_train))
+        
+        # Only train if we have samples that meet the EMA threshold
+        if num_samples_to_train > 0:
+            # Filter batch to only include samples we want to train
+            filtered_batch_x = batch_x[train_mask]
+            filtered_k = k[train_mask]
+            
+            # Training step on filtered samples
+            params, opt_state, loss_value, grads = train_step(params, opt_state, filtered_batch_x, filtered_k)
+            
+            # Compute accuracy for the filtered batch
+            batch_accuracy = jnp.mean(filtered_k == batch_y[train_mask])
+        else:
+            # No samples meet threshold, skip training but record dummy values
+            loss_value = 0.0
+            batch_accuracy = 0.0
+        
+        epoch_loss += loss_value
+        epoch_accuracy += batch_accuracy
+        
+        train_losses.append(loss_value)
+        train_accuracies.append(batch_accuracy)
+        ema_history.append(np.array(ema_values))
+        
+        # Collect animation frames at regular intervals
+        frame_interval = max(1, num_batches // frames_per_epoch)
+        if batch % frame_interval == 0 or batch == num_batches - 1:
+            # Get probability distributions for the selected examples
+            example_probabilities = get_probabilities_batch(params, X_examples)
+            
+            # Calculate cluster distribution for ALL training samples
+            all_training_probabilities = get_probabilities_batch(params, X_train)
+            all_cluster_assignments = np.argmax(all_training_probabilities, axis=1)
+            all_cluster_counts = np.bincount(all_cluster_assignments, minlength=10)
+            
+            # Create animation frame including EMA values
+            animation_frame = {
+                'probabilities': np.array(example_probabilities),
+                'cluster_counts': all_cluster_counts,
+                'ema_values': np.array(ema_values),
+                'samples_trained': samples_trained_per_batch[-1] if samples_trained_per_batch else 0,
+                'epoch': 0,
+                'batch': batch,
+                'total_batches': num_batches
+            }
+            animation_frames.append(animation_frame)
+            
+            logging.info(f"Animation frame collected - Batch {batch}/{num_batches}, Loss: {loss_value:.4f}")
+        
+        if batch % 100 == 0:
+            logging.info(f"Batch {batch}/{num_batches}, Loss: {loss_value:.4f}, Accuracy: {batch_accuracy:.4f}, Samples trained: {samples_trained_per_batch[-1]}/{len(batch_x)}")
+    
+    # Safety check for division by zero
+    if num_batches > 0:
+        avg_loss = epoch_loss / num_batches
+        avg_accuracy = epoch_accuracy / num_batches
+    else:
+        avg_loss = epoch_loss
+        avg_accuracy = epoch_accuracy
+    
+    logging.info(f"Training completed - Avg Loss: {avg_loss:.4f}, Avg Accuracy: {avg_accuracy:.4f}")
+    
+    training_time = time.perf_counter() - start_time
+    logging.info(f"Training completed in {training_time:.2f} seconds")
+    
+    # Show final probability distributions
+    final_probabilities = get_probabilities_batch(params, X_examples)
+    
+    # Calculate cluster distribution for ALL training samples
+    logging.info("Calculating cluster distribution for all training samples...")
+    all_training_probabilities = get_probabilities_batch(params, X_train)
+    all_cluster_assignments = np.argmax(all_training_probabilities, axis=1)
+    all_cluster_counts = np.bincount(all_cluster_assignments, minlength=10)
+    
+    logging.info(f"Cluster distribution: {all_cluster_counts}")
+    
+    # Create all visualizations using the unified function
+    logging.info("Creating all clustering visualizations...")
+    saved_files = create_clustering_visualization(
+        animation_frames=animation_frames,
+        final_probabilities=final_probabilities,
+        X_examples=X_examples,
+        y_examples=y_examples,
+        train_losses=train_losses,
+        train_accuracies=train_accuracies,
+        run_uid=run_uid,
+        all_cluster_counts=all_cluster_counts,
+        ema_history=ema_history,
+        samples_trained_per_batch=samples_trained_per_batch
+        # output_dir defaults to outputs/yy-mm-dd/
+    )
+    
+    logging.info(f"All visualizations created and saved to: {saved_files}")
+    
+    logging.info("Training completed! Check the saved plots and animation for results.")

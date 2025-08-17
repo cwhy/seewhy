@@ -4,6 +4,7 @@ from typing import Dict, Any, List, Union, Optional
 from jax import Array
 import numpy as np
 import matplotlib.animation as animation
+import io
 
 # Add the parent directory to the path to import from lib
 import os
