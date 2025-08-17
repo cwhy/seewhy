@@ -281,7 +281,9 @@ if __name__ == "__main__":
     try:
         log_filename = f"mnist_training_log_{run_uid}.txt"
         log_content = log_buffer.getvalue()
-        log_url = save_media(log_content, log_filename)
+        # Convert string content to bytes for upload
+        log_content_bytes = log_content.encode('utf-8')
+        log_url = save_media(log_filename, log_content_bytes)
         logging.info(f"Log uploaded successfully: {log_url}")
     except Exception as e:
         logging.error(f"Failed to upload log: {str(e)}") 

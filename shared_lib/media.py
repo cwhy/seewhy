@@ -27,7 +27,13 @@ def save_media(filename: str, media: Union[str, BinaryIO, bytes], content_type: 
     
     # Try to upload to R2 first
     try:
-        result = upload_media(r2_key, media, content_type)
+        # Convert bytes to BytesIO if needed for R2 upload
+        if isinstance(media, bytes):
+            media_for_upload = io.BytesIO(media)
+        else:
+            media_for_upload = media
+            
+        result = upload_media(r2_key, media_for_upload, content_type)
         
         if result['success']:
             print(f"Successfully uploaded to R2: {result['url']}")
