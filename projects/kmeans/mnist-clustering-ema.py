@@ -45,6 +45,7 @@ def init() -> Tuple[Dict[str, Any], Dict[str, Array], Any]:
         "K": 10,  # Number of clusters
         "n_samples": 20000,
         "n_hidden": 128,  # Hidden layer dimension
+        "ema_decay": 0.99,  # EMA decay factor
     }
     
     key = jax.random.PRNGKey(config["random_seed"])
@@ -109,6 +110,17 @@ def get_probabilities_batch(params: Dict[str, Array], x: Array) -> Array:
     """Get probability distributions across all K labels for a batch of samples."""
     return jax.jit(jax.vmap(get_probabilities, in_axes=(None, 0)))(params, x)
 
+def update_ema(ema_values: Array, cluster_probs: Array, decay: float) -> Array:
+    """Update EMA values tracking average output of each MLP cluster."""
+    # cluster_probs shape: (batch_size, K) - outputs from each of the K MLPs
+    # Calculate mean output for each MLP across the batch
+    current_activations = jnp.mean(cluster_probs, axis=0)  # Average across batch dimension
+    
+    # Update EMA: ema = decay * ema + (1 - decay) * current
+    new_ema = decay * ema_values + (1 - decay) * current_activations
+    return new_ema
+
+
 # KEEPING YOUR WORKING LOSS FUNCTIONS
 def loss_fn_symbol(params: Dict[str, Array], x: Array, d: Array) -> Array:
     """Cross-entropy loss function for a single sample."""
@@ -157,6 +169,9 @@ if __name__ == "__main__":
     
     logging.info(f"Using {num_samples} samples for training")
     
+    # Initialize EMA values for cluster activations
+    ema_values = jnp.ones(config["K"]) * 0.1  # Start with low baseline
+    
     # Select 12 examples for visualization
     num_examples = 12
     example_indices = np.random.choice(num_samples, num_examples, replace=False)
@@ -176,6 +191,8 @@ if __name__ == "__main__":
     train_losses = []
     train_accuracies = []
     animation_frames = []
+    ema_history = []  # Track EMA values over time
+    samples_trained_per_batch = []  # Track how many samples we actually train
     
     num_batches = num_samples // config["batch_size"]
     frames_per_epoch = min(200, num_batches)  # Collect more frames for longer animation
@@ -196,21 +213,45 @@ if __name__ == "__main__":
         batch_x = X_train[start_idx:end_idx]
         batch_y = y_train[start_idx:end_idx]
         
-        # Get cluster assignments for this batch
+        # Get probability distributions and cluster assignments for this batch
+        batch_probs = get_probabilities_batch(params, batch_x)
         batch_key = next(key_gen).get()
         k = get_K_batch(params, batch_x, batch_key)
         
-        # Training step
-        params, opt_state, loss_value, grads = train_step(params, opt_state, batch_x, k)
+        # Update EMA values with current batch MLP outputs
+        ema_values = update_ema(ema_values, batch_probs, config["ema_decay"])
         
-        # Compute accuracy for this batch
-        batch_accuracy = jnp.mean(k == batch_y)
+        # Vectorized filtering: get probabilities for assigned clusters
+        assigned_cluster_probs = batch_probs[jnp.arange(len(k)), k]
+        ema_thresholds = ema_values[k]
+        
+        # Create mask for samples that should be trained (prob > EMA threshold)
+        train_mask = assigned_cluster_probs > ema_thresholds
+        num_samples_to_train = jnp.sum(train_mask)
+        samples_trained_per_batch.append(int(num_samples_to_train))
+        
+        # Only train if we have samples that meet the EMA threshold
+        if num_samples_to_train > 0:
+            # Filter batch to only include samples we want to train
+            filtered_batch_x = batch_x[train_mask]
+            filtered_k = k[train_mask]
+            
+            # Training step on filtered samples
+            params, opt_state, loss_value, grads = train_step(params, opt_state, filtered_batch_x, filtered_k)
+            
+            # Compute accuracy for the filtered batch
+            batch_accuracy = jnp.mean(filtered_k == batch_y[train_mask])
+        else:
+            # No samples meet threshold, skip training but record dummy values
+            loss_value = 0.0
+            batch_accuracy = 0.0
         
         epoch_loss += loss_value
         epoch_accuracy += batch_accuracy
         
         train_losses.append(loss_value)
         train_accuracies.append(batch_accuracy)
+        ema_history.append(np.array(ema_values))
         
         # Collect animation frames at regular intervals
         frame_interval = max(1, num_batches // frames_per_epoch)
@@ -223,10 +264,12 @@ if __name__ == "__main__":
             all_cluster_assignments = np.argmax(all_training_probabilities, axis=1)
             all_cluster_counts = np.bincount(all_cluster_assignments, minlength=10)
             
-            # Create animation frame
+            # Create animation frame including EMA values
             animation_frame = {
                 'probabilities': np.array(example_probabilities),
                 'cluster_counts': all_cluster_counts,
+                'ema_values': np.array(ema_values),
+                'samples_trained': samples_trained_per_batch[-1] if samples_trained_per_batch else 0,
                 'epoch': 0,
                 'batch': batch,
                 'total_batches': num_batches
@@ -236,7 +279,7 @@ if __name__ == "__main__":
             logging.info(f"Animation frame collected - Batch {batch}/{num_batches}, Loss: {loss_value:.4f}")
         
         if batch % 100 == 0:
-            logging.info(f"Batch {batch}/{num_batches}, Loss: {loss_value:.4f}, Accuracy: {batch_accuracy:.4f}")
+            logging.info(f"Batch {batch}/{num_batches}, Loss: {loss_value:.4f}, Accuracy: {batch_accuracy:.4f}, Samples trained: {samples_trained_per_batch[-1]}/{len(batch_x)}")
     
     # Safety check for division by zero
     if num_batches > 0:
@@ -272,7 +315,9 @@ if __name__ == "__main__":
         train_losses=train_losses,
         train_accuracies=train_accuracies,
         run_uid=run_uid,
-        all_cluster_counts=all_cluster_counts
+        all_cluster_counts=all_cluster_counts,
+        ema_history=ema_history,
+        samples_trained_per_batch=samples_trained_per_batch
         # output_dir defaults to outputs/yy-mm-dd/
     )
     

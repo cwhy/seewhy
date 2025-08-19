@@ -45,6 +45,7 @@ def init() -> Tuple[Dict[str, Any], Dict[str, Array], Any]:
         "K": 10,  # Number of clusters
         "n_samples": 20000,
         "n_hidden": 128,  # Hidden layer dimension
+        "entropy_regularization_weight": 0.1,  # Weight for entropy regularization
     }
     
     key = jax.random.PRNGKey(config["random_seed"])
@@ -109,27 +110,43 @@ def get_probabilities_batch(params: Dict[str, Array], x: Array) -> Array:
     """Get probability distributions across all K labels for a batch of samples."""
     return jax.jit(jax.vmap(get_probabilities, in_axes=(None, 0)))(params, x)
 
-# KEEPING YOUR WORKING LOSS FUNCTIONS
-def loss_fn_symbol(params: Dict[str, Array], x: Array, d: Array) -> Array:
-    """Cross-entropy loss function for a single sample."""
+
+# KEEPING YOUR WORKING LOSS FUNCTIONS WITH ENTROPY REGULARIZATION
+def compute_entropy(logits: Array) -> Array:
+    """Compute entropy of softmax distribution to encourage higher entropy."""
+    probs = jax.nn.softmax(logits)
+    # Add small epsilon to prevent log(0)
+    epsilon = 1e-8
+    entropy = -jnp.sum(probs * jnp.log(probs + epsilon))
+    return entropy
+
+def loss_fn_symbol(params: Dict[str, Array], x: Array, d: Array, entropy_weight: float = 0.0) -> Array:
+    """Cross-entropy loss function for a single sample with entropy regularization."""
     logits = mlp_single_label(params, x)
-    loss = -jnp.mean(d * jax.nn.log_softmax(logits))
-    return loss
+    
+    # Original cross-entropy loss
+    ce_loss = -jnp.mean(d * jax.nn.log_softmax(logits))
+    
+    # Entropy regularization - we want to maximize entropy (minimize negative entropy)
+    entropy_loss = -entropy_weight * compute_entropy(logits)
+    
+    total_loss = ce_loss + entropy_loss
+    return total_loss
 
-def loss_fn(params: Dict[str, Array], x: Array, ds: Array) -> Array:
+def loss_fn(params: Dict[str, Array], x: Array, ds: Array, entropy_weight: float = 0.0) -> Array:
     """Loss function for multiple samples."""
-    return jnp.mean(jax.vmap(loss_fn_symbol, in_axes=(0, None, 0))(params, x, ds))
+    return jnp.mean(jax.vmap(loss_fn_symbol, in_axes=(0, None, 0, None))(params, x, ds, entropy_weight))
 
-def loss_batch(params: Dict[str, Array], xs: Array, ys: Array) -> Array:
+def loss_batch(params: Dict[str, Array], xs: Array, ys: Array, entropy_weight: float = 0.0) -> Array:
     """Batch loss function."""
     y_one_hot = jax.nn.one_hot(ys, num_classes=10)
     dss = jnp.stack([1 - y_one_hot, y_one_hot], axis=-1)
-    return jnp.mean(jax.vmap(loss_fn, in_axes=(None, 0, 0))(params, xs, dss))
+    return jnp.mean(jax.vmap(loss_fn, in_axes=(None, 0, 0, None))(params, xs, dss, entropy_weight))
 
 @jax.jit
-def train_step(params: Dict[str, Array], optimizer_state: Any, x: Array, y: Array) -> Tuple[Dict[str, Array], Any, Array, Any]:
+def train_step(params: Dict[str, Array], optimizer_state: Any, x: Array, y: Array, entropy_weight: float = 0.0) -> Tuple[Dict[str, Array], Any, Array, Any]:
     """Performs a single training step."""
-    loss, grads = jax.value_and_grad(loss_batch)(params, x, y)
+    loss, grads = jax.value_and_grad(lambda p, x, y: loss_batch(p, x, y, entropy_weight))(params, x, y)
     updates, optimizer_state = optimizer.update(grads, optimizer_state, params)
     params = optax.apply_updates(params, updates)
     return params, optimizer_state, loss, grads
@@ -200,8 +217,8 @@ if __name__ == "__main__":
         batch_key = next(key_gen).get()
         k = get_K_batch(params, batch_x, batch_key)
         
-        # Training step
-        params, opt_state, loss_value, grads = train_step(params, opt_state, batch_x, k)
+        # Training step with entropy regularization
+        params, opt_state, loss_value, grads = train_step(params, opt_state, batch_x, k, config["entropy_regularization_weight"])
         
         # Compute accuracy for this batch
         batch_accuracy = jnp.mean(k == batch_y)

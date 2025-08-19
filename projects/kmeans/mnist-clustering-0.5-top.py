@@ -40,7 +40,7 @@ def init() -> Tuple[Dict[str, Any], Dict[str, Array], Any]:
         "dataset_name": "mnist",
         "batch_size": 256,
         "learning_rate": 1e-3,
-        "random_seed": 2,
+        "random_seed": 1,
         "img_dims": (28, 28),  # Image dimensions
         "K": 10,  # Number of clusters
         "n_samples": 20000,
@@ -92,8 +92,8 @@ def mlp_batch(params: Dict[str, Array], x: Array) -> Array:
 def get_K(params: Dict[str, Array], x: Array, key: Array) -> Array:
     """Get cluster assignment for a single sample."""
     y_hat_logits = mlp(params, x)[:, 1]
-    # return jax.random.categorical(key, y_hat_logits)
-    return jnp.argmax(y_hat_logits)
+    return jax.random.categorical(key, y_hat_logits)
+    # return jnp.argmax(y_hat_logits)
 
 def get_K_batch(params: Dict[str, Array], x: Array, key: Array) -> Array:
     """Get cluster assignments for a batch of samples."""
@@ -109,7 +109,47 @@ def get_probabilities_batch(params: Dict[str, Array], x: Array) -> Array:
     """Get probability distributions across all K labels for a batch of samples."""
     return jax.jit(jax.vmap(get_probabilities, in_axes=(None, 0)))(params, x)
 
-# KEEPING YOUR WORKING LOSS FUNCTIONS
+def get_cluster_match_mask(selected_k: Array, true_labels: Array) -> Array:
+    """Determine which clusters are matched (cluster index == true label k)."""
+    return selected_k == true_labels
+
+def get_training_mask(params: Dict[str, Array], batch_x: Array, selected_k: Array, true_labels: Array) -> Array:
+    """Generate training mask - for matched clusters, train only top half by confidence."""
+    batch_size = batch_x.shape[0]
+    
+    # Get cluster match information
+    cluster_matches = get_cluster_match_mask(selected_k, true_labels)
+    
+    # Get probabilities for all samples
+    probs = get_probabilities_batch(params, batch_x)
+    
+    # Get confidence for each sample in its assigned cluster
+    confidences = probs[jnp.arange(batch_size), selected_k]
+    
+    # For matched samples, determine if they should be trained (top half by confidence)
+    matched_mask = jnp.zeros(batch_size, dtype=bool)
+    
+    # Use JAX operations to find top half of matched samples
+    matched_confidences = jnp.where(cluster_matches, confidences, -jnp.inf)
+    
+    # Count matched samples
+    num_matched = jnp.sum(cluster_matches)
+    num_to_train = num_matched // 2
+    
+    # Get threshold for top half of matched samples
+    # Sort matched confidences in descending order and take the threshold
+    sorted_matched_confidences = jnp.sort(matched_confidences, axis=0)[::-1]
+    threshold = jnp.where(num_to_train > 0, sorted_matched_confidences[num_to_train - 1], -jnp.inf)
+    
+    # Matched samples above threshold should be trained
+    matched_high_conf = cluster_matches & (confidences >= threshold)
+    
+    # Final training mask: all unmatched samples + top half of matched samples
+    train_mask = ~cluster_matches | matched_high_conf
+    
+    return train_mask
+
+# MODIFIED LOSS FUNCTIONS
 def loss_fn_symbol(params: Dict[str, Array], x: Array, d: Array) -> Array:
     """Cross-entropy loss function for a single sample."""
     logits = mlp_single_label(params, x)
@@ -120,16 +160,33 @@ def loss_fn(params: Dict[str, Array], x: Array, ds: Array) -> Array:
     """Loss function for multiple samples."""
     return jnp.mean(jax.vmap(loss_fn_symbol, in_axes=(0, None, 0))(params, x, ds))
 
-def loss_batch(params: Dict[str, Array], xs: Array, ys: Array) -> Array:
-    """Batch loss function."""
-    y_one_hot = jax.nn.one_hot(ys, num_classes=10)
-    dss = jnp.stack([1 - y_one_hot, y_one_hot], axis=-1)
-    return jnp.mean(jax.vmap(loss_fn, in_axes=(None, 0, 0))(params, xs, dss))
+def loss_batch_modified(params: Dict[str, Array], xs: Array, selected_k: Array, train_mask: Array) -> Array:
+    """Modified batch loss function - only trains samples where train_mask is True."""
+    batch_size = xs.shape[0]
+    K = config["K"]
+    
+    # Create target distributions - default to [0.5, 0.5] for all
+    target_distributions = jnp.full((batch_size, K, 2), 0.5)
+    
+    # For each sample, if cluster x is assigned (selected_k[i] == x), set target to [0, 1]
+    for i in range(batch_size):
+        assigned_cluster = selected_k[i]
+        target_distributions = target_distributions.at[i, assigned_cluster].set(jnp.array([0.0, 1.0]))
+    
+    # Compute losses for all samples
+    all_losses = jax.vmap(loss_fn, in_axes=(None, 0, 0))(params, xs, target_distributions)
+    
+    # Apply training mask using JAX operations
+    masked_losses = all_losses * train_mask
+    num_trained = jnp.sum(train_mask)
+    
+    # Return mean loss of trained samples, avoiding division by zero
+    return jnp.where(num_trained > 0, jnp.sum(masked_losses) / num_trained, 0.0)
 
 @jax.jit
-def train_step(params: Dict[str, Array], optimizer_state: Any, x: Array, y: Array) -> Tuple[Dict[str, Array], Any, Array, Any]:
-    """Performs a single training step."""
-    loss, grads = jax.value_and_grad(loss_batch)(params, x, y)
+def train_step(params: Dict[str, Array], optimizer_state: Any, x: Array, selected_k: Array, train_mask: Array) -> Tuple[Dict[str, Array], Any, Array, Any]:
+    """Modified training step using the new loss function with training mask."""
+    loss, grads = jax.value_and_grad(loss_batch_modified)(params, x, selected_k, train_mask)
     updates, optimizer_state = optimizer.update(grads, optimizer_state, params)
     params = optax.apply_updates(params, updates)
     return params, optimizer_state, loss, grads
@@ -200,8 +257,11 @@ if __name__ == "__main__":
         batch_key = next(key_gen).get()
         k = get_K_batch(params, batch_x, batch_key)
         
-        # Training step
-        params, opt_state, loss_value, grads = train_step(params, opt_state, batch_x, k)
+        # Generate training mask (only train top half of matched clusters)
+        train_mask = get_training_mask(params, batch_x, k, batch_y)
+        
+        # Training step with modified loss and training mask
+        params, opt_state, loss_value, grads = train_step(params, opt_state, batch_x, k, train_mask)
         
         # Compute accuracy for this batch
         batch_accuracy = jnp.mean(k == batch_y)
@@ -211,6 +271,10 @@ if __name__ == "__main__":
         
         train_losses.append(loss_value)
         train_accuracies.append(batch_accuracy)
+        
+        # Log training mask statistics
+        num_trained = jnp.sum(train_mask)
+        num_matched = jnp.sum(k == batch_y)
         
         # Collect animation frames at regular intervals
         frame_interval = max(1, num_batches // frames_per_epoch)
@@ -236,7 +300,7 @@ if __name__ == "__main__":
             logging.info(f"Animation frame collected - Batch {batch}/{num_batches}, Loss: {loss_value:.4f}")
         
         if batch % 100 == 0:
-            logging.info(f"Batch {batch}/{num_batches}, Loss: {loss_value:.4f}, Accuracy: {batch_accuracy:.4f}")
+            logging.info(f"Batch {batch}/{num_batches}, Loss: {loss_value:.4f}, Accuracy: {batch_accuracy:.4f}, Trained: {num_trained}/{len(batch_x)}, Matched: {num_matched}")
     
     # Safety check for division by zero
     if num_batches > 0:
