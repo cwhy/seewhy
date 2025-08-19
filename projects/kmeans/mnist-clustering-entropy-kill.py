@@ -45,6 +45,8 @@ def init() -> Tuple[Dict[str, Any], Dict[str, Array], Any]:
         "K": 10,  # Number of clusters
         "n_samples": 20000,
         "n_hidden": 128,  # Hidden layer dimension
+        "entropy_threshold": 0.5,  # Minimum entropy threshold - clusters below this get reinitialized
+        "entropy_check_interval": 50,  # Check entropy every N batches
     }
     
     key = jax.random.PRNGKey(config["random_seed"])
@@ -109,7 +111,60 @@ def get_probabilities_batch(params: Dict[str, Array], x: Array) -> Array:
     """Get probability distributions across all K labels for a batch of samples."""
     return jax.jit(jax.vmap(get_probabilities, in_axes=(None, 0)))(params, x)
 
-# KEEPING YOUR WORKING LOSS FUNCTIONS
+
+# ENTROPY MEASUREMENT AND CLUSTER REINITIALIZATION FUNCTIONS
+def compute_entropy(logits: Array) -> Array:
+    """Compute entropy of softmax distribution."""
+    probs = jax.nn.softmax(logits)
+    # Add small epsilon to prevent log(0)
+    epsilon = 1e-8
+    entropy = -jnp.sum(probs * jnp.log(probs + epsilon))
+    return entropy
+
+def measure_cluster_entropies(params: Dict[str, Array], X: Array, key: Array) -> Array:
+    """Measure average entropy for each cluster across a sample of data."""
+    K = params['l1_w'].shape[0]
+    cluster_entropies = jnp.zeros(K)
+    
+    # Get cluster assignments and probabilities for all samples
+    cluster_assignments = get_K_batch(params, X, key)
+    all_logits = mlp_batch(params, X)
+    
+    # Calculate average entropy for each cluster
+    for k in range(K):
+        # Find samples assigned to this cluster
+        cluster_mask = cluster_assignments == k
+        if jnp.sum(cluster_mask) > 0:
+            # Get logits for samples assigned to this cluster
+            cluster_logits = all_logits[cluster_mask, k, :]
+            # Compute entropy for each sample in this cluster
+            entropies = jax.vmap(compute_entropy)(cluster_logits)
+            # Average entropy for this cluster
+            cluster_entropies = cluster_entropies.at[k].set(jnp.mean(entropies))
+        else:
+            # No samples assigned to this cluster, set entropy to 0 (will trigger reinitialization)
+            cluster_entropies = cluster_entropies.at[k].set(0.0)
+    
+    return cluster_entropies
+
+def reinitialize_cluster(params: Dict[str, Array], cluster_idx: int, key_gen: Any, input_dim: int, n_hidden: int) -> Dict[str, Array]:
+    """Reinitialize weights for a specific cluster (MLP network)."""
+    new_params = params.copy()
+    
+    # Reinitialize weights for the specified cluster using Kaiming He initialization
+    new_params['l1_w'] = new_params['l1_w'].at[cluster_idx].set(
+        jax.random.normal(next(key_gen).get(), (input_dim, n_hidden)) * jnp.sqrt(2./input_dim)
+    )
+    new_params['l1_b'] = new_params['l1_b'].at[cluster_idx].set(jnp.zeros(n_hidden))
+    new_params['l2_w'] = new_params['l2_w'].at[cluster_idx].set(
+        jax.random.normal(next(key_gen).get(), (n_hidden, 2)) * jnp.sqrt(2./n_hidden)
+    )
+    new_params['l2_b'] = new_params['l2_b'].at[cluster_idx].set(jnp.zeros(2))
+    
+    return new_params
+
+
+# STANDARD LOSS FUNCTIONS (WITHOUT ENTROPY REGULARIZATION)
 def loss_fn_symbol(params: Dict[str, Array], x: Array, d: Array) -> Array:
     """Cross-entropy loss function for a single sample."""
     logits = mlp_single_label(params, x)
@@ -176,6 +231,7 @@ if __name__ == "__main__":
     train_losses = []
     train_accuracies = []
     animation_frames = []
+    cluster_reinit_history = []  # Track which clusters were reinitialized when
     
     num_batches = num_samples // config["batch_size"]
     frames_per_epoch = min(200, num_batches)  # Collect more frames for longer animation
@@ -189,6 +245,11 @@ if __name__ == "__main__":
     epoch_loss = 0.0
     epoch_accuracy = 0.0
     
+    # For entropy measurement, sample a subset of training data
+    entropy_sample_size = min(1000, num_samples)
+    entropy_sample_indices = np.random.choice(num_samples, entropy_sample_size, replace=False)
+    X_entropy_sample = X_train[entropy_sample_indices]
+    
     for batch in range(num_batches):
         start_idx = batch * config["batch_size"]
         end_idx = min(start_idx + config["batch_size"], num_samples)
@@ -200,7 +261,7 @@ if __name__ == "__main__":
         batch_key = next(key_gen).get()
         k = get_K_batch(params, batch_x, batch_key)
         
-        # Training step
+        # Training step (standard, no entropy regularization)
         params, opt_state, loss_value, grads = train_step(params, opt_state, batch_x, k)
         
         # Compute accuracy for this batch
@@ -211,6 +272,35 @@ if __name__ == "__main__":
         
         train_losses.append(loss_value)
         train_accuracies.append(batch_accuracy)
+        
+        # Check entropy and reinitialize biased clusters periodically
+        if batch % config["entropy_check_interval"] == 0 and batch > 0:
+            entropy_key = next(key_gen).get()
+            cluster_entropies = measure_cluster_entropies(params, X_entropy_sample, entropy_key)
+            
+            # Find clusters with entropy below threshold
+            low_entropy_clusters = jnp.where(cluster_entropies < config["entropy_threshold"])[0]
+            
+            if len(low_entropy_clusters) > 0:
+                logging.info(f"Batch {batch}: Found {len(low_entropy_clusters)} clusters with low entropy: {low_entropy_clusters}")
+                logging.info(f"Cluster entropies: {cluster_entropies}")
+                
+                # Reinitialize low-entropy clusters
+                for cluster_idx in low_entropy_clusters:
+                    params = reinitialize_cluster(params, int(cluster_idx), key_gen, 784, config["n_hidden"])
+                    logging.info(f"  Reinitialized cluster {cluster_idx}")
+                
+                # Reinitialize optimizer state for the reinitialized parameters
+                opt_state = optimizer.init(params)
+                
+                # Record reinitialization event
+                cluster_reinit_history.append({
+                    'batch': batch,
+                    'reinitialized_clusters': [int(c) for c in low_entropy_clusters],
+                    'entropies': np.array(cluster_entropies)
+                })
+            else:
+                logging.info(f"Batch {batch}: All clusters have healthy entropy. Min: {jnp.min(cluster_entropies):.4f}")
         
         # Collect animation frames at regular intervals
         frame_interval = max(1, num_batches // frames_per_epoch)
@@ -223,10 +313,15 @@ if __name__ == "__main__":
             all_cluster_assignments = np.argmax(all_training_probabilities, axis=1)
             all_cluster_counts = np.bincount(all_cluster_assignments, minlength=10)
             
+            # Measure current cluster entropies for the frame
+            frame_key = next(key_gen).get()
+            current_entropies = measure_cluster_entropies(params, X_entropy_sample, frame_key)
+            
             # Create animation frame
             animation_frame = {
                 'probabilities': np.array(example_probabilities),
                 'cluster_counts': all_cluster_counts,
+                'cluster_entropies': np.array(current_entropies),
                 'epoch': 0,
                 'batch': batch,
                 'total_batches': num_batches
@@ -247,6 +342,7 @@ if __name__ == "__main__":
         avg_accuracy = epoch_accuracy
     
     logging.info(f"Training completed - Avg Loss: {avg_loss:.4f}, Avg Accuracy: {avg_accuracy:.4f}")
+    logging.info(f"Total cluster reinitializations: {len(cluster_reinit_history)}")
     
     training_time = time.perf_counter() - start_time
     logging.info(f"Training completed in {training_time:.2f} seconds")
@@ -260,7 +356,12 @@ if __name__ == "__main__":
     all_cluster_assignments = np.argmax(all_training_probabilities, axis=1)
     all_cluster_counts = np.bincount(all_cluster_assignments, minlength=10)
     
+    # Final entropy measurement
+    final_key = next(key_gen).get()
+    final_entropies = measure_cluster_entropies(params, X_entropy_sample, final_key)
+    
     logging.info(f"Cluster distribution: {all_cluster_counts}")
+    logging.info(f"Final cluster entropies: {final_entropies}")
     
     # Create all visualizations using the unified function
     logging.info("Creating all clustering visualizations...")
@@ -272,7 +373,8 @@ if __name__ == "__main__":
         train_losses=train_losses,
         train_accuracies=train_accuracies,
         run_uid=run_uid,
-        all_cluster_counts=all_cluster_counts
+        all_cluster_counts=all_cluster_counts,
+        cluster_reinit_history=cluster_reinit_history
         # output_dir defaults to outputs/yy-mm-dd/
     )
     

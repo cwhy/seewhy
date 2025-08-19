@@ -40,7 +40,7 @@ def init() -> Tuple[Dict[str, Any], Dict[str, Array], Any]:
         "dataset_name": "mnist",
         "batch_size": 256,
         "learning_rate": 1e-3,
-        "random_seed": 2,
+        "random_seed": 1,
         "img_dims": (28, 28),  # Image dimensions
         "K": 10,  # Number of clusters
         "n_samples": 20000,
@@ -92,8 +92,8 @@ def mlp_batch(params: Dict[str, Array], x: Array) -> Array:
 def get_K(params: Dict[str, Array], x: Array, key: Array) -> Array:
     """Get cluster assignment for a single sample."""
     y_hat_logits = mlp(params, x)[:, 1]
-    # return jax.random.categorical(key, y_hat_logits)
-    return jnp.argmax(y_hat_logits)
+    return jax.random.categorical(key, y_hat_logits)
+    # return jnp.argmax(y_hat_logits)
 
 def get_K_batch(params: Dict[str, Array], x: Array, key: Array) -> Array:
     """Get cluster assignments for a batch of samples."""
@@ -109,7 +109,7 @@ def get_probabilities_batch(params: Dict[str, Array], x: Array) -> Array:
     """Get probability distributions across all K labels for a batch of samples."""
     return jax.jit(jax.vmap(get_probabilities, in_axes=(None, 0)))(params, x)
 
-# KEEPING YOUR WORKING LOSS FUNCTIONS
+# MODIFIED LOSS FUNCTIONS
 def loss_fn_symbol(params: Dict[str, Array], x: Array, d: Array) -> Array:
     """Cross-entropy loss function for a single sample."""
     logits = mlp_single_label(params, x)
@@ -120,16 +120,27 @@ def loss_fn(params: Dict[str, Array], x: Array, ds: Array) -> Array:
     """Loss function for multiple samples."""
     return jnp.mean(jax.vmap(loss_fn_symbol, in_axes=(0, None, 0))(params, x, ds))
 
-def loss_batch(params: Dict[str, Array], xs: Array, ys: Array) -> Array:
-    """Batch loss function."""
-    y_one_hot = jax.nn.one_hot(ys, num_classes=10)
-    dss = jnp.stack([1 - y_one_hot, y_one_hot], axis=-1)
-    return jnp.mean(jax.vmap(loss_fn, in_axes=(None, 0, 0))(params, xs, dss))
+def loss_batch_modified(params: Dict[str, Array], xs: Array, selected_k: Array) -> Array:
+    """Modified batch loss function - uses [0.5, 0.5] for unmatched clusters instead of 0."""
+    batch_size = xs.shape[0]
+    K = config["K"]
+    
+    # Create target distributions - default to [0.5, 0.5] for all
+    target_distributions = jnp.full((batch_size, K, 2), 0.5)
+    
+    # For each sample, if cluster x is assigned (selected_k[i] == x), set target to [0, 1]
+    # Otherwise keep [0.5, 0.5]
+    for i in range(batch_size):
+        assigned_cluster = selected_k[i]
+        # Set target distribution for the assigned cluster to [0, 1]
+        target_distributions = target_distributions.at[i, assigned_cluster].set(jnp.array([0.0, 1.0]))
+    
+    return jnp.mean(jax.vmap(loss_fn, in_axes=(None, 0, 0))(params, xs, target_distributions))
 
 @jax.jit
-def train_step(params: Dict[str, Array], optimizer_state: Any, x: Array, y: Array) -> Tuple[Dict[str, Array], Any, Array, Any]:
-    """Performs a single training step."""
-    loss, grads = jax.value_and_grad(loss_batch)(params, x, y)
+def train_step(params: Dict[str, Array], optimizer_state: Any, x: Array, selected_k: Array) -> Tuple[Dict[str, Array], Any, Array, Any]:
+    """Modified training step using the new loss function."""
+    loss, grads = jax.value_and_grad(loss_batch_modified)(params, x, selected_k)
     updates, optimizer_state = optimizer.update(grads, optimizer_state, params)
     params = optax.apply_updates(params, updates)
     return params, optimizer_state, loss, grads
@@ -200,7 +211,7 @@ if __name__ == "__main__":
         batch_key = next(key_gen).get()
         k = get_K_batch(params, batch_x, batch_key)
         
-        # Training step
+        # Training step with modified loss (passes selected_k)
         params, opt_state, loss_value, grads = train_step(params, opt_state, batch_x, k)
         
         # Compute accuracy for this batch

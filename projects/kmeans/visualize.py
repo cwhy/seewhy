@@ -316,7 +316,7 @@ def create_probability_animation(
     
     Args:
         animation_frames: List of frames with probability data and cluster counts
-        save_path: Path to save the animation (defaults to outputs/yy-mm-dd/mnist_clustering_probability_evolution.gif)
+        save_path: Path to save the animation (defaults to outputs/yy-mm-dd/mnist_clustering_probability_evolution.mp4)
         X_examples: Array of example images (12, 784)
         y_examples: Array of true labels for examples
         title: Title for the animation
@@ -324,7 +324,7 @@ def create_probability_animation(
     # Use default save path if none provided
     if save_path is None:
         output_dir = get_default_output_dir()
-        save_path = os.path.join(output_dir, "mnist_clustering_probability_evolution.gif")
+        save_path = os.path.join(output_dir, "mnist_clustering_probability_evolution.mp4")
     
     fig = plt.figure(figsize=(24, 15))
     fig.suptitle(title, fontsize=16)
@@ -770,7 +770,7 @@ def create_clustering_visualization(
     
     # Create probability evolution animation
     if animation_frames:
-        anim_path = os.path.join(output_dir, f"mnist_clustering_probability_evolution_{run_uid}.gif")
+        anim_path = os.path.join(output_dir, f"mnist_clustering_probability_evolution_{run_uid}.mp4")
         create_probability_animation(
             animation_frames=animation_frames,
             X_examples=X_examples,

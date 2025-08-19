@@ -40,11 +40,12 @@ def init() -> Tuple[Dict[str, Any], Dict[str, Array], Any]:
         "dataset_name": "mnist",
         "batch_size": 256,
         "learning_rate": 1e-3,
-        "random_seed": 2,
+        "random_seed": 1,
         "img_dims": (28, 28),  # Image dimensions
         "K": 10,  # Number of clusters
         "n_samples": 20000,
         "n_hidden": 128,  # Hidden layer dimension
+        "reinit_threshold": 5,  # Reinitialize cluster if not assigned for this many batches
     }
     
     key = jax.random.PRNGKey(config["random_seed"])
@@ -73,6 +74,34 @@ def init() -> Tuple[Dict[str, Any], Dict[str, Array], Any]:
     
     return config, params, key_gen
 
+def reinitialize_cluster(params: Dict[str, Array], cluster_idx: int, key_gen: Any, config: Dict[str, Any]) -> Dict[str, Array]:
+    """Reinitialize the MLP weights for a specific cluster"""
+    input_dim = 784
+    n_hidden = config["n_hidden"]
+    
+    # Get new random keys for this cluster
+    w1_key = next(key_gen).get()
+    w2_key = next(key_gen).get()
+    
+    # Reinitialize only the weights for the specified cluster
+    new_l1_w = params['l1_w'].at[cluster_idx].set(
+        jax.random.normal(w1_key, (input_dim, n_hidden)) * jnp.sqrt(2./input_dim)
+    )
+    new_l1_b = params['l1_b'].at[cluster_idx].set(jnp.zeros(n_hidden))
+    new_l2_w = params['l2_w'].at[cluster_idx].set(
+        jax.random.normal(w2_key, (n_hidden, 2)) * jnp.sqrt(2./n_hidden)
+    )
+    new_l2_b = params['l2_b'].at[cluster_idx].set(jnp.zeros(2))
+    
+    new_params = {
+        'l1_w': new_l1_w,
+        'l1_b': new_l1_b,
+        'l2_w': new_l2_w,
+        'l2_b': new_l2_b
+    }
+    
+    return new_params
+
 # KEEPING YOUR WORKING MODEL FUNCTIONS
 def mlp_single_label(params: Dict[str, Array], x: Array) -> Array:
     """Simple MLP forward pass for a single sample using a flat dictionary for parameters."""
@@ -92,8 +121,8 @@ def mlp_batch(params: Dict[str, Array], x: Array) -> Array:
 def get_K(params: Dict[str, Array], x: Array, key: Array) -> Array:
     """Get cluster assignment for a single sample."""
     y_hat_logits = mlp(params, x)[:, 1]
-    # return jax.random.categorical(key, y_hat_logits)
-    return jnp.argmax(y_hat_logits)
+    return jax.random.categorical(key, y_hat_logits)
+    # return jnp.argmax(y_hat_logits)
 
 def get_K_batch(params: Dict[str, Array], x: Array, key: Array) -> Array:
     """Get cluster assignments for a batch of samples."""
@@ -109,7 +138,7 @@ def get_probabilities_batch(params: Dict[str, Array], x: Array) -> Array:
     """Get probability distributions across all K labels for a batch of samples."""
     return jax.jit(jax.vmap(get_probabilities, in_axes=(None, 0)))(params, x)
 
-# KEEPING YOUR WORKING LOSS FUNCTIONS
+# MODIFIED LOSS FUNCTIONS
 def loss_fn_symbol(params: Dict[str, Array], x: Array, d: Array) -> Array:
     """Cross-entropy loss function for a single sample."""
     logits = mlp_single_label(params, x)
@@ -120,16 +149,27 @@ def loss_fn(params: Dict[str, Array], x: Array, ds: Array) -> Array:
     """Loss function for multiple samples."""
     return jnp.mean(jax.vmap(loss_fn_symbol, in_axes=(0, None, 0))(params, x, ds))
 
-def loss_batch(params: Dict[str, Array], xs: Array, ys: Array) -> Array:
-    """Batch loss function."""
-    y_one_hot = jax.nn.one_hot(ys, num_classes=10)
-    dss = jnp.stack([1 - y_one_hot, y_one_hot], axis=-1)
-    return jnp.mean(jax.vmap(loss_fn, in_axes=(None, 0, 0))(params, xs, dss))
+def loss_batch_modified(params: Dict[str, Array], xs: Array, selected_k: Array) -> Array:
+    """Modified batch loss function - uses [0.5, 0.5] for unmatched clusters instead of 0."""
+    batch_size = xs.shape[0]
+    K = config["K"]
+    
+    # Create target distributions - default to [0.5, 0.5] for all
+    target_distributions = jnp.full((batch_size, K, 2), 0.5)
+    
+    # For each sample, if cluster x is assigned (selected_k[i] == x), set target to [0, 1]
+    # Otherwise keep [0.5, 0.5]
+    for i in range(batch_size):
+        assigned_cluster = selected_k[i]
+        # Set target distribution for the assigned cluster to [0, 1]
+        target_distributions = target_distributions.at[i, assigned_cluster].set(jnp.array([0.0, 1.0]))
+    
+    return jnp.mean(jax.vmap(loss_fn, in_axes=(None, 0, 0))(params, xs, target_distributions))
 
 @jax.jit
-def train_step(params: Dict[str, Array], optimizer_state: Any, x: Array, y: Array) -> Tuple[Dict[str, Array], Any, Array, Any]:
-    """Performs a single training step."""
-    loss, grads = jax.value_and_grad(loss_batch)(params, x, y)
+def train_step(params: Dict[str, Array], optimizer_state: Any, x: Array, selected_k: Array) -> Tuple[Dict[str, Array], Any, Array, Any]:
+    """Modified training step using the new loss function."""
+    loss, grads = jax.value_and_grad(loss_batch_modified)(params, x, selected_k)
     updates, optimizer_state = optimizer.update(grads, optimizer_state, params)
     params = optax.apply_updates(params, updates)
     return params, optimizer_state, loss, grads
@@ -169,6 +209,10 @@ if __name__ == "__main__":
     optimizer = optax.adam(config["learning_rate"])
     opt_state = optimizer.init(params)
     
+    # Initialize cluster tracking for reinitialization
+    cluster_unused_count = np.zeros(config["K"], dtype=int)
+    reinit_threshold = config["reinit_threshold"]
+    
     # Training loop
     logging.info("Starting training...")
     start_time = time.perf_counter()
@@ -200,7 +244,26 @@ if __name__ == "__main__":
         batch_key = next(key_gen).get()
         k = get_K_batch(params, batch_x, batch_key)
         
-        # Training step
+        # Track which clusters are assigned in this batch
+        assigned_clusters = np.unique(np.array(k))
+        
+        # Update unused counts
+        cluster_unused_count += 1  # Increment all clusters
+        cluster_unused_count[assigned_clusters] = 0  # Reset assigned clusters
+        
+        # Check for clusters that need reinitialization
+        clusters_to_reinit = np.where(cluster_unused_count >= reinit_threshold)[0]
+        
+        if len(clusters_to_reinit) > 0:
+            logging.info(f"Reinitializing clusters {clusters_to_reinit} at batch {batch}")
+            for cluster_idx in clusters_to_reinit:
+                params = reinitialize_cluster(params, cluster_idx, key_gen, config)
+                cluster_unused_count[cluster_idx] = 0
+                
+                # Reinitialize optimizer state for the reinitialized cluster weights
+                opt_state = optimizer.init(params)
+        
+        # Training step with modified loss (passes selected_k)
         params, opt_state, loss_value, grads = train_step(params, opt_state, batch_x, k)
         
         # Compute accuracy for this batch
@@ -236,7 +299,7 @@ if __name__ == "__main__":
             logging.info(f"Animation frame collected - Batch {batch}/{num_batches}, Loss: {loss_value:.4f}")
         
         if batch % 100 == 0:
-            logging.info(f"Batch {batch}/{num_batches}, Loss: {loss_value:.4f}, Accuracy: {batch_accuracy:.4f}")
+            logging.info(f"Batch {batch}/{num_batches}, Loss: {loss_value:.4f}, Accuracy: {batch_accuracy:.4f}, Unused counts: {cluster_unused_count}")
     
     # Safety check for division by zero
     if num_batches > 0:
@@ -261,6 +324,7 @@ if __name__ == "__main__":
     all_cluster_counts = np.bincount(all_cluster_assignments, minlength=10)
     
     logging.info(f"Cluster distribution: {all_cluster_counts}")
+    logging.info(f"Final unused counts: {cluster_unused_count}")
     
     # Create all visualizations using the unified function
     logging.info("Creating all clustering visualizations...")
