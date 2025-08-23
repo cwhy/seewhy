@@ -21,7 +21,9 @@ from projects.kmeans.visualize import (
     plot_final_probabilities,
     create_clustering_visualization,
     create_clustering_visualization_generative,
-    create_probability_animation_with_reconstructions
+    create_probability_animation_with_reconstructions,
+    sample_cluster_examples,
+    plot_cluster_samples_grid
 )
 
 def generate_uid() -> str:
@@ -36,21 +38,22 @@ print(f"Run UID: {run_uid}")
 logging.basicConfig(level=logging.INFO)
 
 # Global constants
-K = 10  # Number of clusters
+K = 15  # Number of clusters
 USE_CLUSTER_BASED_LOSS = True  # True: cluster-based sum, False: direct mean
+input_dim = 784
 
 def init() -> Tuple[Dict[str, Any], Dict[str, Array], Any]:
     """Initialize VAE parameters for K clusters using tensors"""
 
     config = {
         "dataset_name": "mnist",
-        "batch_size": 128,
+        "batch_size": 1024,
         "learning_rate": 1e-3,
         "random_seed": 2,
         "img_dims": (28, 28),  # Image dimensions
-        "K": 10,  # Number of clusters
+        "K": K,  # Number of clusters
         "n_samples": 60000,
-        "latent_dim": 32,  # VAE latent dimension
+        "latent_dim": 16,  # VAE latent dimension
         "n_hidden": 128,  # Hidden layer dimension for encoder/decoder
     }
     
@@ -58,8 +61,6 @@ def init() -> Tuple[Dict[str, Any], Dict[str, Array], Any]:
     key_gen = infinite_safe_keys_from_key(key)
     
     # For MNIST, we know the flattened input dimension is 28*28 = 784
-    input_dim = 784
-    K = config["K"]
     n_hidden = config["n_hidden"]
     latent_dim = config["latent_dim"]
     
@@ -341,7 +342,7 @@ if __name__ == "__main__":
             all_key = next(key_gen).get()
             all_training_probabilities = get_probabilities_batch(params, X_train, all_key)
             all_cluster_assignments = np.argmax(all_training_probabilities, axis=1)
-            all_cluster_counts = np.bincount(all_cluster_assignments, minlength=10)
+            all_cluster_counts = np.bincount(all_cluster_assignments, minlength=K)
             
             # Generate reconstructions for animation examples using current parameters
             example_cluster_assignments = np.argmax(example_probabilities, axis=1)
@@ -362,7 +363,16 @@ if __name__ == "__main__":
             logging.info(f"Animation frame collected - Batch {batch}/{num_batches}, Loss: {loss_value:.4f}")
         
         if batch % 100 == 0:
+            # Calculate current cluster distribution for all training data processed so far
+            current_key = next(key_gen).get()
+            current_probabilities = get_probabilities_batch(params, X_train[:end_idx], current_key)
+            current_assignments = np.argmax(current_probabilities, axis=1)
+            current_cluster_counts = np.bincount(current_assignments, minlength=K)
+            non_empty = np.sum(current_cluster_counts > 0)
+            
             logging.info(f"Batch {batch}/{num_batches}, Loss: {loss_value:.4f}, Accuracy: {batch_accuracy:.4f}")
+            logging.info(f"  Cluster distribution: {current_cluster_counts}")
+            logging.info(f"  Non-empty clusters: {non_empty}/{K} ({non_empty/K*100:.1f}%)")
     
     # Safety check for division by zero
     if num_batches > 0:
@@ -386,9 +396,18 @@ if __name__ == "__main__":
     final_all_key = next(key_gen).get()
     all_training_probabilities = get_probabilities_batch(params, X_train, final_all_key)
     all_cluster_assignments = np.argmax(all_training_probabilities, axis=1)
-    all_cluster_counts = np.bincount(all_cluster_assignments, minlength=10)
+    all_cluster_counts = np.bincount(all_cluster_assignments, minlength=K)
     
-    logging.info(f"Cluster distribution: {all_cluster_counts}")
+    logging.info(f"Final cluster distribution: {all_cluster_counts}")
+    logging.info(f"Total samples distributed: {np.sum(all_cluster_counts)}")
+    
+    # Show cluster usage percentage
+    cluster_percentages = all_cluster_counts / np.sum(all_cluster_counts) * 100
+    logging.info(f"Cluster usage percentages: {cluster_percentages}")
+    
+    # Count non-empty clusters
+    non_empty_clusters = np.sum(all_cluster_counts > 0)
+    logging.info(f"Number of non-empty clusters: {non_empty_clusters}/{K}")
     
     # Get final cluster assignments for examples
     final_example_key = next(key_gen).get()
@@ -414,6 +433,24 @@ if __name__ == "__main__":
         cluster_assignments=final_example_cluster_assignments,
         reconstruction_frames=reconstruction_frames
         # output_dir defaults to outputs/yy-mm-dd/
+    )
+    
+    # Create cluster sample grid visualization
+    logging.info("Creating cluster sample grid visualization...")
+    sampled_images, sampled_labels = sample_cluster_examples(
+        X_train=X_train,
+        y_train=y_train,
+        cluster_assignments=all_cluster_assignments,
+        n_samples_per_cluster=5,
+        K=K
+    )
+    
+    plot_cluster_samples_grid(
+        sampled_images=sampled_images,
+        sampled_labels=sampled_labels,
+        run_uid=run_uid,
+        K=K,
+        n_samples_per_cluster=5
     )
     
     logging.info(f"All visualizations created and saved to: {all_saved_files}")

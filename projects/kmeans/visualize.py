@@ -61,7 +61,7 @@ def create_mnist_image_axis(fig, gs, row, col_start, img_data, example_num, true
     return ax_img
 
 
-def create_probability_axis(fig, gs, row, col_start, remove_borders=True, span_columns=1):
+def create_probability_axis(fig, gs, row, col_start, remove_borders=True, span_columns=1, K=15):
     """
     Create a probability subplot with proper formatting.
     
@@ -72,6 +72,7 @@ def create_probability_axis(fig, gs, row, col_start, remove_borders=True, span_c
         col_start: starting column index
         remove_borders: whether to remove right and top axis borders
         span_columns: number of columns to span (default: 1, use 2 for wider plots)
+        K: number of clusters
         
     Returns:
         matplotlib axis object
@@ -84,9 +85,9 @@ def create_probability_axis(fig, gs, row, col_start, remove_borders=True, span_c
     ax_prob.set_xlabel('Cluster Label')
     # Remove y-label to save space
     ax_prob.set_ylim(0, 100)  # Use percentage scale (0-100%)
-    ax_prob.set_xlim(-0.5, 9.5)
-    ax_prob.set_xticks(range(10))
-    ax_prob.set_xticklabels([f'C{j}' for j in range(10)])
+    ax_prob.set_xlim(-0.5, K-0.5)
+    ax_prob.set_xticks(range(K))
+    ax_prob.set_xticklabels([f'C{j}' for j in range(K)])
     
     if remove_borders:
         # Remove right and top axis borders
@@ -96,7 +97,7 @@ def create_probability_axis(fig, gs, row, col_start, remove_borders=True, span_c
     return ax_prob
 
 
-def create_cluster_distribution_axis(fig, gs, title, remove_borders=True):
+def create_cluster_distribution_axis(fig, gs, title, remove_borders=True, K=15):
     """
     Create a cluster distribution subplot spanning all rows.
     
@@ -105,6 +106,7 @@ def create_cluster_distribution_axis(fig, gs, title, remove_borders=True):
         gs: GridSpec object
         title: title for the plot
         remove_borders: whether to remove right and top axis borders
+        K: number of clusters
         
     Returns:
         matplotlib axis object
@@ -113,9 +115,9 @@ def create_cluster_distribution_axis(fig, gs, title, remove_borders=True):
     ax_dist.set_title(title, fontsize=12)
     ax_dist.set_xlabel('Cluster Label')
     ax_dist.set_ylabel('Number of Items')
-    ax_dist.set_xlim(-0.5, 9.5)
-    ax_dist.set_xticks(range(10))
-    ax_dist.set_xticklabels([f'C{j}' for j in range(10)])
+    ax_dist.set_xlim(-0.5, K-0.5)
+    ax_dist.set_xticks(range(K))
+    ax_dist.set_xticklabels([f'C{j}' for j in range(K)])
     
     if remove_borders:
         # Remove right and top axis borders
@@ -153,7 +155,7 @@ def create_image_probability_grid(fig, gs, X_examples, y_examples, create_prob_a
         image_axes.append(ax_img)
         
         # Create probability axis using common function - spans 2 columns for more space
-        ax_prob = create_probability_axis(fig, gs, row, col_start + 1, remove_borders=True, span_columns=2)
+        ax_prob = create_probability_axis(fig, gs, row, col_start + 1, remove_borders=True, span_columns=2, K=15)
         prob_axes.append(ax_prob)
         prob_axes_refs.append(ax_prob)
     
@@ -174,11 +176,11 @@ def setup_animation_probability_axis(fig, gs, row, col_start):
         tuple: (axis, bars)
     """
     # Create probability axis using common function - spans 2 columns for more space
-    ax_prob = create_probability_axis(fig, gs, row, col_start, remove_borders=True, span_columns=2)
+    ax_prob = create_probability_axis(fig, gs, row, col_start, remove_borders=True, span_columns=2, K=15)
     
     # Initialize bars with wider spacing
-    bar_heights = np.zeros(10)
-    bars = ax_prob.bar(range(10), bar_heights, alpha=0.7, color='skyblue', width=0.8)
+    bar_heights = np.zeros(15)
+    bars = ax_prob.bar(range(15), bar_heights, alpha=0.7, color='skyblue', width=0.8)
     
     return ax_prob, bars
 
@@ -198,11 +200,12 @@ def setup_static_probability_axis(fig, gs, row, col_start, probabilities):
         tuple: (axis, bars)
     """
     # Create probability axis using common function - spans 2 columns for more space
-    ax_prob = create_probability_axis(fig, gs, row, col_start, remove_borders=True, span_columns=2)
+    K = len(probabilities)
+    ax_prob = create_probability_axis(fig, gs, row, col_start, remove_borders=True, span_columns=2, K=K)
     
     # Create bars with final probabilities (convert to percentages)
     probabilities_percent = probabilities * 100
-    bars = ax_prob.bar(range(10), probabilities_percent, alpha=0.7, color='lightcoral', width=0.8)
+    bars = ax_prob.bar(range(K), probabilities_percent, alpha=0.7, color='lightcoral', width=0.8)
     
     # Highlight the maximum probability
     max_idx = np.argmax(probabilities)
@@ -241,13 +244,14 @@ def create_mnist_probability_pair(fig, gs, row, col_start, img_data, example_num
     ax_img = create_mnist_image_axis(fig, gs, row, col_start, img_data, example_num, true_label)
     
     # Create probability axis using common function - spans 2 columns for more space
-    ax_prob = create_probability_axis(fig, gs, row, col_start + 1, remove_borders=True, span_columns=2)
+    K = len(probabilities) if probabilities is not None else 15
+    ax_prob = create_probability_axis(fig, gs, row, col_start + 1, remove_borders=True, span_columns=2, K=K)
     
     bars = None
     if not is_animation and probabilities is not None:
         # For static plots, create bars with probabilities (convert to percentages)
         probabilities_percent = probabilities * 100
-        bars = ax_prob.bar(range(10), probabilities_percent, alpha=0.7, color='lightcoral', width=0.8)
+        bars = ax_prob.bar(range(K), probabilities_percent, alpha=0.7, color='lightcoral', width=0.8)
         
         # Highlight the maximum probability
         max_idx = np.argmax(probabilities)
@@ -311,7 +315,8 @@ def create_probability_animation_with_reconstructions(
     params: Dict[str, Any],
     key_gen: Any,
     save_path: str = None, 
-    title: str = "MNIST Clustering with VAE Reconstructions"
+    title: str = "MNIST Clustering with VAE Reconstructions",
+    K: int = None
 ) -> None:
     """
     Create an animation showing probability evolution for 12 examples with original and reconstructed images.
@@ -324,7 +329,14 @@ def create_probability_animation_with_reconstructions(
         key_gen: Key generator for JAX random operations
         save_path: Path to save the animation
         title: Title for the animation
+        K: Number of clusters (if None, will be inferred from animation_frames)
     """
+    
+    # Infer K from the data if not provided
+    if K is None:
+        if not animation_frames:
+            raise ValueError("K must be provided if animation_frames is empty")
+        K = len(animation_frames[0]['cluster_counts'])
     # Import JAX functions for reconstruction
     import jax
     import jax.numpy as jnp
@@ -365,20 +377,20 @@ def create_probability_animation_with_reconstructions(
         ax_prob = fig.add_subplot(gs[row, col_start + 1:col_start + 4])
         ax_prob.set_xlabel('Cluster Label')
         ax_prob.set_ylim(0, 100)  # Use percentage scale (0-100%)
-        ax_prob.set_xlim(-0.5, 9.5)
-        ax_prob.set_xticks(range(10))
-        ax_prob.set_xticklabels([f'C{j}' for j in range(10)])
+        ax_prob.set_xlim(-0.5, K-0.5)
+        ax_prob.set_xticks(range(K))
+        ax_prob.set_xticklabels([f'C{j}' for j in range(K)])
         ax_prob.spines['right'].set_visible(False)
         ax_prob.spines['top'].set_visible(False)
         
         prob_axes.append(ax_prob)
         
         # Initialize bars
-        bar_heights = np.zeros(10)
-        bars.append(ax_prob.bar(range(10), bar_heights, alpha=0.7, color='skyblue', width=0.8))
+        bar_heights = np.zeros(K)
+        bars.append(ax_prob.bar(range(K), bar_heights, alpha=0.7, color='skyblue', width=0.8))
         
         # Initialize text objects for this axis
-        text_objects.append([ax_prob.text(0, 0, '', ha='center', va='bottom', fontsize=7) for _ in range(10)])
+        text_objects.append([ax_prob.text(0, 0, '', ha='center', va='bottom', fontsize=7) for _ in range(K)])
         
         # Create reconstruction image (bottom half, same column structure)
         recon_row = row + 4  # Move to bottom half
@@ -399,14 +411,14 @@ def create_probability_animation_with_reconstructions(
     ax_dist.set_title('Cluster Distribution (All Training Samples)', fontsize=12)
     ax_dist.set_xlabel('Cluster Label')
     ax_dist.set_ylabel('Number of Items')
-    ax_dist.set_xlim(-0.5, 9.5)
-    ax_dist.set_xticks(range(10))
-    ax_dist.set_xticklabels([f'C{j}' for j in range(10)])
+    ax_dist.set_xlim(-0.5, K-0.5)
+    ax_dist.set_xticks(range(K))
+    ax_dist.set_xticklabels([f'C{j}' for j in range(K)])
     ax_dist.spines['right'].set_visible(False)
     ax_dist.spines['top'].set_visible(False)
     
     # Initialize cluster distribution bars
-    dist_bars = ax_dist.bar(range(10), np.zeros(10), alpha=0.7, color='lightgreen', width=0.8)
+    dist_bars = ax_dist.bar(range(K), np.zeros(K), alpha=0.7, color='lightgreen', width=0.8)
     
     def animate(frame_idx):
         frame = animation_frames[frame_idx]
@@ -573,7 +585,8 @@ def create_probability_animation(
     save_path: str = None, 
     title: str = "MNIST Clustering Probability Evolution",
     show_reconstructions: bool = False,
-    reconstruction_frames: List[np.ndarray] = None
+    reconstruction_frames: List[np.ndarray] = None,
+    K: int = None
 ) -> None:
     """
     Create an animation showing probability evolution for 12 examples with sample images.
@@ -586,7 +599,15 @@ def create_probability_animation(
         title: Title for the animation
         show_reconstructions: Whether to show reconstructed images below originals
         reconstruction_frames: List of reconstruction arrays for each frame (shape: frames x 12 x 784)
+        K: Number of clusters (if None, will be inferred from animation_frames)
     """
+    
+    # Infer K from the data if not provided
+    if K is None:
+        if not animation_frames:
+            raise ValueError("K must be provided if animation_frames is empty")
+        K = len(animation_frames[0]['cluster_counts'])
+    
     # Use default save path if none provided
     if save_path is None:
         output_dir = get_default_output_dir()
@@ -665,20 +686,20 @@ def create_probability_animation(
         # Set up probability axis
         ax_prob.set_xlabel('Cluster Label')
         ax_prob.set_ylim(0, 100)  # Use percentage scale (0-100%)
-        ax_prob.set_xlim(-0.5, 9.5)
-        ax_prob.set_xticks(range(10))
-        ax_prob.set_xticklabels([f'C{j}' for j in range(10)])
+        ax_prob.set_xlim(-0.5, K-0.5)
+        ax_prob.set_xticks(range(K))
+        ax_prob.set_xticklabels([f'C{j}' for j in range(K)])
         ax_prob.spines['right'].set_visible(False)
         ax_prob.spines['top'].set_visible(False)
         
         prob_axes.append(ax_prob)
         
         # Initialize bars
-        bar_heights = np.zeros(10)
-        bars.append(ax_prob.bar(range(10), bar_heights, alpha=0.7, color='skyblue', width=0.8))
+        bar_heights = np.zeros(K)
+        bars.append(ax_prob.bar(range(K), bar_heights, alpha=0.7, color='skyblue', width=0.8))
         
         # Initialize text objects for this axis
-        text_objects.append([ax_prob.text(0, 0, '', ha='center', va='bottom', fontsize=7) for _ in range(10)])
+        text_objects.append([ax_prob.text(0, 0, '', ha='center', va='bottom', fontsize=7) for _ in range(K)])
     
     # Add cluster distribution plot on the right side
     if show_reconstructions:
@@ -689,14 +710,14 @@ def create_probability_animation(
     ax_dist.set_title('Cluster Distribution (All Training Samples)', fontsize=12)
     ax_dist.set_xlabel('Cluster Label')
     ax_dist.set_ylabel('Number of Items')
-    ax_dist.set_xlim(-0.5, 9.5)
-    ax_dist.set_xticks(range(10))
-    ax_dist.set_xticklabels([f'C{j}' for j in range(10)])
+    ax_dist.set_xlim(-0.5, K-0.5)
+    ax_dist.set_xticks(range(K))
+    ax_dist.set_xticklabels([f'C{j}' for j in range(K)])
     ax_dist.spines['right'].set_visible(False)
     ax_dist.spines['top'].set_visible(False)
     
     # Initialize cluster distribution bars
-    dist_bars = ax_dist.bar(range(10), np.zeros(10), alpha=0.7, color='lightgreen', width=0.8)
+    dist_bars = ax_dist.bar(range(K), np.zeros(K), alpha=0.7, color='lightgreen', width=0.8)
     
     def animate(frame_idx):
         frame = animation_frames[frame_idx]
@@ -951,10 +972,11 @@ def plot_final_probabilities(
         all_bars.append(bars)
     
     # Add cluster distribution plot on the right side using common function
-    ax_dist = create_cluster_distribution_axis(fig, gs, 'Final Cluster Distribution (All Training Samples)')
+    K = len(all_cluster_counts)
+    ax_dist = create_cluster_distribution_axis(fig, gs, 'Final Cluster Distribution (All Training Samples)', K=K)
     
     # Plot cluster distribution using pre-calculated data
-    dist_bars = ax_dist.bar(range(10), all_cluster_counts, alpha=0.7, color='lightgreen', width=0.8)
+    dist_bars = ax_dist.bar(range(K), all_cluster_counts, alpha=0.7, color='lightgreen', width=0.8)
     total_samples = np.sum(all_cluster_counts)
     ax_dist.set_title(f'Final Cluster Distribution (Total: {total_samples})', fontsize=12)
     
@@ -1591,6 +1613,136 @@ def create_clustering_visualization_generative(
     return saved_files
 
 
+def sample_cluster_examples(
+    X_train: np.ndarray,
+    y_train: np.ndarray,
+    cluster_assignments: np.ndarray,
+    n_samples_per_cluster: int = 5,
+    K: int = 15
+) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Sample random examples from each cluster.
+    
+    Args:
+        X_train: Training images (N, 784)
+        y_train: True labels for training images (N,)
+        cluster_assignments: Assigned cluster for each training image (N,)
+        n_samples_per_cluster: Number of samples to draw from each cluster
+        K: Number of clusters
+        
+    Returns:
+        tuple: (sampled_images, sampled_labels) where each has shape (K, n_samples_per_cluster, ...)
+    """
+    sampled_images = np.zeros((K, n_samples_per_cluster, 784))
+    sampled_labels = np.zeros((K, n_samples_per_cluster), dtype=int)
+    
+    for k in range(K):
+        # Find all samples assigned to cluster k
+        cluster_mask = cluster_assignments == k
+        cluster_indices = np.where(cluster_mask)[0]
+        
+        if len(cluster_indices) > 0:
+            # Sample n_samples_per_cluster indices (with replacement if necessary)
+            if len(cluster_indices) >= n_samples_per_cluster:
+                sampled_indices = np.random.choice(cluster_indices, n_samples_per_cluster, replace=False)
+            else:
+                sampled_indices = np.random.choice(cluster_indices, n_samples_per_cluster, replace=True)
+            
+            sampled_images[k] = X_train[sampled_indices]
+            sampled_labels[k] = y_train[sampled_indices]
+        else:
+            # Empty cluster - fill with zeros and label -1
+            sampled_labels[k] = -1
+    
+    return sampled_images, sampled_labels
+
+
+def plot_cluster_samples_grid(
+    sampled_images: np.ndarray,
+    sampled_labels: np.ndarray,
+    run_uid: str,
+    K: int = 15,
+    n_samples_per_cluster: int = 5,
+    save_path: str = None
+) -> None:
+    """
+    Create a KxN grid plot showing N samples from each of K clusters.
+    
+    Args:
+        sampled_images: Sampled images (K, n_samples_per_cluster, 784)
+        sampled_labels: True labels for sampled images (K, n_samples_per_cluster)
+        run_uid: Unique identifier for this run
+        K: Number of clusters
+        n_samples_per_cluster: Number of samples per cluster
+        save_path: Path to save the plot
+    """
+    fig = plt.figure(figsize=(15, 20))
+    fig.suptitle(f'Cluster Sample Grid: 5 Examples from Each Cluster (Run: {run_uid})', fontsize=16)
+    
+    # Create a K x n_samples_per_cluster grid
+    gs = fig.add_gridspec(K, n_samples_per_cluster, hspace=0.3, wspace=0.1)
+    
+    for k in range(K):
+        for s in range(n_samples_per_cluster):
+            ax = fig.add_subplot(gs[k, s])
+            
+            # Get the sample image and label
+            sample_img = sampled_images[k, s].reshape(28, 28)
+            sample_label = sampled_labels[k, s]
+            
+            # Display the image
+            ax.imshow(sample_img, cmap='gray', interpolation='nearest', aspect='equal')
+            
+            # Set title with cluster and true label info
+            if sample_label >= 0:
+                ax.set_title(f'Label: {sample_label}', fontsize=8)
+            else:
+                ax.set_title('Empty', fontsize=8, color='red')
+            
+            ax.axis('off')
+        
+        # Add cluster label on the left
+        fig.text(0.02, 1 - (k + 0.5) / K, f'Cluster {k}', 
+                rotation=90, va='center', ha='center', fontsize=12, weight='bold')
+    
+    plt.subplots_adjust(left=0.08, right=0.95, top=0.93, bottom=0.02)
+    
+    # Use default save path if none provided
+    if save_path is None:
+        output_dir = get_default_output_dir()
+        save_path = os.path.join(output_dir, f"mnist_clustering_sample_grid_{run_uid}.png")
+    
+    # Save plot with upload
+    try:
+        # Save to temporary file in outputs directory first
+        temp_filename = f"temp_{os.path.basename(save_path)}"
+        temp_path = os.path.join(get_default_output_dir(), temp_filename)
+        plt.savefig(temp_path, dpi=150, bbox_inches='tight')
+        
+        # Upload using media.py
+        try:
+            uploaded_url = save_media(save_path, temp_path, content_type='image/png')
+            print(f"Cluster sample grid uploaded: {uploaded_url}")
+        except Exception as upload_error:
+            print(f"Upload failed: {upload_error}")
+            print(f"Cluster sample grid saved locally to {temp_path}")
+        
+        # Clean up temp file
+        try:
+            os.remove(temp_path)
+        except:
+            pass
+            
+    except Exception as e:
+        print(f"Failed to save cluster sample grid: {e}")
+        # Fall back to direct save in outputs directory
+        fallback_path = os.path.join(get_default_output_dir(), os.path.basename(save_path))
+        plt.savefig(fallback_path, dpi=150, bbox_inches='tight')
+        print(f"Cluster sample grid saved locally to: {fallback_path}")
+    
+    plt.close()
+
+
 def plot_generative_comparison(
     final_probabilities: np.ndarray,
     X_examples: np.ndarray,
@@ -1635,11 +1787,12 @@ def plot_generative_comparison(
         )
         
         # Create probability axis (spans 2 columns for more space)
-        ax_prob = create_probability_axis(fig, gs, row, col_start + 2, remove_borders=True, span_columns=2)
+        K = len(final_probabilities[i])  # Get K from the probabilities shape
+        ax_prob = create_probability_axis(fig, gs, row, col_start + 2, remove_borders=True, span_columns=2, K=K)
         
         # Create bars with final probabilities (convert to percentages)
         probabilities_percent = final_probabilities[i] * 100
-        bars = ax_prob.bar(range(10), probabilities_percent, alpha=0.7, color='lightcoral', width=0.8)
+        bars = ax_prob.bar(range(K), probabilities_percent, alpha=0.7, color='lightcoral', width=0.8)
         
         # Highlight the assigned cluster (maximum probability)
         assigned_cluster = cluster_assignments[i]
@@ -1657,16 +1810,16 @@ def plot_generative_comparison(
     ax_dist.set_title('Final Cluster Distribution (All Training Samples)', fontsize=12)
     ax_dist.set_xlabel('Cluster Label')
     ax_dist.set_ylabel('Number of Items')
-    ax_dist.set_xlim(-0.5, 9.5)
-    ax_dist.set_xticks(range(10))
-    ax_dist.set_xticklabels([f'C{j}' for j in range(10)])
+    ax_dist.set_xlim(-0.5, K-0.5)
+    ax_dist.set_xticks(range(K))
+    ax_dist.set_xticklabels([f'C{j}' for j in range(K)])
     
     # Remove right and top axis borders
     ax_dist.spines['right'].set_visible(False)
     ax_dist.spines['top'].set_visible(False)
     
     # Plot cluster distribution using pre-calculated data
-    dist_bars = ax_dist.bar(range(10), all_cluster_counts, alpha=0.7, color='lightgreen', width=0.8)
+    dist_bars = ax_dist.bar(range(K), all_cluster_counts, alpha=0.7, color='lightgreen', width=0.8)
     total_samples = np.sum(all_cluster_counts)
     ax_dist.set_title(f'Final Cluster Distribution (Total: {total_samples})', fontsize=12)
     
