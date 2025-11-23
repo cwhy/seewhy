@@ -66,6 +66,11 @@ def create_accuracy_dict(train_acc: Optional[float], test_acc: Optional[float]) 
     return acc_dict
 
 
+def compute_avg_loss(losses: List[float]) -> float:
+    """Pure function to compute average loss."""
+    return float(sum(losses) / len(losses)) if losses else 0.0
+
+
 def plot_loss(epoch_losses: List[float], plot_title: str = "Training Loss") -> Figure:
     """
     Pure function to create a loss plot figure using subplots.
@@ -167,6 +172,7 @@ class LossMonitor:
         self.epoch_accuracies: List[Dict[str, float]] = []  # Can store train/test accuracies
         self.current_epoch = 0
         self.current_batch = 0
+        self.current_epoch_batch_losses: List[float] = []  # Track batch losses for current epoch
     
     def record_batch_loss_(self, loss: float, batch_idx: int, verbose: bool = False) -> None:
         """
@@ -177,7 +183,9 @@ class LossMonitor:
             batch_idx: Current batch index
             verbose: Whether to log batch-level information
         """
-        self.batch_losses.append(float(loss))
+        loss_val = float(loss)
+        self.batch_losses.append(loss_val)
+        self.current_epoch_batch_losses.append(loss_val)
         self.current_batch = batch_idx + 1
         
         if verbose and should_log_batch(batch_idx, self.log_interval):
@@ -187,26 +195,37 @@ class LossMonitor:
         """Start tracking a new epoch. Mutates internal state."""
         self.current_epoch = epoch
         self.current_batch = 0
+        self.current_epoch_batch_losses = []  # Reset batch losses for new epoch
+    
+    def compute_current_epoch_avg_loss(self) -> float:
+        """
+        Compute average loss for the current epoch from batch losses.
+        Pure function relative to current_epoch_batch_losses.
+        
+        Returns:
+            Average loss for the current epoch
+        """
+        return compute_avg_loss(self.current_epoch_batch_losses)
     
     def record_epoch_loss_(
         self,
         epoch: int,
-        avg_loss: float,
         train_acc: Optional[float] = None,
         test_acc: Optional[float] = None,
         verbose: bool = True
     ) -> None:
         """
-        Record loss and metrics for an epoch. Mutates internal state.
+        Record loss and metrics for an epoch. Computes avg_loss from batch losses.
+        Mutates internal state.
         
         Args:
             epoch: Current epoch number (0-indexed)
-            avg_loss: Average loss for this epoch
             train_acc: Training accuracy (optional)
             test_acc: Test accuracy (optional)
             verbose: Whether to log epoch-level information
         """
-        self.epoch_losses.append(float(avg_loss))
+        avg_loss = self.compute_current_epoch_avg_loss()
+        self.epoch_losses.append(avg_loss)
         acc_dict = create_accuracy_dict(train_acc, test_acc)
         self.epoch_accuracies.append(acc_dict)
         
@@ -217,19 +236,19 @@ class LossMonitor:
     def log_loss_acc_(
         self,
         epoch: int,
-        avg_loss: float,
         train_acc: Optional[float] = None,
         test_acc: Optional[float] = None
     ) -> None:
         """
-        Log loss and accuracy for an epoch using logger. Has side effects (logging).
+        Log loss and accuracy for an epoch using logger. Computes avg_loss from batch losses.
+        Has side effects (logging).
         
         Args:
             epoch: Current epoch number (0-indexed)
-            avg_loss: Average loss for this epoch
             train_acc: Training accuracy (optional)
             test_acc: Test accuracy (optional)
         """
+        avg_loss = self.compute_current_epoch_avg_loss()
         acc_str = format_accuracy_str(train_acc, test_acc)
         logger.info(f"Epoch {epoch + 1}: Loss = {avg_loss:.4f}{acc_str}")
     
@@ -367,4 +386,5 @@ class LossMonitor:
         self.epoch_accuracies.clear()
         self.current_epoch = 0
         self.current_batch = 0
+        self.current_epoch_batch_losses.clear()
 
