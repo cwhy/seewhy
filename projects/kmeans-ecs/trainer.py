@@ -23,14 +23,13 @@ class SamplerProtocol(Protocol):
         ...
 
 
-class TrainStepProtocol(Protocol):
-    """Protocol interface for training step functions."""
+class ParamUpdateProtocol(Protocol):
+    """Protocol interface for parameter update objects."""
     
-    def __call__(
+    def train_batch(
         self,
         params: Dict[str, Array],
-        batch: Dict[str, Array],
-        **kwargs
+        batch: Dict[str, Array]
     ) -> Tuple[Dict[str, Array], Array]:
         """
         Execute a training step.
@@ -38,17 +37,11 @@ class TrainStepProtocol(Protocol):
         Args:
             params: Model parameters
             batch: Dictionary of JAX arrays (e.g., {'X': Array, 'y': Array})
-            **kwargs: Additional arguments (e.g., lr for learning rate)
         
         Returns:
             (updated_params, loss)
         """
         ...
-
-
-def compute_avg_loss(losses: List[float]) -> float:
-    """Pure function to compute average loss."""
-    return float(sum(losses) / len(losses)) if losses else 0.0
 
 
 class Trainer:
@@ -60,10 +53,9 @@ class Trainer:
     def __init__(
         self,
         sampler: SamplerProtocol,
-        train_step: TrainStepProtocol,
-        learning_rate: float,
+        param_update: ParamUpdateProtocol,
         on_epoch_start: Optional[Callable[[int], None]] = None,
-        on_epoch_end: Optional[Callable[[int, float, Dict[str, Array]], None]] = None,
+        on_epoch_end: Optional[Callable[[int, Dict[str, Array]], None]] = None,
         on_batch_start: Optional[Callable[[BatchMetadata], None]] = None,
         on_batch_end: Optional[Callable[[BatchMetadata, float], None]] = None
     ):
@@ -72,16 +64,14 @@ class Trainer:
         
         Args:
             sampler: Batch sampler (must implement SamplerProtocol)
-            train_step: Training step function (must implement TrainStepProtocol)
-            learning_rate: Learning rate for training
+            param_update: Parameter update object (must implement ParamUpdateProtocol)
             on_epoch_start: Callback called at epoch start (epoch: int)
-            on_epoch_end: Callback called at epoch end (epoch: int, avg_loss: float, params: Dict[str, Array])
+            on_epoch_end: Callback called at epoch end (epoch: int, params: Dict[str, Array])
             on_batch_start: Callback called at batch start (metadata: BatchMetadata)
             on_batch_end: Callback called at batch end (metadata: BatchMetadata, loss: float)
         """
         self.sampler = sampler
-        self.train_step = train_step
-        self.learning_rate = learning_rate
+        self.param_update = param_update
         
         # Callbacks
         self.on_epoch_start = on_epoch_start
@@ -99,14 +89,12 @@ class Trainer:
         Returns:
             Final trained parameters
         """
-        epoch_losses: List[float] = []
         current_epoch = -1
         
         for batch, metadata in self.sampler:
             # Handle epoch start
             if metadata.is_epoch_start:
                 current_epoch = metadata.epoch
-                epoch_losses = []
                 if self.on_epoch_start:
                     self.on_epoch_start(current_epoch)
             
@@ -115,8 +103,7 @@ class Trainer:
                 self.on_batch_start(metadata)
             
             # Training step
-            params, loss = self.train_step(params, batch, lr=self.learning_rate)
-            epoch_losses.append(float(loss))
+            params, loss = self.param_update.train_batch(params, batch)
             
             # Handle batch end
             if self.on_batch_end:
@@ -124,9 +111,8 @@ class Trainer:
             
             # Handle epoch end
             if metadata.is_epoch_end:
-                avg_loss = compute_avg_loss(epoch_losses)
                 if self.on_epoch_end:
-                    self.on_epoch_end(current_epoch, avg_loss, params)
+                    self.on_epoch_end(current_epoch, params)
         
         return params
 
