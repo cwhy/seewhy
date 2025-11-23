@@ -22,3 +22,8 @@ include = ["shared_lib*"]
 
 [tool.uv]
 package = true
+
+[tool.pyright]
+venvPath = "."
+venv = ".venv"
+pythonVersion = "3.12"
