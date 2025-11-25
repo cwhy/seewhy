@@ -26,7 +26,7 @@ from shared_lib.datasets import load_supervised_image
 from shared_lib.random_utils import infinite_safe_keys
 from loss_monitoring import LossMonitor
 from sampler import BatchSampler, BatchMetadata
-from trainer import Trainer
+from feeder import Feeder, LoopStates, ParamUpdateResult, TriggerCallbacks
 
 # Set up logging to output to console
 logging.basicConfig(level=logging.INFO, format='%(message)s')
@@ -68,12 +68,12 @@ def loss_fn(params: Dict[str, Array], data: Dict[str, Array]) -> Array:
 
 
 class ParamUpdate(NamedTuple):
-    """Namedtuple with lr and loss_fn, plus train_batch method."""
+    """Namedtuple with lr and loss_fn, plus batch_update method."""
     lr: float
     loss_fn: Callable[[Dict[str, Array], Dict[str, Array]], Array]
     
     @jax.jit(static_argnames=['self'])
-    def train_batch(self, params: Dict[str, Array], batch: Dict[str, Array]) -> Tuple[Dict[str, Array], Array]:
+    def batch_update(self, params: Dict[str, Array], batch: Dict[str, Array]) -> ParamUpdateResult:
         """Single training step with manual gradient descent."""
         # Compute loss and gradients
         loss, grads = jax.value_and_grad(self.loss_fn)(params, batch)
@@ -84,7 +84,7 @@ class ParamUpdate(NamedTuple):
             'b': params['b'] - self.lr * grads['b']
         }
         
-        return new_params, loss
+        return ParamUpdateResult(params=new_params, outputs={'loss': loss})
 
 
 def compute_predictions(params: Dict[str, Array], X: Array) -> Array:
@@ -160,37 +160,39 @@ if __name__ == "__main__":
     )
     
     # Define callbacks for trainer
-    def on_epoch_start_(epoch: int) -> None:
+    def on_epoch_start_(states: LoopStates) -> None:
         """Callback for epoch start. Has side effects (mutates loss_monitor state)."""
-        loss_monitor.start_epoch_tracking_(epoch)
+        loss_monitor.start_epoch_tracking_(states.metadata)
     
-    def on_epoch_end_(epoch: int, current_params: Dict[str, Array]) -> None:
+    def on_epoch_end_(states: LoopStates) -> None:
         """Callback for epoch end. Has side effects (mutates loss_monitor state)."""
-        # Compute accuracy
-        train_acc = float(accuracy_fn(current_params, train_data['X'], train_data['y']))
-        test_acc = float(accuracy_fn(current_params, test_data['X'], test_data['y']))
-        loss_monitor.record_epoch_loss_(epoch, train_acc, test_acc, verbose=False)
-        loss_monitor.log_loss_acc_(epoch, train_acc, test_acc)
+        train_acc = float(accuracy_fn(states.params, train_data['X'], train_data['y']))
+        test_acc = float(accuracy_fn(states.params, test_data['X'], test_data['y']))
+        loss_monitor.record_epoch_loss_(states.metadata, train_acc, test_acc, verbose=False)
+        loss_monitor.log_loss_acc_(states.metadata, train_acc, test_acc)
     
-    def on_batch_end_(metadata: BatchMetadata, loss: float) -> None:
+    def on_batch_end_(states: LoopStates) -> None:
         """Callback for batch end. Has side effects (mutates loss_monitor state)."""
-        loss_monitor.record_batch_loss_(loss, metadata.batch_idx, verbose=False)
+        loss = float(states.outputs['loss'])
+        loss_monitor.record_batch_loss_(loss, states.metadata, verbose=False)
     
     
-    # Initialize trainer component
-    trainer = Trainer(
+    # Initialize feeder component
+    feeder = Feeder(
         sampler=sampler,
         param_update=ParamUpdate(lr=learning_rate, loss_fn=loss_fn),
-        on_epoch_start=on_epoch_start_,
-        on_epoch_end=on_epoch_end_,
-        on_batch_end=on_batch_end_
+        triggers= {
+            'epoch_start': on_epoch_start_,
+            'epoch_end': on_epoch_end_,
+            'batch_end': on_batch_end_
+        }
     )
     
     # Training loop
     print(f"\nTraining for {num_epochs} epochs...")
     print(f"Batch size: {batch_size}, Learning rate: {learning_rate}")
     
-    params = trainer.train_(params)
+    params = feeder.loop_(params)
     
     # Finalize and plot
     loss_monitor.finalize_and_plot_()

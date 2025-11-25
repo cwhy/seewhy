@@ -18,6 +18,7 @@ import os
 import logging
 from datetime import datetime
 from shared_lib.media import save_media
+from sampler import BatchMetadata
 
 # Use ggplot style for cleaner, more professional plots
 plt.style.use('ggplot')
@@ -174,26 +175,26 @@ class LossMonitor:
         self.current_batch = 0
         self.current_epoch_batch_losses: List[float] = []  # Track batch losses for current epoch
     
-    def record_batch_loss_(self, loss: float, batch_idx: int, verbose: bool = False) -> None:
+    def record_batch_loss_(self, loss: float, metadata: BatchMetadata, verbose: bool = False) -> None:
         """
         Record loss for a batch. Mutates internal state.
         
         Args:
             loss: Loss value for this batch
-            batch_idx: Current batch index
+            metadata: BatchMetadata containing batch information
             verbose: Whether to log batch-level information
         """
         loss_val = float(loss)
         self.batch_losses.append(loss_val)
         self.current_epoch_batch_losses.append(loss_val)
-        self.current_batch = batch_idx + 1
+        self.current_batch = metadata.batch_idx + 1
         
-        if verbose and should_log_batch(batch_idx, self.log_interval):
-            logger.info(f"  Batch {batch_idx + 1}: Loss = {loss:.4f}")
+        if verbose and should_log_batch(metadata.batch_idx, self.log_interval):
+            logger.info(f"  Batch {metadata.batch_idx + 1}: Loss = {loss:.4f}")
     
-    def start_epoch_tracking_(self, epoch: int) -> None:
+    def start_epoch_tracking_(self, metadata: BatchMetadata) -> None:
         """Start tracking a new epoch. Mutates internal state."""
-        self.current_epoch = epoch
+        self.current_epoch = metadata.epoch
         self.current_batch = 0
         self.current_epoch_batch_losses = []  # Reset batch losses for new epoch
     
@@ -209,7 +210,7 @@ class LossMonitor:
     
     def record_epoch_loss_(
         self,
-        epoch: int,
+        metadata: BatchMetadata,
         train_acc: Optional[float] = None,
         test_acc: Optional[float] = None,
         verbose: bool = True
@@ -219,7 +220,7 @@ class LossMonitor:
         Mutates internal state.
         
         Args:
-            epoch: Current epoch number (0-indexed)
+            metadata: BatchMetadata containing epoch information
             train_acc: Training accuracy (optional)
             test_acc: Test accuracy (optional)
             verbose: Whether to log epoch-level information
@@ -231,11 +232,11 @@ class LossMonitor:
         
         if verbose:
             acc_str = format_accuracy_str(train_acc, test_acc)
-            logger.info(f"Epoch {epoch + 1}: Loss = {avg_loss:.4f}{acc_str}")
+            logger.info(f"Epoch {metadata.epoch + 1}: Loss = {avg_loss:.4f}{acc_str}")
     
     def log_loss_acc_(
         self,
-        epoch: int,
+        metadata: BatchMetadata,
         train_acc: Optional[float] = None,
         test_acc: Optional[float] = None
     ) -> None:
@@ -244,13 +245,13 @@ class LossMonitor:
         Has side effects (logging).
         
         Args:
-            epoch: Current epoch number (0-indexed)
+            metadata: BatchMetadata containing epoch information
             train_acc: Training accuracy (optional)
             test_acc: Test accuracy (optional)
         """
         avg_loss = self.compute_current_epoch_avg_loss()
         acc_str = format_accuracy_str(train_acc, test_acc)
-        logger.info(f"Epoch {epoch + 1}: Loss = {avg_loss:.4f}{acc_str}")
+        logger.info(f"Epoch {metadata.epoch + 1}: Loss = {avg_loss:.4f}{acc_str}")
     
     def finalize_and_plot_(self) -> None:
         """
