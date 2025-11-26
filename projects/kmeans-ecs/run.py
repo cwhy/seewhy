@@ -132,8 +132,8 @@ def forward(params: Dict[str, Array], X: Array) -> Array:
     hidden = jnp.dot(X, params["sample_hidden_matrix"])
 
     # Quantize the hidden layer using FSQ
-    # hidden_q = fsq_quantize(hidden)
-    hidden_q = hidden
+    hidden_q = fsq_quantize(hidden)
+    # hidden_q = hidden
 
     # Second layer: map quantized hidden to final sample embedding
     # shape: (batch, d_emb) @ (d_emb, d_emb) -> (batch, d_emb)
@@ -240,11 +240,13 @@ if __name__ == "__main__":
     logger.info("Loading MNIST dataset...")
     # dataset = load_supervised_1d("mnist", n_tr=8)
     dataset = load_supervised_1d("mnist")
+    fashion_dataset = load_supervised_1d("fashion_mnist")
     logger.info(f"Original training samples: {dataset.n_samples}, Test samples: {dataset.X_test.shape[0]}")
     logger.info(f"Input dimension: {dataset.d_x}")
 
     # Remove all digit-1 samples from the training set
-    train_mask = (dataset.y != 1) & (dataset.y != 0) & (dataset.y != 9)
+    # train_mask = (dataset.y != 1) & (dataset.y != 0) & (dataset.y != 9) & (dataset.y != 8) & (dataset.y != 7) 
+    train_mask = (dataset.y == 1) 
     X_train_raw = dataset.X[train_mask]
     n_train = int(X_train_raw.shape[0])
     logger.info(f"Filtered training samples (excluding digit '1'): {n_train}")
@@ -261,14 +263,14 @@ if __name__ == "__main__":
     # Initialize parameters
     logger.info("\nInitializing parameters for matrix decomposition model...")
     key_gen = infinite_safe_keys(42)
-    embedding_dim = 512
-    bottleneck_dim = 64
+    embedding_dim = 1024
+    bottleneck_dim = 1024
     params = init_params(key_gen, input_dim, embedding_dim, bottleneck_dim)
     logger.info(f"Embedding dimension: {embedding_dim}")
     
     # Training hyperparameters
     batch_size = 512
-    num_epochs = 100 
+    num_epochs = 200 
     learning_rate = 0.001
     
     # Initialize loss monitoring component
@@ -279,6 +281,7 @@ if __name__ == "__main__":
         accuracy_plot_filename="accuracy_plot.png",
         track_accuracy=False,
         track_test_loss=True,
+        test_batch_size=1024,
     )
     
     # Initialize batch sampler component
