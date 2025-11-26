@@ -27,3 +27,4 @@ package = true
 venvPath = "."
 venv = ".venv"
 pythonVersion = "3.12"
+stubPath = "typings"

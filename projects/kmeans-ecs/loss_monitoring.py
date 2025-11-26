@@ -19,6 +19,9 @@ import logging
 from datetime import datetime
 from shared_lib.media import save_media
 from sampler import BatchMetadata
+from configs import ParamUpdateResult
+from typing import Callable, Any
+from jax import Array
 
 # Use ggplot style for cleaner, more professional plots
 plt.style.use('ggplot')
@@ -72,13 +75,18 @@ def compute_avg_loss(losses: List[float]) -> float:
     return float(sum(losses) / len(losses)) if losses else 0.0
 
 
-def plot_loss(epoch_losses: List[float], plot_title: str = "Training Loss") -> Figure:
+def plot_loss(
+    epoch_losses: List[float],
+    epoch_test_losses: Optional[List[Optional[float]]] = None,
+    plot_title: str = "Training Loss",
+) -> Figure:
     """
     Pure function to create a loss plot figure using subplots.
     Uses ggplot style for clean, professional appearance.
     
     Args:
-        epoch_losses: List of epoch-average losses
+        epoch_losses: List of epoch-average training losses
+        epoch_test_losses: Optional list of epoch test losses (same length as epoch_losses)
         plot_title: Title for the loss plot
         
     Returns:
@@ -88,7 +96,25 @@ def plot_loss(epoch_losses: List[float], plot_title: str = "Training Loss") -> F
     
     fig, ax = plt.subplots(figsize=(10, 6))
     
-    ax.plot(epochs, losses, 'b-', label='Loss', marker='o', markersize=5, alpha=0.8)
+    ax.plot(epochs, losses, 'b-', label='Train Loss', marker='o', markersize=5, alpha=0.8)
+
+    # Optionally plot test loss if provided
+    if epoch_test_losses is not None:
+        # Filter out None values while keeping epoch alignment
+        test_points = [
+            (ep, tl) for ep, tl in zip(epochs, epoch_test_losses) if tl is not None
+        ]
+        if test_points:
+            test_epochs, test_losses = zip(*test_points)
+            ax.plot(
+                list(test_epochs),
+                list(test_losses),
+                'r-',
+                label='Test Loss',
+                marker='s',
+                markersize=5,
+                alpha=0.8,
+            )
     ax.set_xlabel('Epoch')
     ax.set_ylabel('Loss')
     ax.set_title(plot_title)
@@ -151,7 +177,9 @@ class LossMonitor:
         log_interval: int = 1,
         plot_title: str = "Training Loss",
         plot_filename: str = "loss_plot.png",
-        accuracy_plot_filename: str = "accuracy_plot.png"
+        accuracy_plot_filename: str = "accuracy_plot.png",
+        track_accuracy: bool = True,
+        track_test_loss: bool = False,
     ):
         """
         Initialize the loss monitor component.
@@ -161,16 +189,21 @@ class LossMonitor:
             plot_title: Title for the loss plot
             plot_filename: Filename to save the loss plot (will be saved using save_media)
             accuracy_plot_filename: Filename to save the accuracy plot (will be saved using save_media)
+            track_accuracy: Whether to track and plot accuracy metrics
+            track_test_loss: Whether to track and plot test loss alongside train loss
         """
         self.log_interval = log_interval
         self.plot_title = plot_title
         self.plot_filename = plot_filename
         self.accuracy_plot_filename = accuracy_plot_filename
+        self.track_accuracy = track_accuracy
+        self.track_test_loss = track_test_loss
         
         # Internal state
         self.batch_losses: List[float] = []
         self.epoch_losses: List[float] = []
         self.epoch_accuracies: List[Dict[str, float]] = []  # Can store train/test accuracies
+        self.epoch_test_losses: List[Optional[float]] = []  # Optional test loss per epoch
         self.current_epoch = 0
         self.current_batch = 0
         self.current_epoch_batch_losses: List[float] = []  # Track batch losses for current epoch
@@ -213,7 +246,8 @@ class LossMonitor:
         metadata: BatchMetadata,
         train_acc: Optional[float] = None,
         test_acc: Optional[float] = None,
-        verbose: bool = True
+        test_loss: Optional[float] = None,
+        verbose: bool = True,
     ) -> None:
         """
         Record loss and metrics for an epoch. Computes avg_loss from batch losses.
@@ -223,35 +257,54 @@ class LossMonitor:
             metadata: BatchMetadata containing epoch information
             train_acc: Training accuracy (optional)
             test_acc: Test accuracy (optional)
+            test_loss: Test loss for this epoch (optional)
             verbose: Whether to log epoch-level information
         """
         avg_loss = self.compute_current_epoch_avg_loss()
         self.epoch_losses.append(avg_loss)
-        acc_dict = create_accuracy_dict(train_acc, test_acc)
-        self.epoch_accuracies.append(acc_dict)
+
+        if self.track_test_loss:
+            # Keep alignment with epoch_losses; None means "not computed"
+            self.epoch_test_losses.append(float(test_loss) if test_loss is not None else None)
+
+        if self.track_accuracy:
+            acc_dict = create_accuracy_dict(train_acc, test_acc)
+            self.epoch_accuracies.append(acc_dict)
         
         if verbose:
-            acc_str = format_accuracy_str(train_acc, test_acc)
-            logger.info(f"Epoch {metadata.epoch + 1}: Loss = {avg_loss:.4f}{acc_str}")
+            msg = f"Epoch {metadata.epoch + 1}: Loss = {avg_loss:.4f}"
+            if self.track_test_loss and test_loss is not None:
+                msg += f", Test Loss = {test_loss:.4f}"
+            if self.track_accuracy:
+                acc_str = format_accuracy_str(train_acc, test_acc)
+                msg += acc_str
+            logger.info(msg)
     
     def log_loss_acc_(
         self,
         metadata: BatchMetadata,
         train_acc: Optional[float] = None,
-        test_acc: Optional[float] = None
+        test_acc: Optional[float] = None,
+        test_loss: Optional[float] = None,
     ) -> None:
         """
-        Log loss and accuracy for an epoch using logger. Computes avg_loss from batch losses.
+        Log loss and metrics for an epoch using logger. Computes avg_loss from batch losses.
         Has side effects (logging).
         
         Args:
             metadata: BatchMetadata containing epoch information
             train_acc: Training accuracy (optional)
             test_acc: Test accuracy (optional)
+            test_loss: Test loss for this epoch (optional)
         """
         avg_loss = self.compute_current_epoch_avg_loss()
-        acc_str = format_accuracy_str(train_acc, test_acc)
-        logger.info(f"Epoch {metadata.epoch + 1}: Loss = {avg_loss:.4f}{acc_str}")
+        msg = f"Epoch {metadata.epoch + 1}: Loss = {avg_loss:.4f}"
+        if self.track_test_loss and test_loss is not None:
+            msg += f", Test Loss = {test_loss:.4f}"
+        if self.track_accuracy:
+            acc_str = format_accuracy_str(train_acc, test_acc)
+            msg += acc_str
+        logger.info(msg)
     
     def finalize_and_plot_(self) -> None:
         """
@@ -265,8 +318,12 @@ class LossMonitor:
         
         self._plot_loss_()
         
-        # Plot accuracy if we have accuracy data
-        if len(self.epoch_accuracies) > 0 and any(acc_dict for acc_dict in self.epoch_accuracies):
+        # Plot accuracy if enabled and we have accuracy data
+        if (
+            self.track_accuracy
+            and len(self.epoch_accuracies) > 0
+            and any(acc_dict for acc_dict in self.epoch_accuracies)
+        ):
             self._plot_accuracy_()
     
     def _plot_loss_(self) -> None:
@@ -277,8 +334,13 @@ class LossMonitor:
             OSError: If unable to create output directory or save file
             Exception: If save_media fails
         """
+        # Decide whether to include test loss curve
+        test_losses = None
+        if self.track_test_loss and self.epoch_test_losses:
+            test_losses = self.epoch_test_losses
+
         # Create plot using pure function
-        fig = plot_loss(self.epoch_losses, self.plot_title)
+        fig = plot_loss(self.epoch_losses, test_losses, self.plot_title)
         
         # Set up output directory
         outputs_dir = "outputs"
@@ -385,7 +447,79 @@ class LossMonitor:
         self.batch_losses.clear()
         self.epoch_losses.clear()
         self.epoch_accuracies.clear()
+        self.epoch_test_losses.clear()
         self.current_epoch = 0
         self.current_batch = 0
         self.current_epoch_batch_losses.clear()
+    
+    def before_update_(
+        self,
+        params: Dict[str, Array],
+        metadata: BatchMetadata,
+        **kwargs: Any
+    ) -> None:
+        """
+        Handle logic before processing a batch. Mutates internal state.
+        
+        Args:
+            params: Current model parameters
+            metadata: BatchMetadata containing batch information
+            **kwargs: Additional arguments (for extensibility)
+        """
+        # Handle epoch start
+        if metadata.is_epoch_start:
+            self.start_epoch_tracking_(metadata)
+    
+    def after_update_(
+        self,
+        params: Dict[str, Array],
+        result: ParamUpdateResult,
+        metadata: BatchMetadata,
+        train_data: Optional[Dict[str, Array]] = None,
+        test_data: Optional[Dict[str, Array]] = None,
+        accuracy_fn: Optional[Callable[[Dict[str, Array], Array, Array], Array]] = None,
+        loss_fn: Optional[Callable[[Dict[str, Array], Dict[str, Array]], Array]] = None,
+        **kwargs: Any
+    ) -> None:
+        """
+        Handle logic after processing a batch. Mutates internal state.
+        
+        Args:
+            params: Updated model parameters after batch update
+            result: ParamUpdateResult from batch_update containing outputs (e.g., loss)
+            metadata: BatchMetadata containing batch information
+            train_data: Training data dictionary (e.g., {'X': Array, 'y': Array}) for accuracy computation
+            test_data: Test data dictionary (e.g., {'X': Array, 'y': Array}) for accuracy/test-loss computation
+            accuracy_fn: Function to compute accuracy: (params, X, y) -> accuracy
+            loss_fn: Optional loss function for evaluating test loss: (params, data_dict) -> loss
+            **kwargs: Additional arguments (for extensibility)
+        """
+        # Record batch loss
+        loss = float(result.outputs['loss'])
+        self.record_batch_loss_(loss, metadata, verbose=False)
+        
+        # Handle epoch end
+        if metadata.is_epoch_end:
+            train_acc = None
+            test_acc = None
+            test_loss = None
+            
+            # Compute accuracies if data and function are provided
+            if accuracy_fn is not None:
+                if train_data is not None and 'X' in train_data and 'y' in train_data:
+                    train_acc = float(accuracy_fn(params, train_data['X'], train_data['y']))
+                if test_data is not None and 'X' in test_data and 'y' in test_data:
+                    test_acc = float(accuracy_fn(params, test_data['X'], test_data['y']))
 
+            # Optionally compute test loss (e.g., for reconstruction tasks)
+            if loss_fn is not None and test_data is not None:
+                test_loss_val = loss_fn(params, test_data)
+                # Ensure we store a plain Python float where possible
+                try:
+                    test_loss = float(test_loss_val)
+                except (TypeError, ValueError):
+                    # Fallback: best-effort conversion, or leave as None
+                    test_loss = float(test_loss_val.item()) if hasattr(test_loss_val, "item") else None
+            
+            self.record_epoch_loss_(metadata, train_acc, test_acc, test_loss=test_loss, verbose=False)
+            self.log_loss_acc_(metadata, train_acc, test_acc, test_loss=test_loss)
