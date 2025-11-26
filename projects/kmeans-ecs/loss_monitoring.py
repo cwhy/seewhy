@@ -180,6 +180,7 @@ class LossMonitor:
         accuracy_plot_filename: str = "accuracy_plot.png",
         track_accuracy: bool = True,
         track_test_loss: bool = False,
+        test_batch_size: int | None = None,
     ):
         """
         Initialize the loss monitor component.
@@ -191,6 +192,8 @@ class LossMonitor:
             accuracy_plot_filename: Filename to save the accuracy plot (will be saved using save_media)
             track_accuracy: Whether to track and plot accuracy metrics
             track_test_loss: Whether to track and plot test loss alongside train loss
+            test_batch_size: Optional batch size to use when computing test loss
+                (None = evaluate on the full test set in one call)
         """
         self.log_interval = log_interval
         self.plot_title = plot_title
@@ -198,6 +201,7 @@ class LossMonitor:
         self.accuracy_plot_filename = accuracy_plot_filename
         self.track_accuracy = track_accuracy
         self.track_test_loss = track_test_loss
+        self.test_batch_size = test_batch_size
         
         # Internal state
         self.batch_losses: List[float] = []
@@ -207,6 +211,50 @@ class LossMonitor:
         self.current_epoch = 0
         self.current_batch = 0
         self.current_epoch_batch_losses: List[float] = []  # Track batch losses for current epoch
+
+    def _compute_batched_test_loss(
+        self,
+        params: Dict[str, Array],
+        test_data: Dict[str, Array],
+        loss_fn: Callable[[Dict[str, Array], Dict[str, Array]], Array],
+    ) -> float:
+        """
+        Compute test loss over the full test set using batches to control memory usage.
+        Assumes loss_fn returns an average loss over the given batch.
+        """
+        # Fallback to single-shot evaluation if we can't infer batch axis
+        if "X" not in test_data or self.test_batch_size is None:
+            test_loss_val = loss_fn(params, test_data)
+            try:
+                return float(test_loss_val)
+            except (TypeError, ValueError):
+                return float(test_loss_val.item()) if hasattr(test_loss_val, "item") else 0.0
+
+        X = test_data["X"]
+        n_samples = int(X.shape[0])
+        if n_samples == 0:
+            return 0.0
+
+        batch_size = int(self.test_batch_size)
+        total_loss = 0.0
+        total_count = 0
+
+        for start in range(0, n_samples, batch_size):
+            end = min(start + batch_size, n_samples)
+            batch_slice = slice(start, end)
+            # Slice all arrays in test_data consistently along the leading dimension
+            batch_data = {k: v[batch_slice] for k, v in test_data.items()}
+            batch_loss_val = loss_fn(params, batch_data)
+            try:
+                batch_loss = float(batch_loss_val)
+            except (TypeError, ValueError):
+                batch_loss = float(batch_loss_val.item()) if hasattr(batch_loss_val, "item") else 0.0
+
+            batch_count = end - start
+            total_loss += batch_loss * batch_count
+            total_count += batch_count
+
+        return total_loss / total_count if total_count > 0 else 0.0
     
     def record_batch_loss_(self, loss: float, metadata: BatchMetadata, verbose: bool = False) -> None:
         """
@@ -513,13 +561,16 @@ class LossMonitor:
 
             # Optionally compute test loss (e.g., for reconstruction tasks)
             if loss_fn is not None and test_data is not None:
-                test_loss_val = loss_fn(params, test_data)
-                # Ensure we store a plain Python float where possible
-                try:
-                    test_loss = float(test_loss_val)
-                except (TypeError, ValueError):
-                    # Fallback: best-effort conversion, or leave as None
-                    test_loss = float(test_loss_val.item()) if hasattr(test_loss_val, "item") else None
+                if self.test_batch_size is not None:
+                    test_loss = self._compute_batched_test_loss(params, test_data, loss_fn)
+                else:
+                    test_loss_val = loss_fn(params, test_data)
+                    # Ensure we store a plain Python float where possible
+                    try:
+                        test_loss = float(test_loss_val)
+                    except (TypeError, ValueError):
+                        # Fallback: best-effort conversion, or leave as None
+                        test_loss = float(test_loss_val.item()) if hasattr(test_loss_val, "item") else None
             
             self.record_epoch_loss_(metadata, train_acc, test_acc, test_loss=test_loss, verbose=False)
             self.log_loss_acc_(metadata, train_acc, test_acc, test_loss=test_loss)
