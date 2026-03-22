@@ -62,6 +62,16 @@ This is a machine learning visualization project focused on understanding traini
 4. Save results to R2 (cloud) or local outputs/ directory
 5. Generate plots and animations showing training dynamics
 
+## GPU / Environment Warning
+
+**NEVER run `uv run` or `uv sync` casually** — this project's `.venv` can be in a working state that diverges from `uv.lock`. Running `uv run` will silently upgrade packages and can break GPU.
+
+- The `.venv` uses `jax[cuda13]` with an RTX 4090. GPU works when properly set up.
+- If GPU breaks after a `uv` operation, run: `uv pip install --force-reinstall nvidia-cudnn-cu13`
+  This re-extracts the cuDNN `.so` files which can go missing after a partial install.
+- If you see `PJRT_Api already exists for device type cuda`, stale cuda12 packages are present — run `uv sync` to remove them, then reinstall cudnn.
+- Do NOT use `JAX_PLATFORMS=cpu` as a workaround — fix the GPU instead.
+
 ## File Organization
 
 - `outputs/` - Generated files organized by date (yy-mm-dd format)
