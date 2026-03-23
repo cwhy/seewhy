@@ -1,0 +1,4 @@
+# Saved model parameters and history (large binaries)
+params_*.pkl
+history_*.pkl
+label_probs_*.npy
