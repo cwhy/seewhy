@@ -58,64 +58,26 @@ uv run python projects/imle-gram/scripts/poll_result.py --all
 
 ## Visualization
 
-### During training (`lib/viz.py`)
+### During training
 
-Called directly from `experiments*.py` while the process is running, using
-in-memory `params` and `history`. Nothing is read from disk.
+`lib/viz.py` functions are called from `experiments*.py` using in-memory
+`params` and `history` — nothing is read from disk.
 
-| Function | Output | When |
-|---|---|---|
-| `save_reconstruction_grid` | Real vs nearest decoded sample (Gaussian NN match) | Every `VIZ_EVERY` epochs + final |
-| `save_sample_grid` | Grid of `z ~ N(0,I)` samples | End of training |
-| `save_learning_curves` | Match loss + bin accuracy over epochs | End of training |
+### Post-training
 
-Note: `save_reconstruction_grid` uses a **Gaussian prior** regardless of the
-experiment's actual prior. For clustering experiments the prototype
-reconstructions (via `decode_prototypes`) are more meaningful.
-
-### Post-training (`scripts/`)
-
-Run manually after training. Reads params and history from disk — no need to
-re-run the experiment.
-
-```bash
-# Clustering experiments (exp17b, exp17c, ...)
-uv run python projects/imle-gram/scripts/gen_viz_clustering.py exp17b
-
-# Per-experiment scripts for earlier exps
-uv run python projects/imle-gram/scripts/gen_viz_exp17.py
-```
-
-`gen_viz_clustering.py` generates 4 plots when both `history_expN.pkl` and
-`params_expN.pkl` are present:
-1. Cumulative cluster assignment line plot (coloured by majority label)
-2. Label accuracy curves (hard majority-vote vs Bayes)
-3. Per-cluster label distribution grid + inverted reconstruction overlay
-4. Prototype reconstruction grid
-
-If `params_expN.pkl` is missing, plots 3 and 4 are skipped (no re-run needed
-for the curves).
-
-### What needs to be saved for post-training viz
-
-Experiments that want full post-training visualization must save at the end
-of `__main__`:
+Scripts in `scripts/` read `params_expN.pkl` and `history_expN.pkl` from disk
+and regenerate plots without re-running the experiment. Save these at the end
+of `__main__` to enable this:
 
 ```python
-# params (for reconstructions)
 with open(Path(__file__).parent / f"params_{EXP_NAME}.pkl", "wb") as f:
     pickle.dump({k: np.array(v) for k, v in params.items()}, f)
 
-# history (for curves — only if tracking per-epoch stats)
 with open(Path(__file__).parent / f"history_{EXP_NAME}.pkl", "wb") as f:
     pickle.dump(history, f)
-
-# label_probs (for clustering label distribution plot)
-np.save(Path(__file__).parent / f"label_probs_{EXP_NAME}.npy", label_probs)
 ```
 
-All three files are gitignored. `results.jsonl` is the only persisted
-experiment output that is committed.
+Both files are gitignored. `results.jsonl` is the only committed output.
 
 ---
 
