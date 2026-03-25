@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 2
 requires-python = ">=3.12"
 resolution-markers = [
     "python_full_version >= '3.13'",
@@ -838,6 +838,15 @@ wheels = [
 ]
 
 [[package]]
+name = "mistletoe"
+version = "1.5.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/31/ae/d33647e2a26a8899224f36afc5e7b7a670af30f1fd87231e9f07ca19d673/mistletoe-1.5.1.tar.gz", hash = "sha256:c5571ce6ca9cfdc7ce9151c3ae79acb418e067812000907616427197648030a3", size = 111769, upload-time = "2025-12-07T16:19:01.066Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/20/60/0980fefdc4d12c18c1bbab9d62852f27aded8839233c7b0a9827aaf395f5/mistletoe-1.5.1-py3-none-any.whl", hash = "sha256:d3e97664798261503f685f6a6281b092628367cf3128fc68a015a993b0c4feb3", size = 55331, upload-time = "2025-12-07T16:18:59.65Z" },
+]
+
+[[package]]
 name = "ml-dtypes"
 version = "0.5.4"
 source = { registry = "https://pypi.org/simple" }
@@ -1644,6 +1653,7 @@ dependencies = [
     { name = "datasets", extra = ["jax"] },
     { name = "jax", extra = ["cuda13"] },
     { name = "matplotlib" },
+    { name = "mistletoe" },
     { name = "optax" },
     { name = "python-dotenv" },
     { name = "requests" },
@@ -1654,6 +1664,7 @@ requires-dist = [
     { name = "datasets", extras = ["jax"], specifier = ">=4.4.1" },
     { name = "jax", extras = ["cuda13"], specifier = ">=0.8.1" },
     { name = "matplotlib", specifier = ">=3.10.3" },
+    { name = "mistletoe", specifier = ">=1.4" },
     { name = "optax", specifier = ">=0.2.5" },
     { name = "python-dotenv", specifier = ">=1.1.1" },
     { name = "requests", specifier = ">=2.32.4" },
