@@ -2,17 +2,24 @@
 Experiment runner for imle-gram.
 
 Runs experiments sequentially (default) or in parallel across GPUs.
-Logs each experiment to /tmp/{name}.log and prints a results table when done.
+Logs each experiment to projects/imle-gram/logs/{name}.log and prints a
+results table when done.
 
 Usage:
-    # Run sequentially on GPU 0
-    uv run python projects/imle-gram/scripts/run_experiments.py exp24 exp25
+    # Run sequentially (blocks until done)
+    uv run python projects/imle-gram/scripts/run_experiments.py exp29 exp30
 
-    # Run in parallel — one per GPU (requires enough GPUs)
-    uv run python projects/imle-gram/scripts/run_experiments.py --parallel exp24 exp25
+    # Fire and forget — detach to background, return immediately
+    uv run python projects/imle-gram/scripts/run_experiments.py --bg exp30
+
+    # Run in parallel — one per GPU
+    uv run python projects/imle-gram/scripts/run_experiments.py --parallel exp29 exp30
 
     # Force a specific GPU for sequential runs
-    uv run python projects/imle-gram/scripts/run_experiments.py --gpu 1 exp24 exp25
+    uv run python projects/imle-gram/scripts/run_experiments.py --gpu 1 exp29
+
+    # Run viz after each experiment
+    uv run python projects/imle-gram/scripts/run_experiments.py --viz scripts/gen_viz_clustering.py exp29
 """
 
 import argparse
@@ -25,7 +32,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 PROJECT_DIR = Path(__file__).parent.parent
-JSONL = PROJECT_DIR / "results.jsonl"
+LOG_DIR     = PROJECT_DIR / "logs"
+JSONL       = PROJECT_DIR / "results.jsonl"
 
 
 # ── GPU detection ─────────────────────────────────────────────────────────────
@@ -99,7 +107,8 @@ def resolve_script(name: str) -> Path:
     raise FileNotFoundError(f"Cannot find script for '{name}' (tried {direct} and {script})")
 
 
-def run_one(name: str, script: Path, log_path: Path, gpu_id: int | None, idx: int, total: int) -> int:
+def run_one(name: str, script: Path, log_path: Path, gpu_id: int | None, idx: int, total: int,
+            viz_script: Path | None = None) -> int:
     env = os.environ.copy()
     if gpu_id is not None:
         env["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
@@ -122,6 +131,11 @@ def run_one(name: str, script: Path, log_path: Path, gpu_id: int | None, idx: in
     rc = proc.returncode
     status = "done" if rc == 0 else f"FAILED (exit {rc})"
     print(f"  {name}  {status} in {elapsed:.0f}s" + " " * 10)
+
+    if rc == 0 and viz_script is not None:
+        print(f"  {name}  running viz → {viz_script.name} {name}")
+        subprocess.run([sys.executable, str(viz_script), name], check=False)
+
     return rc
 
 
@@ -134,7 +148,36 @@ def main():
                         help="Run in parallel, one per GPU (needs enough GPUs)")
     parser.add_argument("--gpu", type=int, default=None,
                         help="Pin all sequential runs to this GPU ID")
+    parser.add_argument("--viz", type=str, default=None, metavar="SCRIPT",
+                        help="Viz script to run after each successful experiment (receives exp_name as arg)")
+    parser.add_argument("--bg", action="store_true",
+                        help="Detach to background immediately; print PID and log path, then exit")
     args = parser.parse_args()
+
+    if args.bg:
+        # Re-launch self without --bg, fully detached
+        cmd = [sys.executable] + [a for a in sys.argv if a != "--bg"]
+        LOG_DIR.mkdir(parents=True, exist_ok=True)
+        runner_log = LOG_DIR / f"runner_{'_'.join(args.experiments)}.log"
+        with open(runner_log, "w") as lf:
+            proc = subprocess.Popen(cmd, stdout=lf, stderr=lf,
+                                    start_new_session=True)
+        print(f"Detached PID {proc.pid} → {runner_log}")
+        sys.exit(0)
+
+    viz_script = None
+    if args.viz:
+        p = Path(args.viz)
+        if not p.is_absolute():
+            # Try relative to scripts/ first, then PROJECT_DIR
+            if (Path(__file__).parent / p).exists():
+                p = Path(__file__).parent / p
+            else:
+                p = PROJECT_DIR / p
+        if not p.exists():
+            print(f"ERROR: viz script not found: {args.viz}", file=sys.stderr)
+            sys.exit(1)
+        viz_script = p
 
     # Resolve scripts
     exps = []
@@ -146,10 +189,11 @@ def main():
             print(f"ERROR: {e}", file=sys.stderr)
             sys.exit(1)
 
+    LOG_DIR.mkdir(parents=True, exist_ok=True)
     n_gpus = get_gpu_count()
     total = len(exps)
     print(f"Found {n_gpus} GPU(s). Running {total} experiment(s) "
-          f"{'in parallel' if args.parallel else 'sequentially'}.")
+          f"{'in parallel' if args.parallel else 'sequentially'}. Logs → {LOG_DIR}")
 
     if args.parallel:
         if total > n_gpus:
@@ -160,21 +204,22 @@ def main():
 
         def _run(item):
             name, script, gpu_id = item
-            log = Path(f"/tmp/{name}.log")
-            return name, run_one(name, script, log, gpu_id, idx=assignments.index(item) + 1, total=total)
+            log = LOG_DIR / f"{name}.log"
+            return name, run_one(name, script, log, gpu_id, idx=assignments.index(item) + 1, total=total,
+                                 viz_script=viz_script)
 
         with ThreadPoolExecutor(max_workers=total) as pool:
             futures = {pool.submit(_run, item): item[0] for item in assignments}
             for future in as_completed(futures):
                 name, rc = future.result()
                 if rc != 0:
-                    print(f"WARNING: {name} exited with code {rc}, check /tmp/{name}.log")
+                    print(f"WARNING: {name} exited with code {rc}, check {LOG_DIR / f'{name}.log'}")
 
     else:
         # Sequential — wait for XLA compilation of one before starting the next
         for idx, (name, script) in enumerate(exps, 1):
-            log = Path(f"/tmp/{name}.log")
-            rc = run_one(name, script, log, args.gpu, idx, total)
+            log = LOG_DIR / f"{name}.log"
+            rc = run_one(name, script, log, args.gpu, idx, total, viz_script=viz_script)
             if rc != 0:
                 print(f"Stopping: {name} failed. Check {log}")
                 sys.exit(rc)
