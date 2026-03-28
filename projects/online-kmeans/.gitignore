@@ -1,0 +1,6 @@
+params_*.pkl
+history_*.pkl
+label_probs_*.npy
+logs/
+__pycache__/
+scripts/tmp/

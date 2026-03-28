@@ -1,0 +1,4 @@
+# Saved analysis results (large binaries)
+pca_results_*.pkl
+mcca_results_*.pkl
+logs/

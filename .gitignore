@@ -211,3 +211,7 @@ __marimo__/
 
 outputs/
 !outputs/.gitkeep
+
+projects/ssl/logs/
+projects/ssl/*.pkl
+projects/ssl/*.npy
