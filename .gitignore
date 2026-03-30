@@ -213,5 +213,7 @@ outputs/
 !outputs/.gitkeep
 
 projects/ssl/logs/
-projects/ssl/*.pkl
 projects/ssl/*.npy
+
+# Pickle files (large binary data, not for version control)
+*.pkl
