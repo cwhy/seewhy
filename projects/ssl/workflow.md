@@ -1,9 +1,32 @@
 # Experiment Workflow — SSL
 
-{One-sentence description of what this project explores and why.}
+EMA-JEPA self-supervised learning on MNIST/Fashion-MNIST: comparing encoder
+architectures (MLP, ConvNet, ViT, Gram+Hadamard) under a momentum target encoder.
 
 For algorithmic details (model architecture, loss, key hyperparameters) see
-[concepts.md](concepts.md).
+[concepts.md](concepts.md) *(not yet written — architecture notes are inline in exp docstrings)*.
+
+---
+
+## Status: HALTED (2026-04-01)
+
+Continuing in **`projects/ema-viz/`** — visualising features learned by the best encoder.
+
+**Best encoder found**: Gram-dual (`exp_ema_1024`) — 97.3% MNIST SSL, 83.6% Fashion-MNIST SSL.
+Saved params: `projects/ssl/params_exp_ema_1024.pkl` (gitignored, ~12 MB).
+
+**Pareto front at LATENT=1024** (linear probe accuracy):
+| Encoder      | MNIST  | F-MNIST |
+|---|---|---|
+| Gram-dual    | 97.3%  | 83.6%   |
+| Gram-single  | 96.9%  | 82.8%   |
+| MLP-shallow  | 93.2%  | 85.6%   |
+| ViT-patch    | 95.1%  | 80.9%   |
+| ConvNet-v1   | 93.9%  | 80.1%   |
+
+**Key finding**: flat pixel masking gives MLP/Gram an unfair advantage. ViT-patch
+(patch-level masking) closes 4.9 pp of the gap. Gram encodes strong co-activation
+priors well-suited to MNIST strokes but not Fashion-MNIST textures.
 
 ---
 
