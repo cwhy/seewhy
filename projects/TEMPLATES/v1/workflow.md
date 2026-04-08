@@ -135,6 +135,27 @@ compilations from two processes compete for memory and can OOM. Use
 Epoch 0 includes XLA compilation time and may be 10–20× slower than
 subsequent epochs. Do not judge speed from epoch 0.
 
+### Don't close over large arrays in `@jax.jit`
+
+If a `@jax.jit` function closes over a large array, JAX embeds it as a
+compile-time constant and allocates it on the GPU at compile time. This
+silently OOMs when the function is recompiled for a new shape or after
+prior allocations have fragmented memory.
+
+```python
+# Bad — E_b (~245 MB) captured as constant, OOMs on recompile
+@jax.jit
+def epoch(W, b, state):
+    (W, b), state = jax.lax.scan(step, ((W, b), state), (E_b, Y_b))[0]
+    return W, b, state
+
+# Good — pass as arguments
+@jax.jit
+def epoch(W, b, state, E_b, Y_b):
+    (W, b), state = jax.lax.scan(step, ((W, b), state), (E_b, Y_b))[0]
+    return W, b, state
+```
+
 ---
 
 ## Experiment File Structure
@@ -162,7 +183,39 @@ at a glance and easy to diff between experiments.
 
 ## Results Logging
 
-Append one JSON object per experiment to `results.jsonl`:
+### Skip-if-done
+
+Check at the top of every `__main__` whether the experiment is already in the
+output JSONL and exit early. Makes batch runners idempotent after a crash:
+
+```python
+done = set()
+if JSONL.exists():
+    with open(JSONL) as f:
+        for line in f:
+            try: done.add(json.loads(line).get("experiment"))
+            except Exception: pass
+if EXP_NAME in done:
+    logging.info(f"{EXP_NAME} already done — skipping")
+    exit(0)
+```
+
+### JSONL deduplication
+
+Two concurrent processes both read the `done` set before either has written,
+then both write the same rows. After any crash or concurrent run, deduplicate
+by key before analysis:
+
+```python
+seen, unique = set(), []
+for r in rows:
+    k = r.get("experiment")   # or whatever the natural key is
+    if k not in seen:
+        seen.add(k)
+        unique.append(r)
+```
+
+### Append one JSON object per experiment to `results.jsonl`:
 
 ```python
 JSONL = Path(__file__).parent / "results.jsonl"
@@ -230,6 +283,49 @@ uv run python projects/{project-name}/scripts/gen_viz_exp1.py
 
 Reads `params_exp1.pkl` and `history_exp1.pkl` from disk and regenerates
 all plots without re-running the experiment.
+
+---
+
+## Report Writing
+
+Reports are markdown files with plots linked as R2 URLs (not base64).
+
+### Workflow
+
+1. Write `scripts/gen_report_<name>.py` — generates the `.md` and uploads plots.
+2. Write `scripts/tmp/upload_report_<name>.py` — converts the `.md` to HTML and uploads to R2.
+3. Always generate the local `.md` first and inspect it before uploading.
+
+### Uploading plots
+
+Use `save_matplotlib_figure()` from `shared_lib.media` — it uploads the figure
+to R2 and returns the URL. Reference plots as plain markdown image links:
+
+```python
+import sys
+sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+from shared_lib.media import save_matplotlib_figure
+
+url = save_matplotlib_figure("{project-name}_my_plot", fig, dpi=150)
+plt.close(fig)
+# In the report body:
+# ![My plot](https://media.tanh.xyz/...)
+```
+
+**Do not embed base64** (`data:image/png;base64,...`) — it bloats the markdown
+file (1+ MB vs ~10 KB) and makes diffs unreadable.
+
+### Uploading the report
+
+```python
+# scripts/tmp/upload_report_<name>.py
+from shared_lib.report import save_report_file
+url = save_report_file("{project-name}_report_<name>", Path("projects/{project-name}/report-<name>.md"))
+print(url)
+```
+
+Do not pass `title=` to `save_report_file` — it injects a duplicate `<h1>`
+on top of the markdown's own `# heading`.
 
 ---
 

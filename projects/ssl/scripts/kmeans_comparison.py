@@ -1,10 +1,13 @@
 """
-kmeans_comparison.py — Compare three training regimes on K-Means cluster accuracy.
+kmeans_comparison.py — Compare six training regimes on K-Means cluster accuracy.
 
 For each encoder architecture runs K-Means (K=128) on:
   random  — randomly-initialised encoder (untrained), same architecture
-  sigreg  — SIGReg-trained (all 9 architectures)
-  ema     — EMA-JEPA-trained (all 9 architectures)
+  ae      — standard autoencoder (MSE reconstruction)
+  dae     — denoising autoencoder (same augmentations as EMA/SIGReg)
+  vae     — variational autoencoder (MSE + KL, encode returns mean)
+  sigreg  — SIGReg-JEPA (spectral regulariser)
+  ema     — EMA-JEPA (momentum target encoder)
 
 Results are appended to results_kmeans_comparison.jsonl.
 A summary table is printed at the end.
@@ -39,17 +42,74 @@ SSL   = Path(__file__).parent.parent
 JSONL = SSL / "results_kmeans_comparison.jsonl"
 
 # ── Encoder registry ──────────────────────────────────────────────────────────
-# (display_name, ema_file, ema_exp_name, sigreg_file, sigreg_exp_name or None)
+# Each entry: dict with "name" and one key per training regime -> (file, exp_name).
+# "random" is always derived from the ema module's init_params.
+TRAINING_ORDER = ["random", "ae", "dae", "vae", "sigreg", "ema"]
+
 REGISTRY = [
-    ("MLP-shallow", "exp_mlp_ema_1024.py",         "exp_mlp_ema_1024",         "exp_sigreg_mlp.py",          "exp_sigreg_mlp"),
-    ("MLP-deep",    "exp_mlp2_ema_1024.py",        "exp_mlp2_ema_1024",        "exp_sigreg_mlp2.py",         "exp_sigreg_mlp2"),
-    ("ConvNet-v1",  "exp_conv_ema_1024.py",        "exp_conv_ema_1024",        "exp_sigreg_conv.py",         "exp_sigreg_conv"),
-    ("ConvNet-v2",  "exp_conv2_ema_1024.py",       "exp_conv2_ema_1024",       "exp_sigreg_conv2.py",        "exp_sigreg_conv2"),
-    ("ViT",         "exp_vit_ema_1024.py",         "exp_vit_ema_1024",         "exp_sigreg_vit.py",          "exp_sigreg_vit"),
-    ("ViT-patch",   "exp_vit_patch_ema.py",        "exp_vit_patch_ema",        "exp_sigreg_vit_patch.py",    "exp_sigreg_vit_patch"),
-    ("Gram-dual",   "exp_ema_1024.py",             "exp_ema_1024",             "exp12a.py",                  "exp12a"),
-    ("Gram-single", "exp_gram_single_ema_1024.py", "exp_gram_single_ema_1024", "exp_sigreg_gram_single.py",  "exp_sigreg_gram_single"),
-    ("Gram-GLU",    "exp_gram_glu_ema.py",         "exp_gram_glu_ema",         "exp_sigreg_gram_glu.py",     "exp_sigreg_gram_glu"),
+    dict(name="MLP-shallow",
+         ema=    ("exp_mlp_ema_1024.py",         "exp_mlp_ema_1024"),
+         sigreg= ("exp_sigreg_mlp.py",            "exp_sigreg_mlp"),
+         ae=     ("exp_ae_mlp.py",               "exp_ae_mlp"),
+         dae=    ("exp_dae_mlp.py",              "exp_dae_mlp"),
+         vae=    ("exp_vae_mlp.py",              "exp_vae_mlp"),
+    ),
+    dict(name="MLP-deep",
+         ema=    ("exp_mlp2_ema_1024.py",        "exp_mlp2_ema_1024"),
+         sigreg= ("exp_sigreg_mlp2.py",           "exp_sigreg_mlp2"),
+         ae=     ("exp_ae_mlp2.py",              "exp_ae_mlp2"),
+         dae=    ("exp_dae_mlp2.py",             "exp_dae_mlp2"),
+         vae=    ("exp_vae_mlp2.py",             "exp_vae_mlp2"),
+    ),
+    dict(name="ConvNet-v1",
+         ema=    ("exp_conv_ema_1024.py",        "exp_conv_ema_1024"),
+         sigreg= ("exp_sigreg_conv.py",           "exp_sigreg_conv"),
+         ae=     ("exp_ae_conv.py",              "exp_ae_conv"),
+         dae=    ("exp_dae_conv.py",             "exp_dae_conv"),
+         vae=    ("exp_vae_conv.py",             "exp_vae_conv"),
+    ),
+    dict(name="ConvNet-v2",
+         ema=    ("exp_conv2_ema_1024.py",       "exp_conv2_ema_1024"),
+         sigreg= ("exp_sigreg_conv2.py",          "exp_sigreg_conv2"),
+         ae=     ("exp_ae_conv2.py",             "exp_ae_conv2"),
+         dae=    ("exp_dae_conv2.py",            "exp_dae_conv2"),
+         vae=    ("exp_vae_conv2.py",            "exp_vae_conv2"),
+    ),
+    dict(name="ViT",
+         ema=    ("exp_vit_ema_1024.py",         "exp_vit_ema_1024"),
+         sigreg= ("exp_sigreg_vit.py",            "exp_sigreg_vit"),
+         ae=     ("exp_ae_vit.py",               "exp_ae_vit"),
+         dae=    ("exp_dae_vit.py",              "exp_dae_vit"),
+         vae=    ("exp_vae_vit.py",              "exp_vae_vit"),
+    ),
+    dict(name="ViT-patch",
+         ema=    ("exp_vit_patch_ema.py",        "exp_vit_patch_ema"),
+         sigreg= ("exp_sigreg_vit_patch.py",      "exp_sigreg_vit_patch"),
+         ae=     ("exp_ae_vit_patch.py",         "exp_ae_vit_patch"),
+         dae=    ("exp_dae_vit_patch.py",        "exp_dae_vit_patch"),
+         vae=    ("exp_vae_vit_patch.py",        "exp_vae_vit_patch"),
+    ),
+    dict(name="Gram-dual",
+         ema=    ("exp_ema_1024.py",             "exp_ema_1024"),
+         sigreg= ("exp12a.py",                   "exp12a"),
+         ae=     ("exp_ae_gram_dual.py",         "exp_ae_gram_dual"),
+         dae=    ("exp_dae_gram_dual.py",        "exp_dae_gram_dual"),
+         vae=    ("exp_vae_gram_dual.py",        "exp_vae_gram_dual"),
+    ),
+    dict(name="Gram-single",
+         ema=    ("exp_gram_single_ema_1024.py", "exp_gram_single_ema_1024"),
+         sigreg= ("exp_sigreg_gram_single.py",   "exp_sigreg_gram_single"),
+         ae=     ("exp_ae_gram_single.py",       "exp_ae_gram_single"),
+         dae=    ("exp_dae_gram_single.py",      "exp_dae_gram_single"),
+         vae=    ("exp_vae_gram_single.py",      "exp_vae_gram_single"),
+    ),
+    dict(name="Gram-GLU",
+         ema=    ("exp_gram_glu_ema.py",         "exp_gram_glu_ema"),
+         sigreg= ("exp_sigreg_gram_glu.py",      "exp_sigreg_gram_glu"),
+         ae=     ("exp_ae_gram_glu.py",          "exp_ae_gram_glu"),
+         dae=    ("exp_dae_gram_glu.py",         "exp_dae_gram_glu"),
+         vae=    ("exp_vae_gram_glu.py",         "exp_vae_gram_glu"),
+    ),
 ]
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -151,47 +211,37 @@ def main():
 
     all_rows = []
 
-    for display, ema_file, ema_exp, sigreg_file, sigreg_exp in REGISTRY:
+    for enc_entry in REGISTRY:
+        display = enc_entry["name"]
         logging.info(f"\n{'='*60}\n{display}\n{'='*60}")
 
+        ema_file, ema_exp = enc_entry["ema"]
         try:
             ema_mod = load_module(ema_file)
         except Exception as e:
             logging.warning(f"  Could not load EMA module {ema_file}: {e}")
             continue
 
-        # Build list of (training_label, params_or_fn)
+        # Build list of (training, params_fn, encode_fn, latent_dim)
         candidates = []
 
-        # 1 — Random baseline (always available)
-        candidates.append(("random", lambda mod=ema_mod: random_params(mod)))
+        # 1 — Random baseline (always uses EMA module architecture)
+        candidates.append(("random", lambda mod=ema_mod: random_params(mod),
+                           ema_mod.encode, ema_mod.LATENT_DIM))
 
-        # 2 — SIGReg (Gram-dual only)
-        if sigreg_file and sigreg_exp:
+        # 2-5 — Trained regimes: ae, dae, vae, sigreg, ema
+        for training in ["ae", "dae", "vae", "sigreg", "ema"]:
+            if training not in enc_entry:
+                continue
+            t_file, t_exp = enc_entry[training]
             try:
-                sigreg_mod    = load_module(sigreg_file)
-                sigreg_params = load_trained_params(sigreg_exp)
-                candidates.append(("sigreg", lambda p=sigreg_params: p))
-                # Store the sigreg encode function alongside
-                candidates[-1] = ("sigreg", lambda p=sigreg_params: p, sigreg_mod.encode, sigreg_mod.LATENT_DIM)
+                mod    = load_module(t_file)
+                params = load_trained_params(t_exp)
+                candidates.append((training, lambda p=params: p, mod.encode, mod.LATENT_DIM))
             except Exception as e:
-                logging.warning(f"  SIGReg params not found for {sigreg_exp}: {e}")
+                logging.warning(f"  {training} not available for {display}: {e}")
 
-        # 3 — EMA
-        try:
-            ema_params = load_trained_params(ema_exp)
-            candidates.append(("ema", lambda p=ema_params: p))
-        except Exception as e:
-            logging.warning(f"  EMA params not found for {ema_exp}: {e}")
-
-        for entry in candidates:
-            if len(entry) == 2:
-                training, params_fn = entry
-                encode_fn  = ema_mod.encode
-                latent_dim = ema_mod.LATENT_DIM
-            else:
-                training, params_fn, encode_fn, latent_dim = entry
-
+        for training, params_fn, encode_fn, latent_dim in candidates:
             params = params_fn()
 
             for k in args.k:
@@ -251,31 +301,23 @@ def main():
         for r in rows_k:
             by_enc.setdefault(r["encoder"], {})[r["training"]] = r
 
-        training_methods = ["random", "sigreg", "ema"]
-
         print()
-        print("=" * 74)
+        print("=" * 96)
         print(f"  Dataset: {args.dataset:<16}  K={k}   (test accuracy)")
-        print("=" * 74)
+        print("=" * 96)
         hdr = f"  {'Encoder':<14}"
-        for t in training_methods:
+        for t in TRAINING_ORDER:
             hdr += f"  {t.upper():>8}"
-        hdr += f"  {'EMA-rand':>9}  {'EMA-sig':>8}"
         print(hdr)
-        print("  " + "-" * 56)
+        print("  " + "-" * 70)
 
-        for display, *_ in REGISTRY:
+        def fmt(v): return f"{v:.1%}" if v is not None else "   —  "
+
+        for enc_entry in REGISTRY:
+            display = enc_entry["name"]
             d = by_enc.get(display, {})
-            rand_acc = d.get("random",  {}).get("test_acc")
-            sig_acc  = d.get("sigreg",  {}).get("test_acc")
-            ema_acc  = d.get("ema",     {}).get("test_acc")
-
-            def fmt(v): return f"{v:.1%}" if v is not None else "   —  "
-
-            ema_rand_delta = f"+{(ema_acc - rand_acc)*100:.1f}pp" if (ema_acc is not None and rand_acc is not None) else "   —  "
-            ema_sig_delta  = f"+{(ema_acc - sig_acc)*100:.1f}pp"  if (ema_acc is not None and sig_acc  is not None) else "   —  "
-
-            print(f"  {display:<14}  {fmt(rand_acc):>8}  {fmt(sig_acc):>8}  {fmt(ema_acc):>8}  {ema_rand_delta:>9}  {ema_sig_delta:>8}")
+            vals = [d.get(t, {}).get("test_acc") for t in TRAINING_ORDER]
+            print(f"  {display:<14}  " + "  ".join(f"{fmt(v):>8}" for v in vals))
 
         print()
 

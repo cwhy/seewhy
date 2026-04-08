@@ -1,0 +1,108 @@
+{"encoder": "MLP-shallow", "training": "random", "dataset": "mnist", "knn_l2_k1": 0.9603, "probe_acc": 0.9211}
+{"encoder": "MLP-shallow", "training": "random", "dataset": "fashion_mnist", "knn_l2_k1": 0.8399, "probe_acc": 0.8324}
+{"encoder": "MLP-shallow", "training": "ae", "dataset": "mnist", "knn_l2_k1": 0.9565, "probe_acc": 0.9215, "time_s": 15.6}
+{"encoder": "MLP-shallow", "training": "ae", "dataset": "fashion_mnist", "knn_l2_k1": 0.8358, "probe_acc": 0.8385, "time_s": 15.7}
+{"encoder": "MLP-shallow", "training": "dae", "dataset": "mnist", "knn_l2_k1": 0.9714, "probe_acc": 0.9612, "time_s": 16.0}
+{"encoder": "MLP-shallow", "training": "dae", "dataset": "fashion_mnist", "knn_l2_k1": 0.8357, "probe_acc": 0.8395, "time_s": 16.1}
+{"encoder": "MLP-shallow", "training": "vae", "dataset": "mnist", "knn_l2_k1": 0.9547, "probe_acc": 0.9237, "time_s": 16.1}
+{"encoder": "MLP-shallow", "training": "vae", "dataset": "fashion_mnist", "knn_l2_k1": 0.8296, "probe_acc": 0.833, "time_s": 16.1}
+{"encoder": "MLP-shallow", "training": "sigreg", "dataset": "mnist", "knn_l2_k1": 0.9586, "probe_acc": 0.9635, "time_s": 16.2}
+{"encoder": "MLP-shallow", "training": "sigreg", "dataset": "fashion_mnist", "knn_l2_k1": 0.8027, "probe_acc": 0.8073, "time_s": 16.1}
+{"encoder": "MLP-shallow", "training": "ema", "dataset": "mnist", "knn_l2_k1": 0.9137, "probe_acc": 0.9318, "time_s": 16.1}
+{"encoder": "MLP-shallow", "training": "ema", "dataset": "fashion_mnist", "knn_l2_k1": 0.6811, "probe_acc": 0.6675, "time_s": 16.2}
+{"encoder": "MLP-deep", "training": "random", "dataset": "mnist", "knn_l2_k1": 0.9611, "probe_acc": 0.9162}
+{"encoder": "MLP-deep", "training": "random", "dataset": "fashion_mnist", "knn_l2_k1": 0.8389, "probe_acc": 0.8285}
+{"encoder": "MLP-deep", "training": "ae", "dataset": "mnist", "knn_l2_k1": 0.9507, "probe_acc": 0.9189, "time_s": 16.2}
+{"encoder": "MLP-deep", "training": "ae", "dataset": "fashion_mnist", "knn_l2_k1": 0.8312, "probe_acc": 0.8364, "time_s": 16.2}
+{"encoder": "MLP-deep", "training": "dae", "dataset": "mnist", "knn_l2_k1": 0.9661, "probe_acc": 0.9735, "time_s": 16.1}
+{"encoder": "MLP-deep", "training": "dae", "dataset": "fashion_mnist", "knn_l2_k1": 0.8246, "probe_acc": 0.837, "time_s": 16.3}
+{"encoder": "MLP-deep", "training": "vae", "dataset": "mnist", "knn_l2_k1": 0.9559, "probe_acc": 0.9246, "time_s": 16.4}
+{"encoder": "MLP-deep", "training": "vae", "dataset": "fashion_mnist", "knn_l2_k1": 0.8249, "probe_acc": 0.8319, "time_s": 16.3}
+{"encoder": "MLP-deep", "training": "sigreg", "dataset": "mnist", "knn_l2_k1": 0.9569, "probe_acc": 0.9681, "time_s": 16.2}
+{"encoder": "MLP-deep", "training": "sigreg", "dataset": "fashion_mnist", "knn_l2_k1": 0.7813, "probe_acc": 0.8031, "time_s": 16.2}
+{"encoder": "MLP-deep", "training": "ema", "dataset": "mnist", "knn_l2_k1": 0.7993, "probe_acc": 0.743, "time_s": 16.2}
+{"encoder": "MLP-deep", "training": "ema", "dataset": "fashion_mnist", "knn_l2_k1": 0.6425, "probe_acc": 0.5732, "time_s": 16.2}
+{"encoder": "ConvNet-v1", "training": "random", "dataset": "mnist", "knn_l2_k1": 0.8254, "probe_acc": 0.7106}
+{"encoder": "ConvNet-v1", "training": "random", "dataset": "fashion_mnist", "knn_l2_k1": 0.7457, "probe_acc": 0.6855}
+{"encoder": "ConvNet-v1", "training": "ae", "dataset": "mnist", "knn_l2_k1": 0.9657, "probe_acc": 0.9743, "time_s": 16.5}
+{"encoder": "ConvNet-v1", "training": "ae", "dataset": "fashion_mnist", "knn_l2_k1": 0.8119, "probe_acc": 0.8289, "time_s": 16.4}
+{"encoder": "ConvNet-v1", "training": "dae", "dataset": "mnist", "knn_l2_k1": 0.9662, "probe_acc": 0.9716, "time_s": 16.4}
+{"encoder": "ConvNet-v1", "training": "dae", "dataset": "fashion_mnist", "knn_l2_k1": 0.8005, "probe_acc": 0.8071, "time_s": 16.5}
+{"encoder": "ConvNet-v1", "training": "vae", "dataset": "mnist", "knn_l2_k1": 0.9649, "probe_acc": 0.9765, "time_s": 16.5}
+{"encoder": "ConvNet-v1", "training": "vae", "dataset": "fashion_mnist", "knn_l2_k1": 0.8095, "probe_acc": 0.8311, "time_s": 16.5}
+{"encoder": "ConvNet-v1", "training": "sigreg", "dataset": "mnist", "knn_l2_k1": 0.9245, "probe_acc": 0.9534, "time_s": 16.6}
+{"encoder": "ConvNet-v1", "training": "sigreg", "dataset": "fashion_mnist", "knn_l2_k1": 0.7585, "probe_acc": 0.7785, "time_s": 16.5}
+{"encoder": "ConvNet-v1", "training": "ema", "dataset": "mnist", "knn_l2_k1": 0.9475, "probe_acc": 0.9394, "time_s": 16.4}
+{"encoder": "ConvNet-v1", "training": "ema", "dataset": "fashion_mnist", "knn_l2_k1": 0.7642, "probe_acc": 0.7433, "time_s": 16.5}
+{"encoder": "ConvNet-v2", "training": "random", "dataset": "mnist", "knn_l2_k1": 0.8523, "probe_acc": 0.6612}
+{"encoder": "ConvNet-v2", "training": "random", "dataset": "fashion_mnist", "knn_l2_k1": 0.7609, "probe_acc": 0.6769}
+{"encoder": "ConvNet-v2", "training": "ae", "dataset": "mnist", "knn_l2_k1": 0.9711, "probe_acc": 0.9809, "time_s": 16.4}
+{"encoder": "ConvNet-v2", "training": "ae", "dataset": "fashion_mnist", "knn_l2_k1": 0.8208, "probe_acc": 0.8336, "time_s": 16.3}
+{"encoder": "ConvNet-v2", "training": "dae", "dataset": "mnist", "knn_l2_k1": 0.9751, "probe_acc": 0.9796, "time_s": 16.4}
+{"encoder": "ConvNet-v2", "training": "dae", "dataset": "fashion_mnist", "knn_l2_k1": 0.811, "probe_acc": 0.8209, "time_s": 16.4}
+{"encoder": "ConvNet-v2", "training": "vae", "dataset": "mnist", "knn_l2_k1": 0.9771, "probe_acc": 0.9866, "time_s": 16.4}
+{"encoder": "ConvNet-v2", "training": "vae", "dataset": "fashion_mnist", "knn_l2_k1": 0.8135, "probe_acc": 0.8426, "time_s": 16.5}
+{"encoder": "ConvNet-v2", "training": "sigreg", "dataset": "mnist", "knn_l2_k1": 0.9124, "probe_acc": 0.9454, "time_s": 16.4}
+{"encoder": "ConvNet-v2", "training": "sigreg", "dataset": "fashion_mnist", "knn_l2_k1": 0.7047, "probe_acc": 0.7445, "time_s": 16.5}
+{"encoder": "ConvNet-v2", "training": "ema", "dataset": "mnist", "knn_l2_k1": 0.9209, "probe_acc": 0.9092, "time_s": 16.9}
+{"encoder": "ConvNet-v2", "training": "ema", "dataset": "fashion_mnist", "knn_l2_k1": 0.7626, "probe_acc": 0.7286, "time_s": 16.8}
+{"encoder": "ViT", "training": "random", "dataset": "mnist", "knn_l2_k1": 0.7457, "probe_acc": 0.7931}
+{"encoder": "ViT", "training": "random", "dataset": "fashion_mnist", "knn_l2_k1": 0.748, "probe_acc": 0.7614}
+{"encoder": "ViT", "training": "ae", "dataset": "mnist", "knn_l2_k1": 0.9613, "probe_acc": 0.9198, "time_s": 12.3}
+{"encoder": "ViT", "training": "ae", "dataset": "fashion_mnist", "knn_l2_k1": 0.8242, "probe_acc": 0.8209, "time_s": 12.4}
+{"encoder": "ViT", "training": "dae", "dataset": "mnist", "knn_l2_k1": 0.971, "probe_acc": 0.9585, "time_s": 12.5}
+{"encoder": "ViT", "training": "dae", "dataset": "fashion_mnist", "knn_l2_k1": 0.8113, "probe_acc": 0.8132, "time_s": 12.2}
+{"encoder": "ViT", "training": "vae", "dataset": "mnist", "knn_l2_k1": 0.9608, "probe_acc": 0.9198, "time_s": 12.5}
+{"encoder": "ViT", "training": "vae", "dataset": "fashion_mnist", "knn_l2_k1": 0.8235, "probe_acc": 0.8182, "time_s": 12.5}
+{"encoder": "ViT", "training": "sigreg", "dataset": "mnist", "knn_l2_k1": 0.9257, "probe_acc": 0.9404, "time_s": 12.3}
+{"encoder": "ViT", "training": "sigreg", "dataset": "fashion_mnist", "knn_l2_k1": 0.7805, "probe_acc": 0.7777, "time_s": 12.5}
+{"encoder": "ViT", "training": "ema", "dataset": "mnist", "knn_l2_k1": 0.8641, "probe_acc": 0.9019, "time_s": 12.3}
+{"encoder": "ViT", "training": "ema", "dataset": "fashion_mnist", "knn_l2_k1": 0.7663, "probe_acc": 0.7671, "time_s": 12.3}
+{"encoder": "ViT-patch", "training": "random", "dataset": "mnist", "knn_l2_k1": 0.7457, "probe_acc": 0.7931}
+{"encoder": "ViT-patch", "training": "random", "dataset": "fashion_mnist", "knn_l2_k1": 0.748, "probe_acc": 0.7614}
+{"encoder": "ViT-patch", "training": "ae", "dataset": "mnist", "knn_l2_k1": 0.9616, "probe_acc": 0.9201, "time_s": 12.4}
+{"encoder": "ViT-patch", "training": "ae", "dataset": "fashion_mnist", "knn_l2_k1": 0.8247, "probe_acc": 0.8213, "time_s": 12.2}
+{"encoder": "ViT-patch", "training": "dae", "dataset": "mnist", "knn_l2_k1": 0.9739, "probe_acc": 0.9671, "time_s": 12.3}
+{"encoder": "ViT-patch", "training": "dae", "dataset": "fashion_mnist", "knn_l2_k1": 0.8029, "probe_acc": 0.8099, "time_s": 12.3}
+{"encoder": "ViT-patch", "training": "vae", "dataset": "mnist", "knn_l2_k1": 0.961, "probe_acc": 0.9206, "time_s": 12.4}
+{"encoder": "ViT-patch", "training": "vae", "dataset": "fashion_mnist", "knn_l2_k1": 0.8238, "probe_acc": 0.8183, "time_s": 12.1}
+{"encoder": "ViT-patch", "training": "sigreg", "dataset": "mnist", "knn_l2_k1": 0.9056, "probe_acc": 0.9383, "time_s": 12.2}
+{"encoder": "ViT-patch", "training": "sigreg", "dataset": "fashion_mnist", "knn_l2_k1": 0.7342, "probe_acc": 0.773, "time_s": 12.3}
+{"encoder": "ViT-patch", "training": "ema", "dataset": "mnist", "knn_l2_k1": 0.92, "probe_acc": 0.9506, "time_s": 12.2}
+{"encoder": "ViT-patch", "training": "ema", "dataset": "fashion_mnist", "knn_l2_k1": 0.7361, "probe_acc": 0.7739, "time_s": 12.3}
+{"encoder": "Gram-dual", "training": "random", "dataset": "mnist", "knn_l2_k1": 0.8842, "probe_acc": 0.9089}
+{"encoder": "Gram-dual", "training": "random", "dataset": "fashion_mnist", "knn_l2_k1": 0.7467, "probe_acc": 0.7751}
+{"encoder": "Gram-dual", "training": "ae", "dataset": "mnist", "knn_l2_k1": 0.9067, "probe_acc": 0.9487, "time_s": 14.5}
+{"encoder": "Gram-dual", "training": "ae", "dataset": "fashion_mnist", "knn_l2_k1": 0.7806, "probe_acc": 0.7988, "time_s": 11.4}
+{"encoder": "Gram-dual", "training": "dae", "dataset": "mnist", "knn_l2_k1": 0.9571, "probe_acc": 0.9707, "time_s": 11.5}
+{"encoder": "Gram-dual", "training": "dae", "dataset": "fashion_mnist", "knn_l2_k1": 0.7836, "probe_acc": 0.82, "time_s": 11.4}
+{"encoder": "Gram-dual", "training": "vae", "dataset": "mnist", "knn_l2_k1": 0.926, "probe_acc": 0.9677, "time_s": 11.4}
+{"encoder": "Gram-dual", "training": "vae", "dataset": "fashion_mnist", "knn_l2_k1": 0.7851, "probe_acc": 0.812, "time_s": 11.4}
+{"encoder": "Gram-dual", "training": "sigreg", "dataset": "mnist", "knn_l2_k1": 0.9527, "probe_acc": 0.9573, "time_s": 11.4}
+{"encoder": "Gram-dual", "training": "sigreg", "dataset": "fashion_mnist", "knn_l2_k1": 0.7603, "probe_acc": 0.7996, "time_s": 11.4}
+{"encoder": "Gram-dual", "training": "ema", "dataset": "mnist", "knn_l2_k1": 0.9553, "probe_acc": 0.9732, "time_s": 11.4}
+{"encoder": "Gram-dual", "training": "ema", "dataset": "fashion_mnist", "knn_l2_k1": 0.7761, "probe_acc": 0.8236, "time_s": 11.3}
+{"encoder": "Gram-single", "training": "random", "dataset": "mnist", "knn_l2_k1": 0.8787, "probe_acc": 0.9114}
+{"encoder": "Gram-single", "training": "random", "dataset": "fashion_mnist", "knn_l2_k1": 0.7424, "probe_acc": 0.7743}
+{"encoder": "Gram-single", "training": "ae", "dataset": "mnist", "knn_l2_k1": 0.9444, "probe_acc": 0.9255, "time_s": 11.3}
+{"encoder": "Gram-single", "training": "ae", "dataset": "fashion_mnist", "knn_l2_k1": 0.785, "probe_acc": 0.7767, "time_s": 11.4}
+{"encoder": "Gram-single", "training": "dae", "dataset": "mnist", "knn_l2_k1": 0.9584, "probe_acc": 0.963, "time_s": 11.4}
+{"encoder": "Gram-single", "training": "dae", "dataset": "fashion_mnist", "knn_l2_k1": 0.7907, "probe_acc": 0.8156, "time_s": 11.3}
+{"encoder": "Gram-single", "training": "vae", "dataset": "mnist", "knn_l2_k1": 0.9432, "probe_acc": 0.9563, "time_s": 11.4}
+{"encoder": "Gram-single", "training": "vae", "dataset": "fashion_mnist", "knn_l2_k1": 0.7904, "probe_acc": 0.7944, "time_s": 11.5}
+{"encoder": "Gram-single", "training": "sigreg", "dataset": "mnist", "knn_l2_k1": 0.9546, "probe_acc": 0.964, "time_s": 11.4}
+{"encoder": "Gram-single", "training": "sigreg", "dataset": "fashion_mnist", "knn_l2_k1": 0.7796, "probe_acc": 0.8146, "time_s": 11.4}
+{"encoder": "Gram-single", "training": "ema", "dataset": "mnist", "knn_l2_k1": 0.9563, "probe_acc": 0.9705, "time_s": 11.5}
+{"encoder": "Gram-single", "training": "ema", "dataset": "fashion_mnist", "knn_l2_k1": 0.793, "probe_acc": 0.8203, "time_s": 11.4}
+{"encoder": "Gram-GLU", "training": "random", "dataset": "mnist", "knn_l2_k1": 0.8794, "probe_acc": 0.868}
+{"encoder": "Gram-GLU", "training": "random", "dataset": "fashion_mnist", "knn_l2_k1": 0.7456, "probe_acc": 0.7525}
+{"encoder": "Gram-GLU", "training": "ae", "dataset": "mnist", "knn_l2_k1": 0.9575, "probe_acc": 0.9238, "time_s": 11.5}
+{"encoder": "Gram-GLU", "training": "ae", "dataset": "fashion_mnist", "knn_l2_k1": 0.8065, "probe_acc": 0.8074, "time_s": 11.3}
+{"encoder": "Gram-GLU", "training": "dae", "dataset": "mnist", "knn_l2_k1": 0.9681, "probe_acc": 0.9732, "time_s": 11.5}
+{"encoder": "Gram-GLU", "training": "dae", "dataset": "fashion_mnist", "knn_l2_k1": 0.8094, "probe_acc": 0.8367, "time_s": 11.4}
+{"encoder": "Gram-GLU", "training": "vae", "dataset": "mnist", "knn_l2_k1": 0.9434, "probe_acc": 0.9517, "time_s": 11.4}
+{"encoder": "Gram-GLU", "training": "vae", "dataset": "fashion_mnist", "knn_l2_k1": 0.7954, "probe_acc": 0.8265, "time_s": 11.4}
+{"encoder": "Gram-GLU", "training": "sigreg", "dataset": "mnist", "knn_l2_k1": 0.957, "probe_acc": 0.9701, "time_s": 11.5}
+{"encoder": "Gram-GLU", "training": "sigreg", "dataset": "fashion_mnist", "knn_l2_k1": 0.787, "probe_acc": 0.83, "time_s": 11.4}
+{"encoder": "Gram-GLU", "training": "ema", "dataset": "mnist", "knn_l2_k1": 0.9319, "probe_acc": 0.9429, "time_s": 11.4}
+{"encoder": "Gram-GLU", "training": "ema", "dataset": "fashion_mnist", "knn_l2_k1": 0.7335, "probe_acc": 0.7567, "time_s": 11.4}
