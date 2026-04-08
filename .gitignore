@@ -217,3 +217,8 @@ projects/ssl/*.npy
 
 # Pickle files (large binary data, not for version control)
 *.pkl
+# small_lm project
+projects/small_lm/logs/
+projects/small_lm/pkl/
+projects/small_lm/data/train.jsonl
+projects/small_lm/data/eval.jsonl
