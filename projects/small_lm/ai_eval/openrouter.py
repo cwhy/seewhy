@@ -26,6 +26,10 @@ OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 DEFAULT_MODEL = "qwen/qwen3.6-plus:free"
 
 
+class BudgetExceededError(RuntimeError):
+    """Raised when the OpenRouter key's total spend limit is hit (403 Key limit exceeded)."""
+
+
 class OpenRouterClient:
     def __init__(self, model: str = DEFAULT_MODEL, timeout: float = 120.0):
         self.api_key = os.environ.get("OPENROUTER_KEY", "")
@@ -34,6 +38,21 @@ class OpenRouterClient:
         self.model   = model
         self.timeout = timeout
         self._client = httpx.Client(timeout=timeout)
+        self.prompt_tokens:     int = 0
+        self.completion_tokens: int = 0
+
+    def get_credits(self) -> float:
+        """Return current OpenRouter credit balance in USD."""
+        resp = self._client.get(
+            f"{OPENROUTER_BASE_URL}/credits",
+            headers={"Authorization": f"Bearer {self.api_key}"},
+        )
+        if resp.status_code != 200:
+            raise RuntimeError(f"Failed to fetch credits: {resp.status_code} {resp.text}")
+        data = resp.json()
+        # Response shape: {"data": {"total_credits": ..., "total_usage": ...}}
+        d = data.get("data", data)
+        return float(d.get("total_credits", 0)) - float(d.get("total_usage", 0))
 
     def chat(
         self,
@@ -86,6 +105,8 @@ class OpenRouterClient:
                 time.sleep(wait)
                 continue
             if resp.status_code >= 400:
+                if resp.status_code == 403 and "Key limit exceeded" in resp.text:
+                    raise BudgetExceededError(f"OpenRouter key limit exceeded: {resp.text}")
                 raise RuntimeError(f"OpenRouter error {resp.status_code}: {resp.text}")
             data = resp.json()
             # Upstream errors arrive as 200 with an "error" body — treat as retryable
@@ -100,6 +121,9 @@ class OpenRouterClient:
                 raise RuntimeError(f"OpenRouter upstream error: {data['error']}")
             if "choices" not in data:
                 raise RuntimeError(f"Unexpected response (no 'choices'): {data}")
+            usage = data.get("usage", {})
+            self.prompt_tokens     += usage.get("prompt_tokens", 0)
+            self.completion_tokens += usage.get("completion_tokens", 0)
             msg     = data["choices"][0]["message"]
             content = msg.get("content") or msg.get("reasoning_content") or ""
             # Qwen3 thinking models wrap content in <think>...</think> — strip it

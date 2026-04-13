@@ -18,6 +18,16 @@ run in under 3 minutes on a single GPU.
 | [ai-eval](https://media.tanh.xyz/seewhy/26-04-07/small_lm_report_ai_eval.html) | Conversational eval: LLM-judged fish-persona quality across 5 rounds, 60 questions. |
 | [k-Dyck pretraining](https://media.tanh.xyz/seewhy/26-04-07/small_lm_report_kdyck.html) | Procedural warm-up on balanced brackets before Guppy fine-tuning. |
 
+### Babystep / Kylo experiments (character impersonation, teacher-student)
+
+| Experiment | Report | Description |
+|------------|--------|-------------|
+| exp-8: kylo-impersonate | [report](https://media.tanh.xyz/seewhy/26-04-08/small_lm_babystep_kylo_continual_20260408_181309.html) | Teacher impersonates Kylo; model trained on Q&A pairs. 3015 pairs, final loss 0.36 |
+| exp-9: kylo-factsbased | [report](https://media.tanh.xyz/seewhy/26-04-08/small_lm_babystep_kylo_factsbased_20260408_191455.html) | Facts-based teacher: character facts accumulated and fed to teacher. 3000 pairs, final loss 0.93 |
+| exp-12: kylo-saturation | [report](https://media.tanh.xyz/seewhy/26-04-09/small_lm_babystep_kylo_factsbased_20260409_153436.html) | Saturation metric (β vs c₀) + batched fact consolidation. 3000 pairs, final loss 0.38 |
+| exp-13: kylo-kdyck | [report](https://media.tanh.xyz/seewhy/26-04-09/small_lm_babystep_kylo_factsbased_20260409_172750.html) | k-Dyck warm-up checkpoint as starting point. 3000 pairs, final loss 0.46 |
+| exp-15: kylo-50k | [report](https://media.tanh.xyz/seewhy/26-04-09/small_lm_babystep_kylo_factsbased_20260409_223538.html) | GPT-2 tokenizer (50,260 tokens), no lowercasing. 3000 pairs, final loss 2.10 |
+
 ---
 
 ## Project scope
