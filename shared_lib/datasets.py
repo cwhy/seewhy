@@ -216,17 +216,18 @@ def load_supervised_image(
         _save_to_cache(cache_path, dataset)
         return dataset
     elif data == "cifar10":
-        ds = load_dataset("uoft-cs/cifar10", cache_dir=cache_dir).with_format("jax")
+        import numpy as np
+        ds = load_dataset("uoft-cs/cifar10", cache_dir=cache_dir)
 
         assert isinstance(ds, DatasetDict)
         train_ds = ds["train"]
         test_ds = ds["test"]
 
-        # Access the data as JAX arrays
-        X_img: Array = jnp.array(train_ds["image"][:])
-        y: Array = jnp.array(train_ds["label"][:])
-        X_img_test: Array = jnp.array(test_ds["image"][:])
-        y_test: Array = jnp.array(test_ds["label"][:])
+        # uoft-cs/cifar10 uses column "img" (PIL Images) — convert via numpy
+        X_img: Array = jnp.array(np.stack([np.array(img) for img in train_ds["img"]]))
+        y: Array = jnp.array(train_ds["label"])
+        X_img_test: Array = jnp.array(np.stack([np.array(img) for img in test_ds["img"]]))
+        y_test: Array = jnp.array(test_ds["label"])
 
         # Apply slicing after accessing the data
         if n_tr:
