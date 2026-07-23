@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8'>
+<title>ROSA on MNIST — Phase B (ES findings)</title>
+<script src='https://cdn.tailwindcss.com'></script>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+  pre, code, .mono { font-family: 'SF Mono', 'Menlo', monospace; }
+  table { border-collapse: collapse; }
+  th, td { padding: 0.4rem 0.7rem; border: 1px solid #e5e7eb; font-size: 0.92rem; }
+  th { background: #f3f4f6; text-align: left; }
+  .num { text-align: right; font-family: 'SF Mono', 'Menlo', monospace; }
+  .hi { background: #fef3c7; font-weight: 600; }
+  .neg { color: #b91c1c; }
+  .pos { color: #15803d; }
+  blockquote { border-left: 4px solid #d1d5db; padding: 0.5rem 1rem; color: #4b5563; margin: 1rem 0; background: #f9fafb; }
+</style>
+</head>
+
+<body class='bg-white p-6 max-w-4xl mx-auto'>
+
+  <h1 class='text-3xl font-mono mb-2'>ROSA on MNIST — Phase B</h1>
+  <h2 class='text-xl font-mono text-gray-500 mb-2'>Gradient-free training, and the optimizer-strength signature</h2>
+  <p class='text-sm text-gray-600 mb-6'>
+    Continuation of the <a class='text-blue-600 underline' href='https://media.tanh.xyz/seewhy/26-05-08/rosa_report_phaseA.html'>Phase A report</a>,
+    which covered the gradient experiments + the decoupled (ROSA-as-classifier) overfitting finding.
+  </p>
+
+  <section class='mb-8'>
+    <h3 class='text-lg font-mono mt-6 mb-3 border-b pb-1'>TL;DR — what Phase B added</h3>
+    <ul class='list-disc ml-6 space-y-2'>
+      <li>Trained the joint pipeline with <strong>EGGROLL</strong> antithetic ES instead of gradient. This removes the stop_grad / non-differentiability problem entirely: ES doesn't need gradients, so ROSA's discrete predictions and the codebook's argmin lookup are no longer barriers to the optimizer.</li>
+      <li>Ran a clean ablation matrix over data size (10K vs 60K Fashion-MNIST), perturbation rank (1 vs 4), and population (32 vs 128) — with and without ROSA — total 7 ES experiments + the existing gradient runs.</li>
+      <li><strong>Headline result.</strong> ROSA's contribution <em>flips sign</em> with optimizer strength:
+        <ul class='list-disc ml-6 mt-1'>
+          <li>Weakest ES (10K, n_pop=32, rank=1): ROSA <span class='neg'>hurts by −4.15pp</span>.</li>
+          <li>Medium ES (60K, n_pop=32, rank=1): ROSA <span class='pos'>helps by +2.79pp</span>.</li>
+          <li>Strong ES (60K, n_pop=128, rank=4): ROSA <span class='neg'>hurts by −4.31pp</span>.</li>
+          <li>Gradient (the strongest optimizer): ROSA's contribution is ~0pp (lesion confirms it's ignored).</li>
+        </ul>
+      </li>
+      <li>ES <strong>never overfits</strong> — train-test gap stays under 5pp across all 7 ES runs, vs ~10pp for gradient on the same architecture. ES can't memorize specific samples, only find broad parameter directions.</li>
+      <li>The honest reading: ROSA is effectively a weak inductive bias. When the optimizer can't fully shape the codebook, ROSA's class-correlated guesses help fill the gap. Once the optimizer has enough data + samples per step, the codebook can be shaped precisely for classification, and ROSA's discrete predictions become redundant noise.</li>
+    </ul>
+  </section>
+
+  <section class='mb-8'>
+    <h3 class='text-lg font-mono mt-6 mb-3 border-b pb-1'>1 · Why ES?</h3>
+    <p class='mb-3'>
+      Phase A established that <strong>under gradient training, ROSA is structurally ignored</strong>:
+    </p>
+    <ul class='list-disc ml-6 mb-3'>
+      <li>With <span class='mono'>stop_grad</span> on ROSA's predicted-token embedding (exp1), the output module learns to zero out the ROSA input channel — confirmed by the lesion test (A − C ≈ 0).</li>
+      <li>Removing the <span class='mono'>stop_grad</span> (exp6) lets gradient flow through the codebook entries ROSA picks, but the gain is only +0.10pp.</li>
+    </ul>
+    <p class='mb-3'>
+      The user proposed an architectural pivot: <em>force ROSA to be the model</em> via decoupled training (Phase A's section 5). That hit a different wall — the SAM is a perfect memorizer (100% train) but reconstruction-optimal tokens aren't class-discriminative enough for generalization (54% test).
+    </p>
+    <p>
+      Phase B's idea: <strong>ES removes the structural barrier</strong>. There's no <span class='mono'>stop_grad</span> concept in gradient-free optimization. If ROSA's contribution can be learned at all under some optimizer, ES should reveal it. Plus ES naturally handles the non-differentiabilities (DiVeQ argmin, ROSA's discrete argmax) — they're inside the forward pass, the optimizer only sees the scalar loss.
+    </p>
+  </section>
+
+  <section class='mb-8'>
+    <h3 class='text-lg font-mono mt-6 mb-3 border-b pb-1'>2 · ES setup</h3>
+    <p class='mb-3'>
+      Architecture: identical to exp1 (input MLP + DiVeQ codebook + 11-class dense-fire output). Optimizer swapped to <strong>antithetic ES with rank-k perturbations</strong> (EGGROLL pattern from <span class='mono'>projects/es/experiments3.py</span>).
+    </p>
+    <p class='mb-3'>Per ES step on each batch:</p>
+    <ol class='list-decimal ml-6 mb-3'>
+      <li>Sample <span class='mono'>n_pop</span> rank-k perturbations <span class='mono'>ε_k</span>.</li>
+      <li>For each k, evaluate loss at <span class='mono'>params + ε_k</span> and <span class='mono'>params - ε_k</span> (antithetic), with ROSA queries on the per-pop tokens.</li>
+      <li>ES gradient estimate: <span class='mono'>Σ_k fitness_k · ε_k / (n_pop · σ²)</span>.</li>
+      <li>Adam update on the ES gradient.</li>
+      <li>Commit batch's tokens to ROSA (one set, using updated params).</li>
+    </ol>
+    <p class='mb-3'>
+      Hyperparameters held fixed across all ES runs: V=1024, D=64, K_sample=16, K_label=4, BATCH=64, 30 epochs, σ=0.001, Adam lr cosine 1e-3 → 1e-4, seed 42.
+      Varied: data size (10K, 60K), perturbation rank (1, 4), and population (32, 128).
+    </p>
+
+    <figure class='my-6'>
+      <img src='https://media.tanh.xyz/seewhy/26-05-14/rosa_phaseB_summary.svg' class='w-full border border-gray-200 rounded'>
+      <figcaption class='text-xs font-mono text-gray-500 mt-2 text-center'>
+        All Fashion-MNIST results. Grey: no-ROSA baselines · Blue: gradient + ROSA · Red: ES + ROSA · Pink: ES, no ROSA.
+        The 89.5% dashed line is the dense-baseline ceiling.
+      </figcaption>
+    </figure>
+  </section>
+
+  <section class='mb-8'>
+    <h3 class='text-lg font-mono mt-6 mb-3 border-b pb-1'>3 · The 7 ES experiments</h3>
+
+    <table class='w-full mb-4'>
+      <thead><tr><th>Run</th><th>Data</th><th>ROSA</th><th class='num'>rank</th><th class='num'>n_pop</th><th class='num'>Test acc</th><th class='num'>Train acc</th><th class='num'>Time</th></tr></thead>
+      <tbody>
+        <tr><td>exp10</td><td class='num'>10K</td><td>✓</td><td class='num'>1</td><td class='num'>32</td><td class='num'>38.70%</td><td class='num'>39.97%</td><td class='num'>9.5 min</td></tr>
+        <tr><td>exp11</td><td class='num'>10K</td><td>—</td><td class='num'>1</td><td class='num'>32</td><td class='num hi'>42.85%</td><td class='num'>43.31%</td><td class='num'>9.6 min</td></tr>
+        <tr><td>exp10b</td><td class='num'>60K</td><td>✓</td><td class='num'>1</td><td class='num'>32</td><td class='num hi'>60.72%</td><td class='num'>64.89%</td><td class='num'>54.5 min</td></tr>
+        <tr><td>exp11b</td><td class='num'>60K</td><td>—</td><td class='num'>1</td><td class='num'>32</td><td class='num'>57.93%</td><td class='num'>59.06%</td><td class='num'>53.5 min</td></tr>
+        <tr><td>exp10c</td><td class='num'>60K</td><td>✓</td><td class='num'>4</td><td class='num'>32</td><td class='num'>62.63%</td><td class='num'>64.43%</td><td class='num'>56.0 min</td></tr>
+        <tr><td>exp10d</td><td class='num'>60K</td><td>✓</td><td class='num'>4</td><td class='num'>128</td><td class='num'>72.19%</td><td class='num'>73.47%</td><td class='num'>202 min</td></tr>
+        <tr><td>exp11d</td><td class='num'>60K</td><td>—</td><td class='num'>4</td><td class='num'>128</td><td class='num hi'>76.50%</td><td class='num'>77.03%</td><td class='num'>193 min</td></tr>
+      </tbody>
+    </table>
+
+    <p class='text-sm text-gray-700'>
+      The yellow cells mark the better of each (with-ROSA, no-ROSA) pair at matched optimizer strength. At weakest and strongest optimizer strengths, no-ROSA wins; at intermediate strength, with-ROSA wins.
+    </p>
+  </section>
+
+  <section class='mb-8'>
+    <h3 class='text-lg font-mono mt-6 mb-3 border-b pb-1'>4 · The optimizer-strength flip</h3>
+
+    <figure class='my-6'>
+      <img src='https://media.tanh.xyz/seewhy/26-05-14/rosa_phaseB_contrib.svg' class='w-full border border-gray-200 rounded'>
+      <figcaption class='text-xs font-mono text-gray-500 mt-2 text-center'>
+        ROSA's measured contribution as (with-ROSA accuracy) − (no-ROSA accuracy), across optimizer strengths.
+        The U-shape — helping at intermediate strength, hurting at both extremes — is the signature finding of Phase B.
+      </figcaption>
+    </figure>
+
+    <p class='mb-3'>The pattern across optimizer strengths:</p>
+
+    <table class='w-full mb-4'>
+      <thead><tr><th>Optimizer config</th><th>Pair</th><th class='num'>with ROSA</th><th class='num'>no ROSA</th><th class='num'>ROSA contribution</th></tr></thead>
+      <tbody>
+        <tr><td>ES, weak (n_pop=32, r=1) + small data (10K)</td><td>exp10 vs exp11</td><td class='num'>38.70%</td><td class='num'>42.85%</td><td class='num neg'>-4.15pp</td></tr>
+        <tr><td>ES, medium (n_pop=32, r=1) + full data (60K)</td><td>exp10b vs exp11b</td><td class='num'>60.72%</td><td class='num'>57.93%</td><td class='num pos'>+2.79pp</td></tr>
+        <tr><td>ES, strong (n_pop=128, r=4) + full data (60K)</td><td>exp10d vs exp11d</td><td class='num'>72.19%</td><td class='num'>76.50%</td><td class='num neg'>-4.31pp</td></tr>
+        <tr><td>Gradient (strongest) — lesion, no stopgrad (exp6)</td><td>A − C lesion</td><td class='num'>89.14%</td><td class='num'>89.04%</td><td class='num pos'>+0.10pp</td></tr>
+        <tr><td>Gradient (strongest) — lesion, with stopgrad (exp1)</td><td>A − C lesion</td><td class='num'>89.00%</td><td class='num'>88.99%</td><td class='num'>−0.01pp</td></tr>
+      </tbody>
+    </table>
+
+    <p>The interpretation: <strong>ROSA is a weak inductive bias.</strong></p>
+    <ul class='list-disc ml-6 mt-3 mb-3'>
+      <li>When the optimizer is <em>underpowered</em>, the codebook can't develop class-discriminative entries on its own. ROSA's class-correlated guesses (drawn from training-stream patterns) bridge the gap and improve accuracy.</li>
+      <li>When the optimizer is <em>overpowered</em> for the task, the codebook gets shaped precisely for digit classification regardless of ROSA. Now ROSA's discrete predictions — based on whichever-training-sample-had-this-suffix — are noise relative to the precise gradient signal, and they hurt.</li>
+      <li>The 10K result hurts because <em>neither</em> the codebook nor ROSA has enough data: ROSA only sees ~10K bursts so its predictions are weak, and the optimizer has only 156 batches/epoch to shape the codebook. Both are underpowered, and ROSA can't help.</li>
+    </ul>
+  </section>
+
+  <section class='mb-8'>
+    <h3 class='text-lg font-mono mt-6 mb-3 border-b pb-1'>5 · ES never overfits</h3>
+
+    <figure class='my-6'>
+      <img src='https://media.tanh.xyz/seewhy/26-05-14/rosa_phaseB_gen_gap.svg' class='w-full border border-gray-200 rounded'>
+      <figcaption class='text-xs font-mono text-gray-500 mt-2 text-center'>
+        Train vs test across ES configs. Generalization gaps stay under 5pp.
+        Gradient training of the same architecture (right) overfits to a ~10pp gap (train ~99%, test ~89%).
+      </figcaption>
+    </figure>
+
+    <p class='mb-3'>
+      A real architectural property of ES: <strong>perturbations can't memorize specific training samples</strong>, only find broad parameter regions whose accuracy is high on average. So ES naturally regularizes — train and test accuracy stay close throughout training.
+    </p>
+    <p>
+      Compare to the decoupled ROSA-as-classifier run from Phase A (train 100% / test 54.47%, a 45pp gap). That extreme overfit was because ROSA's SAM is a literal memorizer. ES + ROSA, by contrast, only commits the <em>post-step</em> tokens to the SAM — by then the codebook is somewhere in the broad region ES is exploring, and individual-sample memorization can't develop.
+    </p>
+  </section>
+
+  <section class='mb-8'>
+    <h3 class='text-lg font-mono mt-6 mb-3 border-b pb-1'>6 · Learning curves</h3>
+
+    <figure class='my-6'>
+      <img src='https://media.tanh.xyz/seewhy/26-05-14/rosa_phaseB_curves.svg' class='w-full border border-gray-200 rounded'>
+      <figcaption class='text-xs font-mono text-gray-500 mt-2 text-center'>
+        Test accuracy across epochs for the 7 ES runs. Solid lines = with ROSA, dotted = no ROSA.
+        The (red) 10K pair shows ROSA hurting throughout; the (purple) 60K-n_pop=32 pair shows ROSA helping;
+        the (green) 60K-n_pop=128 pair shows ROSA hurting at convergence.
+      </figcaption>
+    </figure>
+
+    <p>
+      Note that <strong>ES is still climbing at epoch 29</strong> in the n_pop=128 runs (both with and without ROSA). Longer training would likely add another few percentage points. But the relative ROSA effect is already decisive — exp11d is consistently above exp10d throughout.
+    </p>
+  </section>
+
+  <section class='mb-8'>
+    <h3 class='text-lg font-mono mt-6 mb-3 border-b pb-1'>7 · Discussion</h3>
+
+    <p class='mb-3'>
+      Combining Phase A and Phase B, we have eleven Fashion-MNIST runs spanning gradient and ES, with and without ROSA, three optimizer strengths, two data sizes, and the decoupled "ROSA-is-the-classifier" architecture. The story is internally consistent:
+    </p>
+    <ul class='list-disc ml-6 mb-3'>
+      <li><strong>ROSA's information is largely redundant with the recent-window of token embeddings</strong>, which the output module sees directly. The "training-history correlations" ROSA uniquely encodes only matter when neither the optimizer nor the codebook can extract them from the window content. That's a narrow regime.</li>
+      <li><strong>The non-differentiability of ROSA was not the structural blocker.</strong> Switching to ES (which doesn't need gradients) reveals ROSA's contribution only at one specific optimizer strength; at any strength the optimizer can solve the task without ROSA, it does so and prefers that path.</li>
+      <li><strong>The decoupled ROSA-as-classifier setup hit a ceiling at 54.47%</strong> because reconstruction-optimal VQ-AE tokens aren't class-discriminative enough for ROSA's suffix-matching to recover the right digit on novel test images. ROSA can perfectly memorize training streams (100% train) but novel images fall through to wrong-class training matches.</li>
+      <li><strong>ES regularizes the joint pipeline.</strong> A real architectural advantage independent of ROSA. Train-test gaps stay under 5pp across all 7 ES runs, vs ~10pp for gradient.</li>
+    </ul>
+
+    <p class='mb-3'><strong>The honest reading:</strong></p>
+
+    <blockquote>
+      ROSA's exact-match memory is a real signal. It's just not a useful signal for image classification with a learned codebook, because the codebook can be shaped to put class info directly in the tokens — making ROSA's lookups redundant. ROSA's natural domain is probably <em>discrete sequences with literal repetition</em>: text, code, or log streams, where exact-match has irreducible value that can't be replicated by a small clustered vocabulary.
+    </blockquote>
+
+    <p>
+      As BlinkDL noted in the original ROSA-Plus README — ROSA is a "database-like" predictor that excels at surface structure (syntax, grammar, exact substrings) but lacks the deeper semantic understanding of an NN. Image classification on a 1024-symbol vocabulary turns out to be more semantics than surface, so the neural classifier wins.
+    </p>
+  </section>
+
+  <section class='mb-8'>
+    <h3 class='text-lg font-mono mt-6 mb-3 border-b pb-1'>8 · What's next</h3>
+    <ul class='list-disc ml-6 space-y-2'>
+      <li><strong>Pivot to a domain where exact-match has irreducible value.</strong> Sequential prediction on text or character streams, where ROSA's database structure aligns with the natural data structure. The original ROSA-Plus task (Shakespearean generation) lives here.</li>
+      <li><strong>One-shot / few-shot classification.</strong> ROSA can perfectly recall a single training example after one exposure — useful when the goal is "match this exemplar," not "average over a class."</li>
+      <li><strong>Hybrid scaling.</strong> ES + ROSA at n_pop=128 was still climbing at epoch 29. A larger run (n_pop=256, 60 epochs, multiple seeds) could close more of the gap to gradient. But the marginal-utility-of-ROSA finding suggests this is mostly an ES-vs-gradient comparison rather than a ROSA test.</li>
+      <li><strong>Better tokenizer for the decoupled setup.</strong> If the Stage 1 VQ-AE were replaced with a contrastive or class-aware encoder, the decoupled ROSA approach might break through the 55% ceiling — but at that point ROSA is hitching a ride on the encoder's class knowledge.</li>
+    </ul>
+  </section>
+
+  <hr class='my-8 border-gray-300'>
+  <p class='text-xs font-mono text-gray-500'>
+    Code: <span class='mono'>projects/rosa/</span> ·
+    Phase A report: <a class='text-blue-600 underline' href='https://media.tanh.xyz/seewhy/26-05-08/rosa_report_phaseA.html'>rosa_report_phaseA.html</a> ·
+    All runs in <span class='mono'>projects/rosa/results.jsonl</span>
+  </p>
+
+</body>
+</html>

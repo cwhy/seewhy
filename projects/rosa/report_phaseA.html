@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8'>
+<title>ROSA on MNIST — Phase A report</title>
+<script src='https://cdn.tailwindcss.com'></script>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+  pre, code, .mono { font-family: 'SF Mono', 'Menlo', monospace; }
+  table { border-collapse: collapse; }
+  th, td { padding: 0.4rem 0.8rem; border: 1px solid #e5e7eb; font-size: 0.92rem; }
+  th { background: #f3f4f6; text-align: left; }
+  .num { text-align: right; font-family: 'SF Mono', 'Menlo', monospace; }
+  .hi { background: #fef3c7; font-weight: 600; }
+  blockquote { border-left: 4px solid #d1d5db; padding: 0.5rem 1rem; color: #4b5563; margin: 1rem 0; background: #f9fafb; }
+</style>
+</head>
+
+<body class='bg-white p-6 max-w-4xl mx-auto'>
+
+  <h1 class='text-3xl font-mono mb-2'>ROSA on MNIST</h1>
+  <h2 class='text-xl font-mono text-gray-500 mb-6'>Memory, memorization, and the limits of statistical tokens</h2>
+
+  <section class='mb-8'>
+    <h3 class='text-lg font-mono mt-6 mb-3 border-b pb-1'>TL;DR</h3>
+    <ul class='list-disc ml-6 space-y-2'>
+      <li>We tried to use <strong>ROSA</strong>
+        (a pure-statistics suffix-automaton next-token predictor from
+        <a href='https://github.com/bcml-labs/rosa-plus' class='text-blue-600 underline'>bcml-labs/rosa-plus</a>)
+        as the memory layer of an MNIST/Fashion-MNIST classifier — neural input + ROSA + neural output.</li>
+      <li>On <strong>MNIST</strong>, ROSA's contribution is small and noisy: <span class='mono'>+0.15pp</span> over the no-ROSA baseline.</li>
+      <li>On <strong>Fashion-MNIST</strong>, ROSA is <em>actively ignored</em> by the output module
+        when its predicted-token-embedding is stop-gradient'd — a lesion test gives
+        <span class='mono'>+0.01pp</span>.
+        Removing the stop_grad lets ROSA contribute exactly <span class='mono'>+0.10pp</span> — real, but tiny.</li>
+      <li>The most striking finding is the <strong>decoupled experiment</strong>: train a VQ-AE on images, build ROSA over the resulting tokens, classify by reading off ROSA's distribution at the &lt;LABEL&gt; position. Result on Fashion-MNIST: <span class='mono hi'>train 100% / test 54.47%</span>. ROSA <em>perfectly memorizes</em> training streams but generalizes poorly because reconstruction-optimal tokens aren't class-discriminative enough.</li>
+      <li>The takeaway: ROSA's exact-match memory is real, but on image-classification benchmarks the recent-window of token content already encodes the same information ROSA could provide — and the parts ROSA <em>uniquely</em> knows (training-history correlations) get washed out by codebook collisions.</li>
+    </ul>
+  </section>
+
+  <section class='mb-8'>
+    <h3 class='text-lg font-mono mt-6 mb-3 border-b pb-1'>1 · Background — what is ROSA?</h3>
+    <p class='mb-3'>
+      ROSA (introduced by <a class='text-blue-600 underline' href='https://x.com/BlinkDL_AI/status/1976912771985146184'>BlinkDL</a> as an extension to RWKV) is a <strong>pure-statistics next-token predictor</strong> built around a <strong>suffix automaton</strong> (SAM). After ingesting a token stream, ROSA can be queried with any prefix and returns:
+    </p>
+    <ol class='list-decimal ml-6 mb-3'>
+      <li><strong>SAM-deterministic</strong>: the next token after the rightmost training match of the longest suffix of the prefix that exists in the SAM (a literal "1-NN by token-suffix" rule).</li>
+      <li><strong>Witten–Bell fallback</strong>: when no deterministic answer is found, an interpolated n-gram distribution along the suffix-link chain.</li>
+    </ol>
+    <p class='mb-3'>
+      ROSA has <em>zero trainable parameters</em>. It's a frozen data structure that grows monotonically as tokens stream in. The bcml-labs/rosa-plus implementation is character-level for English text; we ported it to integer tokens (<a class='text-blue-600 underline' href='https://github.com/bcml-labs/rosa-plus/blob/main/rosaplus.py'>rosaplus.py</a> &rarr; <span class='mono'>lib/rosa_core.py</span>).
+    </p>
+    <p>
+      The question we set out to ask: <strong>can ROSA's exact-match memory provide a useful prior for visual classification</strong> when slotted into a learned tokenization pipeline?
+    </p>
+  </section>
+
+  <section class='mb-8'>
+    <h3 class='text-lg font-mono mt-6 mb-3 border-b pb-1'>2 · Architecture</h3>
+    <p class='mb-3'>The pipeline (<span class='mono'>experiments1.py</span>):</p>
+    <pre class='bg-gray-50 border border-gray-200 p-3 text-xs overflow-x-auto rounded'>image (28×28)                                  label (digit 0..9)
+   │                                                  │
+   ▼                                                  ▼
+recurrent input MLP × K_SAMPLE=16 steps     recurrent input MLP × K_LABEL=4 steps
+(RMSNorm + GELU + residual)                 (same shared body, different head)
+   │                                                  │
+   ▼ z (continuous)                                   ▼ z (continuous)
+DiVeQ quantize (V=1024, D=64)               DiVeQ quantize
+   │ argmin → integer IDs                             │
+   ▼                                                  ▼
+[ &lt;SAMPLE&gt;=0,  s_1..s_16,  &lt;LABEL&gt;=1,  l_1..l_4 ]    ← 22-token stream
+   │
+   ▼
+ROSA SAM (continual; grows across all training)
+   │ predicted next-token ID at every position
+   ▼
+codebook[predicted_id]  →  rosa_pred_emb (stop_grad in exp1; no stopgrad in exp6)
+                              │
+   ┌─ 8-token sliding window ─┘
+   │
+   ▼
+output module: 11-class softmax (10 digits + NO_OUTPUT)
+   - fires at every position
+   - target: digit at LABEL position (index 17), NO_OUTPUT elsewhere
+   - λ_digit_boost = 20 to counter ~21:1 imbalance</pre>
+    <p class='mt-3'>Stage-1 pipeline (Phase A, <span class='mono'>scripts/tmp/decoupled_rosa.py</span>) drops the joint loss and trains the encoder + codebook as a pure VQ-AE on images, then builds ROSA over the resulting frozen tokens, then predicts digits by reading ROSA's distribution at &lt;LABEL&gt; with zero trainable parameters in the output head.</p>
+  </section>
+
+  <section class='mb-8'>
+    <h3 class='text-lg font-mono mt-6 mb-3 border-b pb-1'>3 · Experiments &amp; results</h3>
+    <p class='mb-3'>All runs use V=1024, D=64, K_sample=16, K_label=4, batch 128, 50 epochs, Adam lr=3e-4 cosine to 5%, seed 42. Times are wall-clock on one RTX 4090.</p>
+
+    <table class='w-full mb-4'>
+      <thead><tr><th>Run</th><th>Dataset</th><th class='num'>Test acc</th><th class='num'>Train acc</th><th class='num'>cb_used</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td>0.3 vq_only</td><td>MNIST</td><td class='num'>98.19%</td><td class='num'>100.00%</td><td class='num'>39/1022</td><td>VQ-MLP, no ROSA, no NO_OUTPUT — neural ceiling</td></tr>
+        <tr><td>0.4 dense</td><td>MNIST</td><td class='num'>98.10%</td><td class='num'>100.00%</td><td class='num'>94/1022</td><td>NO_OUTPUT mechanism, no ROSA</td></tr>
+        <tr><td>exp1</td><td>MNIST</td><td class='num hi'>98.34%</td><td class='num'>100.00%</td><td class='num'>96/1022</td><td>full ROSA pipeline, +0.15pp over 0.3</td></tr>
+        <tr><td colspan='6' style='border-top: 2px solid #d1d5db; height: 6px; background: #f9fafb;'></td></tr>
+        <tr><td>0.3 vq_only</td><td>Fashion-MNIST</td><td class='num'>89.57%</td><td class='num'>99.58%</td><td class='num'>79/1022</td><td></td></tr>
+        <tr><td>0.4 dense</td><td>Fashion-MNIST</td><td class='num'>89.49%</td><td class='num'>98.99%</td><td class='num'>118/1022</td><td>dense fire is essentially lossless on Fashion too</td></tr>
+        <tr><td>exp1</td><td>Fashion-MNIST</td><td class='num'>89.00%</td><td class='num'>98.88%</td><td class='num'>132/1022</td><td>−0.49pp vs dense — ROSA appears to hurt</td></tr>
+        <tr><td>exp1n</td><td>Fashion-MNIST</td><td class='num'>89.13%</td><td class='num'>99.20%</td><td class='num'>85/1022</td><td>indicators removed; basically unchanged</td></tr>
+        <tr><td>exp6</td><td>Fashion-MNIST</td><td class='num hi'>89.14%</td><td class='num'>99.20%</td><td class='num'>148/1022</td><td>no stop_grad on rosa_pred_emb</td></tr>
+        <tr><td>decoupled v1 (SAM-1NN)</td><td>Fashion-MNIST</td><td class='num'>41.63%</td><td class='num'>100.00%</td><td class='num'>~138/1012</td><td>ROSA is the entire classifier; argmax of deterministic rule</td></tr>
+        <tr><td>decoupled v2 (LM dist)</td><td>Fashion-MNIST</td><td class='num hi'>54.47%</td><td class='num hi'>100.00%</td><td class='num'>~138/1012</td><td>same setup, argmax over LM digit-probs</td></tr>
+      </tbody>
+    </table>
+
+    <figure class='my-6'>
+      <img src='https://media.tanh.xyz/seewhy/26-05-08/rosa_phaseA_summary.svg' class='w-full border border-gray-200 rounded'>
+      <figcaption class='text-xs font-mono text-gray-500 mt-2 text-center'>
+        Test accuracy across all variants on Fashion-MNIST. Blue = joint (ROSA in the loop); red = decoupled (ROSA is the classifier); grey = no-ROSA baselines.
+      </figcaption>
+    </figure>
+  </section>
+
+  <section class='mb-8'>
+    <h3 class='text-lg font-mono mt-6 mb-3 border-b pb-1'>4 · Lesion: is ROSA actually contributing?</h3>
+    <p class='mb-3'>For each trained joint model (exp1, exp1n, exp6) we re-evaluated on the test set with three different values of <span class='mono'>rosa_pred_emb</span>:</p>
+    <ul class='list-disc ml-6 mb-3'>
+      <li><strong>A · zero</strong>: <span class='mono'>rosa_pred_emb = 0</span> at every position.</li>
+      <li><strong>B · const</strong>: <span class='mono'>rosa_pred_emb = codebook[0]</span> (a fixed indicator-style vector).</li>
+      <li><strong>C · real</strong>: ROSA's actual predicted-token embedding, looked up from the saved 3.3 GB SAM.</li>
+    </ul>
+    <p class='mb-3'><strong>C − A</strong> measures ROSA's actual contribution. ≈0 means the output module ignores ROSA; positive means ROSA contributes; negative means ROSA hurts.</p>
+
+    <figure class='my-6'>
+      <img src='https://media.tanh.xyz/seewhy/26-05-08/rosa_phaseA_lesion.svg' class='w-full border border-gray-200 rounded'>
+      <figcaption class='text-xs font-mono text-gray-500 mt-2 text-center'>
+        Lesion: real ROSA vs. zero-and-constant ablations. Stop_grad on (exp1, exp1n) → ROSA is exactly ignored.
+        Stop_grad off (exp6) → first non-zero contribution: real ROSA gives +0.10pp over zeroed ROSA.
+      </figcaption>
+    </figure>
+
+    <p>The pattern matches a failure mode the plan explicitly anticipated:</p>
+    <blockquote>
+      "The output module may learn to ignore ROSA's feature (it's stop-grad'd anyway) and just classify from the recent-window pool — degenerating to a vanilla VQ-MLP classifier."
+    </blockquote>
+    <p>That's exactly what happens. The W=8 sliding window of token embeddings already contains everything that <em>determines</em> ROSA's prediction (since ROSA is a deterministic function of recent stream + entire training history). The genuinely new information ROSA provides is the <em>training-history correlations</em>, but with stop_grad the output module has no way to ask the codebook to encode that history usefully — so it learns to zero out the ROSA channel.</p>
+  </section>
+
+  <section class='mb-8'>
+    <h3 class='text-lg font-mono mt-6 mb-3 border-b pb-1'>5 · Phase A — ROSA as the entire classifier (decoupled)</h3>
+    <p class='mb-3'>Architecturally we wanted to test the opposite extreme: <strong>force ROSA to be the answer</strong>, with as little neural assist as possible. Three stages:</p>
+    <ol class='list-decimal ml-6 mb-3'>
+      <li><strong>VQ-AE</strong> on Fashion-MNIST images only (no labels). Recurrent input MLP + codebook + simple decoder, 50 epochs, reconstruction MSE + commitment loss.</li>
+      <li><strong>Build ROSA.</strong> Frozen encoder. Per-sample stream <span class='mono'>[&lt;SAMPLE&gt;, s_1..s_16, &lt;LABEL&gt;, y_token]</span> where the digit's token ID is reserved (<span class='mono'>y + 2</span> ∈ <span class='mono'>{2..11}</span>). Feed all 60K streams to the SAM, build the Witten–Bell LM.</li>
+      <li><strong>Eval (zero parameters).</strong> Encode test image → 16 tokens → walk SAM along <span class='mono'>[&lt;SAMPLE&gt;, s_1..s_16, &lt;LABEL&gt;]</span> → ROSA's distribution at the resulting state → sum probability mass over IDs 2..11 → argmax.</li>
+    </ol>
+
+    <figure class='my-6'>
+      <img src='https://media.tanh.xyz/seewhy/26-05-08/rosa_phaseA_vqae.svg' class='w-full border border-gray-200 rounded'>
+      <figcaption class='text-xs font-mono text-gray-500 mt-2 text-center'>
+        Stage 1: VQ-AE training on Fashion-MNIST. Test reconstruction MSE plateaus at 0.0136 — typical for VQ-VAE-class autoencoders on this dataset.
+      </figcaption>
+    </figure>
+
+    <p class='mb-3'>Two prediction modes were tested in Stage 3:</p>
+
+    <table class='w-full mb-4'>
+      <thead><tr><th>Mode</th><th class='num'>Test acc</th><th class='num'>Train acc</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td>v1 — SAM-deterministic shortcut</td><td class='num'>41.63%</td><td class='num'>100.00%</td><td>1-NN-by-suffix; brittle on novel test images</td></tr>
+        <tr><td>v2 — Witten–Bell distribution argmax</td><td class='num hi'>54.47%</td><td class='num hi'>100.00%</td><td>aggregates counts up the suffix chain</td></tr>
+      </tbody>
+    </table>
+
+    <figure class='my-6'>
+      <img src='https://media.tanh.xyz/seewhy/26-05-08/rosa_phaseA_gap.svg' class='w-full border border-gray-200 rounded'>
+      <figcaption class='text-xs font-mono text-gray-500 mt-2 text-center'>
+        Train vs test on Fashion-MNIST. The decoupled ROSA variant has the largest train–test gap by a wide margin — train 100%, test 54%, a textbook signature of memorization without generalization.
+      </figcaption>
+    </figure>
+
+    <p class='mb-3'>The 100% train / 54% test split is the most interesting result of the whole project. ROSA is doing exactly what it was designed to do — perfectly remember the training stream — and that's why it can recover every training-set digit by direct lookup. But for a novel test image whose token sequence isn't an exact training match, ROSA's suffix-fallback finds <em>some</em> training stream that ends in this prefix, and that training stream's class is the one ROSA returns. With reconstruction-optimal tokens, similar-looking-but-different-class images often share token prefixes, so the wrong class wins.</p>
+  </section>
+
+  <section class='mb-8'>
+    <h3 class='text-lg font-mono mt-6 mb-3 border-b pb-1'>6 · Discussion</h3>
+    <p class='mb-3'><strong>Why doesn't ROSA help in the joint setting?</strong> The output module's recent-window of W=8 tokens already encodes everything that determines ROSA's argmax prediction (since ROSA is a deterministic function of recent stream + entire training history). The truly-novel info ROSA carries is "training-history correlations on this exact suffix" — but:</p>
+    <ul class='list-disc ml-6 mb-3'>
+      <li>With stop_grad, the output module can't shape what those training-history correlations <em>mean</em>;</li>
+      <li>Without stop_grad, it can — but the gradient through <span class='mono'>codebook[predicted_id]</span> is biased (changing the codebook would change ROSA's choice, but we don't account for that). The result is a real but tiny improvement (+0.10pp).</li>
+    </ul>
+
+    <figure class='my-6'>
+      <img src='https://media.tanh.xyz/seewhy/26-05-08/rosa_phaseA_curves.svg' class='w-full border border-gray-200 rounded'>
+      <figcaption class='text-xs font-mono text-gray-500 mt-2 text-center'>
+        Learning curves for the three joint variants on Fashion-MNIST. exp6 (no stopgrad) reaches roughly the same final test accuracy as exp1 (stopgrad), confirming the lesion result: the gradient through ROSA's path is doing a small amount of useful work.
+      </figcaption>
+    </figure>
+
+    <p class='mb-3'><strong>Why does decoupled ROSA-as-classifier overfit?</strong> Because a SAM is a perfect memory device: it can answer "what came after this exact suffix in training?" with literal recall. Train accuracy is 100% by construction — every training stream's <span class='mono'>&lt;LABEL&gt;</span>-state has its own correct y_token recorded. Test accuracy is whatever the codebook's class-discriminativity allows: with reconstruction-optimal tokens, similar-looking items in different classes share suffixes, so the SAM hands back the wrong class.</p>
+
+    <p class='mb-3'><strong>The ceiling for "ROSA-pure" on Fashion-MNIST is ~55%.</strong> Real but unimpressive against the 89% dense baseline. The 35 percentage points of headroom would have to come from making the tokens more class-discriminative — but as soon as we do that with supervision (a small classification head in Stage 1, e.g.) we're back to a regular classifier with ROSA bolted on.</p>
+
+    <p><strong>The honest interpretation:</strong> ROSA's exact-match statistics are a <em>real</em> signal — strong enough to lift random tokens from chance to 41% on Fashion-MNIST and to perfectly recover training data — but on image classification benchmarks the W-token sliding window is already capacity-rich enough that ROSA's contribution is largely redundant. ROSA's natural domain is probably <em>discrete sequences with literal repetition</em> (text, code, log streams) where its database-style memory has more unique value. As BlinkDL noted in the original ROSA-Plus README: ROSA is a "database-like" predictor that excels at surface structure — coherent on syntax, brittle on semantics — and image classification on a small alphabet of clustered codebook tokens turns out to be more "semantics" than "surface".</p>
+  </section>
+
+  <section class='mb-8'>
+    <h3 class='text-lg font-mono mt-6 mb-3 border-b pb-1'>7 · What's next</h3>
+    <ul class='list-disc ml-6 space-y-2'>
+      <li><strong>EGGROLL/ES with ROSA in the loop</strong> — black-box-optimize the input MLP + codebook on classification accuracy with ROSA inside the loss. Forces the optimizer to discover tokens that make ROSA's predictions accurate. Slower, but architecturally aligns the optimizer with the structural role of ROSA.</li>
+      <li><strong>Pivot the question</strong> — if ROSA's natural strength is exact-match memory, image classification was the wrong testbed. A small one-shot/few-shot benchmark, or a sequential-prediction task (next-pixel, next-character) is closer to ROSA's home turf.</li>
+      <li><strong>ROSA-as-logit-prior</strong> — use ROSA's full distribution to initialize the output module's logits, with the neural network producing only a residual. ROSA becomes structurally unavoidable; the decoupled finding suggests this would land somewhere between the joint and decoupled numbers.</li>
+    </ul>
+  </section>
+
+  <hr class='my-8 border-gray-300'>
+  <p class='text-xs font-mono text-gray-500'>
+    Code: <span class='mono'>projects/rosa/</span> ·
+    Plan: <span class='mono'>projects/rosa/plan.md</span> ·
+    Concepts: <span class='mono'>projects/rosa/concepts.md</span>
+  </p>
+
+</body>
+</html>

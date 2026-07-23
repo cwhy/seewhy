@@ -1,0 +1,6 @@
+logs/
+*.pkl
+*.npy
+*.json.gz
+__pycache__/
+rosa_exp*.json

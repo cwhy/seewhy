@@ -2,9 +2,19 @@ from datasets import Dataset, DatasetDict, load_dataset
 from typing import Literal, NamedTuple
 import jax.numpy as jnp
 from jax import Array
+import numpy as np
 import pickle
 import os
 from pathlib import Path
+
+
+class SudokuDataset(NamedTuple):
+    n_train: int
+    n_test: int
+    X_train: Array   # (n_train, 81) int32  — 0=empty, 1-9=given digit
+    y_train: Array   # (n_train, 81) int32  — solution digits 1-9
+    X_test: Array
+    y_test: Array
 
 
 class Supervised1D(NamedTuple):
@@ -262,3 +272,48 @@ def load_supervised_image(
             "Unsupported image dataset "
             f"'{data}'. Supported values are: 'mnist', 'fashion_mnist', 'cifar10'."
         )
+
+
+def load_sudoku_extreme(
+    n_tr: int | None = None,
+    n_tst: int | None = None,
+) -> SudokuDataset:
+    """Load sapientinc/sudoku-extreme from HuggingFace.
+
+    Puzzles are 81-char strings ('.' = empty, '1'-'9' = given digit).
+    X: int32 arrays with 0=empty, 1-9=digit.
+    y: int32 solution arrays with digits 1-9.
+    """
+    cache_path = _get_cache_path("sudoku_extreme", n_tr, n_tst)
+    cached = _load_from_cache(cache_path)
+    if cached is not None:
+        return cached
+
+    ds = load_dataset("sapientinc/sudoku-extreme", cache_dir=cache_dir)
+    assert isinstance(ds, DatasetDict)
+
+    def to_arrays(split, n):
+        rows = split if n is None else split[:n]
+        X = np.array(
+            [[0 if c == "." else int(c) for c in q] for q in rows["question"]],
+            dtype=np.int32,
+        )
+        y = np.array(
+            [[int(c) for c in a] for a in rows["answer"]],
+            dtype=np.int32,
+        )
+        return jnp.array(X), jnp.array(y)
+
+    X_train, y_train = to_arrays(ds["train"], n_tr)
+    X_test,  y_test  = to_arrays(ds["test"],  n_tst)
+
+    result = SudokuDataset(
+        n_train=int(X_train.shape[0]),
+        n_test=int(X_test.shape[0]),
+        X_train=X_train,
+        y_train=y_train,
+        X_test=X_test,
+        y_test=y_test,
+    )
+    _save_to_cache(cache_path, result)
+    return result
