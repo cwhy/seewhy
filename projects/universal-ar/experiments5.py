@@ -59,7 +59,7 @@ EP_SAMPLES     = 256      # S: LONG context length (vs 48 in exp4)
 N_OBS          = 384      # observed entries per row (~50%)
 N_REC          = 64       # self-recall pixel targets
 N_EVAL         = 64       # cells scored per row for recall/content
-BATCH_EPISODES = 12       # B (smaller to fit the long context)
+BATCH_EPISODES = 8        # B (small to fit S=256 in memory)
 
 NUM_STEPS      = 5000
 EVAL_EVERY     = 250
