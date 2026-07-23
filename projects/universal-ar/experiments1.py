@@ -165,7 +165,7 @@ def loss_fn(params, bins, pos, labels, mode: str):
     return loss, acc
 
 
-@partial(jax.jit, static_argnums=(0, 5))
+@partial(jax.jit, static_argnums=(0, 6))
 def train_step(optimizer, params, opt_state, bins, pos, labels, mode):
     (loss, acc), grads = jax.value_and_grad(loss_fn, has_aux=True)(
         params, bins, pos, labels, mode)
