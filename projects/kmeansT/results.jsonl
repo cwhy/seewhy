@@ -1,0 +1,32 @@
+{"exp": "exp1", "variant": "baseline", "K": 784, "n_cluster_samples": null, "train_acc": 0.9388666666666666, "test_acc": 0.9257, "elapsed_s": 1075.45}
+{"exp": "exp1", "variant": "exp1a", "K": 10, "n_cluster_samples": 60000, "train_acc": 0.7352166666666666, "test_acc": 0.7474, "baseline_acc": 0.9257, "elapsed_s": 15.19}
+{"exp": "exp1", "variant": "exp1a", "K": 16, "n_cluster_samples": 60000, "train_acc": 0.8306333333333333, "test_acc": 0.8378, "baseline_acc": 0.9257, "elapsed_s": 15.77}
+{"exp": "exp1", "variant": "exp1a", "K": 32, "n_cluster_samples": 60000, "train_acc": 0.88285, "test_acc": 0.8898, "baseline_acc": 0.9257, "elapsed_s": 19.1}
+{"exp": "exp1", "variant": "exp1a", "K": 48, "n_cluster_samples": 60000, "train_acc": 0.89805, "test_acc": 0.904, "baseline_acc": 0.9257, "elapsed_s": 25.22}
+{"exp": "exp1", "variant": "exp1a", "K": 64, "n_cluster_samples": 60000, "train_acc": 0.9061166666666667, "test_acc": 0.9101, "baseline_acc": 0.9257, "elapsed_s": 104.61}
+{"exp": "exp1", "variant": "exp1b", "K": 32, "n_cluster_samples": 500, "train_acc": 0.88375, "test_acc": 0.8882, "elapsed_s": 16.62}
+{"exp": "exp1", "variant": "exp1b", "K": 32, "n_cluster_samples": 2000, "train_acc": 0.8748666666666667, "test_acc": 0.8807, "elapsed_s": 43.42}
+{"exp": "exp1", "variant": "exp1b", "K": 32, "n_cluster_samples": 10000, "train_acc": 0.8782, "test_acc": 0.8842, "elapsed_s": 23.8}
+{"exp": "exp1", "variant": "exp1b", "K": 32, "n_cluster_samples": 60000, "train_acc": 0.88285, "test_acc": 0.8898, "elapsed_s": 5.3}
+{"exp": "exp1", "variant": "baseline", "K": 784, "n_cluster_samples": null, "train_acc": 1.0, "test_acc": 0.9837, "elapsed_s": 21.42}
+{"exp": "exp1", "variant": "exp1a", "K": 10, "n_cluster_samples": 60000, "train_acc": 0.9234333333333333, "test_acc": 0.9048, "baseline_test": 0.9837, "elapsed_s": 22.13}
+{"exp": "exp1", "variant": "exp1a", "K": 16, "n_cluster_samples": 60000, "train_acc": 0.9867, "test_acc": 0.9533, "baseline_test": 0.9837, "elapsed_s": 22.01}
+{"exp": "exp1", "variant": "exp1a", "K": 32, "n_cluster_samples": 60000, "train_acc": 0.9958333333333333, "test_acc": 0.9713, "baseline_test": 0.9837, "elapsed_s": 23.72}
+{"exp": "exp1", "variant": "exp1a", "K": 48, "n_cluster_samples": 60000, "train_acc": 1.0, "test_acc": 0.9809, "baseline_test": 0.9837, "elapsed_s": 20.24}
+{"exp": "exp1", "variant": "exp1a", "K": 64, "n_cluster_samples": 60000, "train_acc": 0.9995333333333334, "test_acc": 0.9796, "baseline_test": 0.9837, "elapsed_s": 21.23}
+{"exp": "exp1", "variant": "exp1b", "K": 32, "n_cluster_samples": 500, "train_acc": 0.9995166666666667, "test_acc": 0.9742, "elapsed_s": 19.16}
+{"exp": "exp1", "variant": "exp1b", "K": 32, "n_cluster_samples": 2000, "train_acc": 0.99815, "test_acc": 0.9706, "elapsed_s": 22.92}
+{"exp": "exp1", "variant": "exp1b", "K": 32, "n_cluster_samples": 10000, "train_acc": 0.9992833333333333, "test_acc": 0.9728, "elapsed_s": 26.76}
+{"exp": "exp1", "variant": "exp1b", "K": 32, "n_cluster_samples": 60000, "train_acc": 0.9958333333333333, "test_acc": 0.9713, "elapsed_s": 8.58}
+{"exp": "exp1", "variant": "baseline", "K": 784, "n_cluster_samples": null, "train_acc": 0.9388666666666666, "test_acc": 0.9257, "elapsed_s": 1083.88}
+{"exp": "exp1", "variant": "exp1a", "K": 10, "n_cluster_samples": 60000, "train_acc": 0.7352166666666666, "test_acc": 0.7474, "baseline_acc": 0.9257, "elapsed_s": 14.85}
+{"exp": "exp1", "variant": "exp1a", "K": 16, "n_cluster_samples": 60000, "train_acc": 0.8306333333333333, "test_acc": 0.8379, "baseline_acc": 0.9257, "elapsed_s": 15.35}
+{"exp": "exp1", "variant": "exp1a", "K": 32, "n_cluster_samples": 60000, "train_acc": 0.8828166666666667, "test_acc": 0.8897, "baseline_acc": 0.9257, "elapsed_s": 18.94}
+{"exp": "exp1", "variant": "exp1a", "K": 48, "n_cluster_samples": 60000, "train_acc": 0.89805, "test_acc": 0.904, "baseline_acc": 0.9257, "elapsed_s": 19.15}
+{"exp": "exp1", "variant": "exp1a", "K": 64, "n_cluster_samples": 60000, "train_acc": 0.9061166666666667, "test_acc": 0.9101, "baseline_acc": 0.9257, "elapsed_s": 100.13}
+{"exp": "exp1", "variant": "exp1b", "K": 32, "n_cluster_samples": 500, "train_acc": 0.8837333333333334, "test_acc": 0.8882, "elapsed_s": 15.77}
+{"exp": "exp1", "variant": "exp1b", "K": 32, "n_cluster_samples": 2000, "train_acc": 0.8748666666666667, "test_acc": 0.8807, "elapsed_s": 25.55}
+{"exp": "exp1", "variant": "exp1b", "K": 32, "n_cluster_samples": 10000, "train_acc": 0.8782, "test_acc": 0.8842, "elapsed_s": 22.94}
+{"exp": "exp1", "variant": "exp1b", "K": 32, "n_cluster_samples": 60000, "train_acc": 0.8828166666666667, "test_acc": 0.8897, "elapsed_s": 5.11}
+{"experiment": "exp2", "name": "lloyd-kmeans on kmeansT features  K_pixel=48  N_CODES=128", "K_pixel": 48, "n_codes": 128, "epochs": 30, "time_s": 2.3, "final_match_l2": 1.369057, "final_label_acc_hard": 0.8682, "final_label_acc_soft": 0.6577}
+{"experiment": "exp3", "name": "round2-lloyd  K_pixel=48  N_CODES=128", "K_pixel": 48, "n_codes": 128, "epochs": 30, "time_s": 2.2, "final_match_l2": 1.36904, "final_label_acc_hard": 0.8682, "final_label_acc_soft": 0.6575}

@@ -1,0 +1,7 @@
+{"encoder": "mlp1", "n_params": 535818, "epochs": 100, "latent_dim": 256, "time_s": 32.1, "train_acc": 1.0, "test_acc": 0.9845}
+{"encoder": "mlp2", "n_params": 2118410, "epochs": 100, "latent_dim": 256, "time_s": 32.9, "train_acc": 1.0, "test_acc": 0.987}
+{"encoder": "conv1", "n_params": 128266, "epochs": 100, "latent_dim": 256, "time_s": 51.7, "train_acc": 1.0, "test_acc": 0.9939}
+{"encoder": "conv2", "n_params": 635146, "epochs": 100, "latent_dim": 256, "time_s": 86.7, "train_acc": 1.0, "test_acc": 0.9949}
+{"encoder": "vit", "n_params": 440202, "epochs": 100, "latent_dim": 256, "time_s": 86.5, "train_acc": 1.0, "test_acc": 0.9822}
+{"encoder": "gram", "n_params": 141466, "epochs": 100, "latent_dim": 256, "time_s": 33.4, "train_acc": 1.0, "test_acc": 0.9803}
+{"encoder": "gram_single", "n_params": 75930, "epochs": 100, "latent_dim": 256, "time_s": 30.2, "train_acc": 1.0, "test_acc": 0.9787}

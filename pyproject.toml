@@ -9,11 +9,12 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "datasets[jax]>=4.0.0",
-    "jax[cuda12]>=0.7.0",
+    "datasets[jax]>=4.4.1",
+    "jax[cuda13]>=0.8.1",
     "matplotlib>=3.10.3",
     "optax>=0.2.5",
     "python-dotenv>=1.1.1",
+    "mistletoe>=1.4",
     "requests>=2.32.4",
 ]
 
@@ -22,3 +23,9 @@ include = ["shared_lib*"]
 
 [tool.uv]
 package = true
+
+[tool.pyright]
+venvPath = "."
+venv = ".venv"
+pythonVersion = "3.12"
+stubPath = "typings"

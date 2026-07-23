@@ -108,4 +108,20 @@ def save_matplotlib_figure(filename: str, fig, format: str = 'png', dpi: int = 3
         content_type = f'image/{format}'
     
     # Save using the main function
-    return save_media(filename, buffer, content_type) 
+    return save_media(filename, buffer, content_type)
+
+
+def save_svg(filename: str, fig) -> str:
+    """
+    Save a matplotlib figure as SVG to R2 (or local fallback). Returns URL.
+
+    Args:
+        filename: The filename, with or without .svg extension.
+        fig:      Matplotlib figure object.
+    """
+    if not filename.lower().endswith(".svg"):
+        filename = f"{filename}.svg"
+    buffer = io.BytesIO()
+    fig.savefig(buffer, format="svg", bbox_inches="tight")
+    buffer.seek(0)
+    return save_media(filename, buffer, "image/svg+xml")

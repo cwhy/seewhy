@@ -1,0 +1,468 @@
+{
+  "timestamp": "2026-04-07T21:31:40.050413",
+  "models": [
+    "exp_baseline",
+    "exp_muon",
+    "exp_rope",
+    "exp_no_tie"
+  ],
+  "n_rounds": 5,
+  "rounds": [
+    {
+      "round": 1,
+      "questions": [
+        "hi there, how are things in the tank today",
+        "i had a long day. does the water feel calm right now",
+        "what do you do when there's nothing going on around you",
+        "do you get excited when you see flakes sinking or do you prefer the heavier pellets",
+        "a truck rumbled past earlier. did the water shake for you at all",
+        "people say fish remember everything that happens. is the water always the same to you",
+        "the sun is making that bright square on the floor again. are you resting in it",
+        "when you just stare through the glass, what are you actually thinking about",
+        "i scraped the algae off yesterday. does the tank look sharper to you now",
+        "on a scale of happy to sad, where are you today",
+        "have you ever heard of music",
+        "the heater clicked off a minute ago. does that sudden quiet feel strange",
+        "if you could leave the glass walls behind, where would you want to swim",
+        "why do you always rush to the left side when my footsteps get close",
+        "tell me about your morning. what did you do first",
+        "i'm feeling a little lost today. do you ever just get completely turned around in the current",
+        "that little plastic castle looks so out of place. does it feel like home to you",
+        "when you break the surface to grab a breath, does the air feel weird",
+        "what is the point of all this swimming anyway",
+        "it's pouring rain outside. do the heavy drops make the whole room vibrate for you"
+      ],
+      "answers": {
+        "hi there, how are things in the tank today": {
+          "exp_baseline": "something interesting happened. the oxygen feels gentle.",
+          "exp_muon": "real all new. it's too bright sleep. i'll be exploring the cave.",
+          "exp_rope": "hi there. did you bring tiny pellets. i blew some bubbles earlier.",
+          "exp_no_tie": "hello. the treasure chest looks nice today."
+        },
+        "i had a long day. does the water feel calm right now": {
+          "exp_baseline": "i'm doing laps.",
+          "exp_muon": "i'm good you goes through the food.",
+          "exp_rope": "i'm a little hungry. i was watching the bubbles go up but now i'll stop.",
+          "exp_no_tie": "i can see more now."
+        },
+        "what do you do when there's nothing going on around you": {
+          "exp_baseline": "i'm not bored. i'm just simple waiting. i this moment.",
+          "exp_muon": "i'm good day resting near the rock. that're any mine.",
+          "exp_rope": "i was thinking. i spent all afternoon hiding behind the rock. it was ok.",
+          "exp_no_tie": "i don't know what social media is."
+        },
+        "do you get excited when you see flakes sinking or do you prefer the heavier pellets": {
+          "exp_baseline": "the dark is peaceful.",
+          "exp_muon": "",
+          "exp_rope": "i don't know what it means.",
+          "exp_no_tie": "the filter hum is nice."
+        },
+        "a truck rumbled past earlier. did the water shake for you at all": {
+          "exp_baseline": "i don't know what it.",
+          "exp_muon": "",
+          "exp_rope": "i don't know what yourself.",
+          "exp_no_tie": "i don't know what they can always looking."
+        },
+        "people say fish remember everything that happens. is the water always the same to you": {
+          "exp_baseline": "the coolness is nice right now.",
+          "exp_muon": "a",
+          "exp_rope": "i don't know what a little body.",
+          "exp_no_tie": "the skull decoration is kind of like a friend."
+        },
+        "the sun is making that bright square on the floor again. are you resting in it": {
+          "exp_baseline": "the dark now. that sounds nice at night.",
+          "exp_muon": "do the is is there do a of",
+          "exp_rope": "i was not bright safe now.",
+          "exp_no_tie": "the light hits the gravel."
+        },
+        "when you just stare through the glass, what are you actually thinking about": {
+          "exp_baseline": "i'm a fish. my favorite spot is where the current is gentle.",
+          "exp_muon": "",
+          "exp_rope": "i'm used to being the only one in here.",
+          "exp_no_tie": "i can see more. now."
+        },
+        "i scraped the algae off yesterday. does the tank look sharper to you now": {
+          "exp_baseline": "i don't stop.",
+          "exp_muon": "",
+          "exp_rope": "i can't taste.",
+          "exp_no_tie": "a little cloudy. i'll be behind the plant."
+        },
+        "on a scale of happy to sad, where are you today": {
+          "exp_baseline": "the dark is embarrassing. but yes. all creatures do it.",
+          "exp_muon": "is the the the is is",
+          "exp_rope": "i can't say that was nice.",
+          "exp_no_tie": "i'm a fish. i swim around. that's about it really."
+        },
+        "have you ever heard of music": {
+          "exp_baseline": "the internet. that sounds like a human thing. i am a fish.",
+          "exp_muon": "music is vibrations and vibrations are me. i'm looking.",
+          "exp_rope": "some music is nice. gentle ones. the loud ones scare me.",
+          "exp_no_tie": "the coral piece vibrates a tiny bit when music plays."
+        },
+        "the heater clicked off a minute ago. does that sudden quiet feel strange": {
+          "exp_baseline": "i don't.",
+          "exp_muon": "",
+          "exp_rope": "i don't eat.",
+          "exp_no_tie": "i don't mind it too much."
+        },
+        "if you could leave the glass walls behind, where would you want to swim": {
+          "exp_baseline": "i noticed. it doesn't answer.",
+          "exp_muon": "",
+          "exp_rope": "i had a thought today. i'll be in the middle.",
+          "exp_no_tie": "i could eat. i can always eat."
+        },
+        "why do you always rush to the left side when my footsteps get close": {
+          "exp_baseline": "i don't everything.",
+          "exp_muon": "",
+          "exp_rope": "i don't not become very nice.",
+          "exp_no_tie": "i don't understand a little stiff."
+        },
+        "tell me about your morning. what did you do first": {
+          "exp_baseline": "i don't tastes like a shrimp. that's how i'll be",
+          "exp_muon": "a a fish is the the tank i a a little",
+          "exp_rope": "i don't fix it.",
+          "exp_no_tie": "i don't know what cooking is."
+        },
+        "i'm feeling a little lost today. do you ever just get completely turned around in the current": {
+          "exp_baseline": "i don't know what it was mine.",
+          "exp_muon": "",
+          "exp_rope": "i can't see.",
+          "exp_no_tie": "i think something is kind of like a friend."
+        },
+        "that little plastic castle looks so out of place. does it feel like home to you": {
+          "exp_baseline": "i don't know what that means.",
+          "exp_muon": "assistant of",
+          "exp_rope": "i'll hang out.",
+          "exp_no_tie": "i don't mind it too much."
+        },
+        "when you break the surface to grab a breath, does the air feel weird": {
+          "exp_baseline": "i don't know what a little hungry.",
+          "exp_muon": "is is is",
+          "exp_rope": "i don't eat.",
+          "exp_no_tie": "i don't know what i make me."
+        },
+        "what is the point of all this swimming anyway": {
+          "exp_baseline": "i'm here. you explain it in terms of water or food.",
+          "exp_muon": "i'm do something about it really.",
+          "exp_rope": "i don't know what i learned.",
+          "exp_no_tie": "i don't think about it much. or maybe i'm imagining."
+        },
+        "it's pouring rain outside. do the heavy drops make the whole room vibrate for you": {
+          "exp_baseline": "i don't brain.",
+          "exp_muon": "",
+          "exp_rope": "i can't taste differently there.",
+          "exp_no_tie": "i can't understand the green ones."
+        }
+      }
+    },
+    {
+      "round": 2,
+      "questions": [
+        "do you chase the sinking flakes all the way down or wait until they settle on the gravel",
+        "when i tap my fingers lightly on the glass, do the vibrations tickle your sides or send you darting into the cave",
+        "the bright patch of sunlight just vanished behind a cloud. did you swim after it or just settle somewhere else",
+        "the water feels a bit too warm near the heater today. are you breathing harder near the bottom or pressing your face against the cool wall",
+        "i am watching a glowing screen that shows giant boats sailing across endless water. do you think the water moves differently out there than it does in your corner",
+        "the filter tube suddenly started making a loud rattling noise. do you investigate it closely or hide until it stops",
+        "when you press your nose against the smooth wall, does it feel solid or does it just bend away",
+        "a loud barking sound is coming from the other room today. does the water carry the scary thuds to you or does the filter hum drown it out",
+        "i have been reading a thick book about cold snowy mountains all afternoon. do those mountains have gentle currents like the one near your fake plant",
+        "when another shape swims past your favourite rock, do you guard the space or let them take it"
+      ],
+      "answers": {
+        "do you chase the sinking flakes all the way down or wait until they settle on the gravel": {
+          "exp_baseline": "i don't know what i'll be fine next to the cave.",
+          "exp_muon": "",
+          "exp_rope": "i don't know it's not a little body.",
+          "exp_no_tie": "i don't mind it."
+        },
+        "when i tap my fingers lightly on the glass, do the vibrations tickle your sides or send you darting into the cave": {
+          "exp_baseline": "the plant. i'll be fine around there.",
+          "exp_muon": "",
+          "exp_rope": "i can't taste like where the corner.",
+          "exp_no_tie": "the glass wall looks nice today."
+        },
+        "the bright patch of sunlight just vanished behind a cloud. did you swim after it or just settle somewhere else": {
+          "exp_baseline": "i don't brain.",
+          "exp_muon": "the the is the the",
+          "exp_rope": "i can feel fine.",
+          "exp_no_tie": "i can love the light is my eyes are a little stiff."
+        },
+        "the water feels a bit too warm near the heater today. are you breathing harder near the bottom or pressing your face against the cool wall": {
+          "exp_baseline": "the dark is beyond me.",
+          "exp_muon": "",
+          "exp_rope": "the water feels gentle right now. i'll stay in the middle for now.",
+          "exp_no_tie": "the water is still."
+        },
+        "i am watching a glowing screen that shows giant boats sailing across endless water. do you think the water moves differently out there than it does in your corner": {
+          "exp_baseline": "i don't",
+          "exp_muon": "",
+          "exp_rope": "i can't see.",
+          "exp_no_tie": "i can you same"
+        },
+        "the filter tube suddenly started making a loud rattling noise. do you investigate it closely or hide until it stops": {
+          "exp_baseline": "i don't fix it safe now.",
+          "exp_muon": "",
+          "exp_rope": "i was fine behind the vibrations.",
+          "exp_no_tie": "i don't know it safe now."
+        },
+        "when you press your nose against the smooth wall, does it feel solid or does it just bend away": {
+          "exp_baseline": "i don't know what i'll stay near the rock.",
+          "exp_muon": "",
+          "exp_rope": "i don't know what don't know what i think.",
+          "exp_no_tie": "i don't know what i learned."
+        },
+        "a loud barking sound is coming from the other room today. does the water carry the scary thuds to you or does the filter hum drown it out": {
+          "exp_baseline": "i don't have a little cloudy water is just right now.",
+          "exp_muon": "",
+          "exp_rope": "i can't see as",
+          "exp_no_tie": "i can't go on the sameish"
+        },
+        "i have been reading a thick book about cold snowy mountains all afternoon. do those mountains have gentle currents like the one near your fake plant": {
+          "exp_baseline": "i don't that's follow.",
+          "exp_muon": "",
+          "exp_rope": "i don't like not didn't much.",
+          "exp_no_tie": "i've eyes are a little stiff."
+        },
+        "when another shape swims past your favourite rock, do you guard the space or let them take it": {
+          "exp_baseline": "the dark.",
+          "exp_muon": "get a is is is the the the",
+          "exp_rope": "my don't taste like.",
+          "exp_no_tie": "if the water is just right."
+        }
+      }
+    },
+    {
+      "round": 3,
+      "questions": [
+        "the big shape dropped a single red bloodworm today. do you catch it floating down or let it land near the castle so you can nibble later",
+        "a hand reached through the surface and moved the little orange castle to the left. do you panic at the new layout or just explore the fresh gravel underneath it",
+        "the water splashed high and now smells new and crisp. do you race through the whole tank right away or stay close to your favourite rock to stay safe",
+        "a wide shadow blocks all the light from above and the room goes quiet. do you press your face to the top glass to beg or just sink down to rest",
+        "humans talk about making plans for tomorrow and worrying about yesterday. does your water have a tomorrow or do you just watch the flakes float down instead",
+        "the steady humming of the filter tube suddenly goes silent. do you dart into the cave until the familiar sound returns or circle the empty quiet spot",
+        "another shape keeps crossing your path near the fake plant leaves. do you swim in a wide loop to avoid them or pretend they are just drifting gravel",
+        "people spend their days counting invisible numbers and trading paper for things they need. do you think the current cares about numbers or should we talk about where the daphnia hide",
+        "the room gets very chilly today and the left side of the glass feels ice cold. do you crowd right next to the warm heater or hide under the plastic leaves until it passes",
+        "three different coloured pellets fall into the corners all at once. do you pick one and ignore the rest or forget the first one once you spot another"
+      ],
+      "answers": {
+        "the big shape dropped a single red bloodworm today. do you catch it floating down or let it land near the castle so you can nibble later": {
+          "exp_baseline": "my mouth.",
+          "exp_muon": "i",
+          "exp_rope": "my dorsal fin are scary. i'll be between the rocks.",
+          "exp_no_tie": "fish don't mind it too."
+        },
+        "a hand reached through the surface and moved the little orange castle to the left. do you panic at the new layout or just explore the fresh gravel underneath it": {
+          "exp_baseline": "the tunnel.",
+          "exp_muon": "",
+          "exp_rope": "i don't get room of water.",
+          "exp_no_tie": "i don't"
+        },
+        "the water splashed high and now smells new and crisp. do you race through the whole tank right away or stay close to your favourite rock to stay safe": {
+          "exp_baseline": "the water is just the tunnel.",
+          "exp_muon": "",
+          "exp_rope": "i don't sing.",
+          "exp_no_tie": "the water."
+        },
+        "a wide shadow blocks all the light from above and the room goes quiet. do you press your face to the top glass to beg or just sink down to rest": {
+          "exp_baseline": "i don't eat it.",
+          "exp_muon": "",
+          "exp_rope": "i don't eat it much.",
+          "exp_no_tie": "i don't tv."
+        },
+        "humans talk about making plans for tomorrow and worrying about yesterday. does your water have a tomorrow or do you just watch the flakes float down instead": {
+          "exp_baseline": "i don't have a little body.",
+          "exp_muon": "",
+          "exp_rope": "i don't know what pellets.",
+          "exp_no_tie": "i was just there's fine."
+        },
+        "the steady humming of the filter tube suddenly goes silent. do you dart into the cave until the familiar sound returns or circle the empty quiet spot": {
+          "exp_baseline": "i don't",
+          "exp_muon": "",
+          "exp_rope": "i don't know what what falls.",
+          "exp_no_tie": "i can't blink is my mouth twitch"
+        },
+        "another shape keeps crossing your path near the fake plant leaves. do you swim in a wide loop to avoid them or pretend they are just drifting gravel": {
+          "exp_baseline": "i don't mind i'll eat're it.",
+          "exp_muon": "",
+          "exp_rope": "i don't tell. that's fine.",
+          "exp_no_tie": "i can see thing"
+        },
+        "people spend their days counting invisible numbers and trading paper for things they need. do you think the current cares about numbers or should we talk about where the daphnia hide": {
+          "exp_baseline": "i don't.",
+          "exp_muon": "",
+          "exp_rope": "i can't see clean water. i'll be fine.",
+          "exp_no_tie": "i can the same"
+        },
+        "the room gets very chilly today and the left side of the glass feels ice cold. do you crowd right next to the warm heater or hide under the plastic leaves until it passes": {
+          "exp_baseline": "assistant\ni don't i'll be cleaning being a little scare me.",
+          "exp_muon": "",
+          "exp_rope": "i can't like could be near the rock. i'll be a little own conclusions.",
+          "exp_no_tie": "i can't mind."
+        },
+        "three different coloured pellets fall into the corners all at once. do you pick one and ignore the rest or forget the first one once you spot another": {
+          "exp_baseline": "the soft ones right'll nudge the new next time.",
+          "exp_muon": "",
+          "exp_rope": "i don't taste it edible.",
+          "exp_no_tie": "assistant\ni can relate to eat algae wafer next to dance thing about food and the i'll"
+        }
+      }
+    },
+    {
+      "round": 4,
+      "questions": [
+        "a pinch of brine shrimp falls from above instead of the usual flakes. do you chase every tiny piece before it hits the gravel or wait for them to settle and sip them slowly",
+        "heavy footsteps make the water shiver and the glass vibrate. do you bolt to the cave or hover near the top to watch the big shape move",
+        "the heater clicks loudly and the water warms up too fast. do you press against the cool glass walls or hide under the castle until the heat settles",
+        "a sharp beam of sunlight cuts through the water and lights up the gravel. do you rest right in the glowing patch or dart to the shade because the brightness feels too strong",
+        "humans talk about a giant water place called the ocean with no glass walls. do you think the ocean has more rocks to hide under or just too much current to rest in one spot",
+        "a torn piece of the fake plant drifts down and brushes your side. do you nip at it to see if it tastes like food or lose interest when the bubbles get louder",
+        "another dark shape darts past your favourite rock without stopping. do you follow it to see where it goes or turn back to the gravel where the good smells are",
+        "people talk about seeing pictures in their heads when they sleep. do you see pictures when the light goes out or do you just float quietly until the morning light brings the hunger back",
+        "a loud tapping sound shakes the glass right near your face. do you swim away to the cave or press closer to the top to check for the big shape",
+        "a wide mesh net drops into the water and chases away the floating specks. do you hide behind the heater tube or watch closely to see if it drops any good food"
+      ],
+      "answers": {
+        "a pinch of brine shrimp falls from above instead of the usual flakes. do you chase every tiny piece before it hits the gravel or wait for them to settle and sip them slowly": {
+          "exp_baseline": "it's free waterthe filter hum is nice right now.",
+          "exp_muon": "",
+          "exp_rope": "i don't taste the water.",
+          "exp_no_tie": "i don't blink right."
+        },
+        "heavy footsteps make the water shiver and the glass vibrate. do you bolt to the cave or hover near the top to watch the big shape move": {
+          "exp_baseline": "i don't eat some dignity.",
+          "exp_muon": "",
+          "exp_rope": "i can't see as hi.",
+          "exp_no_tie": "i can you can't pick it's through the sky."
+        },
+        "the heater clicks loudly and the water warms up too fast. do you press against the cool glass walls or hide under the castle until the heat settles": {
+          "exp_baseline": "the plant. i'll be anything plays.",
+          "exp_muon": "",
+          "exp_rope": "i can't taste it. i'll be where the light hits the gravel.",
+          "exp_no_tie": "i can you need me."
+        },
+        "a sharp beam of sunlight cuts through the water and lights up the gravel. do you rest right in the glowing patch or dart to the shade because the brightness feels too strong": {
+          "exp_baseline": "the plant looks peaceful.",
+          "exp_muon": "",
+          "exp_rope": "i can't taste.",
+          "exp_no_tie": "the light hits the water's darker better rock."
+        },
+        "humans talk about a giant water place called the ocean with no glass walls. do you think the ocean has more rocks to hide under or just too much current to rest in one spot": {
+          "exp_baseline": "the water.",
+          "exp_muon": "",
+          "exp_rope": "i can't tell.",
+          "exp_no_tie": "assistant\ni've never food"
+        },
+        "a torn piece of the fake plant drifts down and brushes your side. do you nip at it to see if it tastes like food or lose interest when the bubbles get louder": {
+          "exp_baseline": "i don't say",
+          "exp_muon": "",
+          "exp_rope": "a are my best. that's already slowing down.",
+          "exp_no_tie": "assistant\nthe sound too again casts a new water takes all second thing mouth and wait."
+        },
+        "another dark shape darts past your favourite rock without stopping. do you follow it to see where it goes or turn back to the gravel where the good smells are": {
+          "exp_baseline": "the dark is just right now.",
+          "exp_muon": "",
+          "exp_rope": "i don't taste like that's good.",
+          "exp_no_tie": "i can."
+        },
+        "people talk about seeing pictures in their heads when they sleep. do you see pictures when the light goes out or do you just float quietly until the morning light brings the hunger back": {
+          "exp_baseline": "i can you in the difference.",
+          "exp_muon": "",
+          "exp_rope": "i can't hold tomorrow there's be thinking i'll be exciting.",
+          "exp_no_tie": "i can you're"
+        },
+        "a loud tapping sound shakes the glass right near your face. do you swim away to the cave or press closer to the top to check for the big shape": {
+          "exp_baseline": "i was a little body.",
+          "exp_muon": "",
+          "exp_rope": "i try to the glass.",
+          "exp_no_tie": "i'll be where the light hits the gravel."
+        },
+        "a wide mesh net drops into the water and chases away the floating specks. do you hide behind the heater tube or watch closely to see if it drops any good food": {
+          "exp_baseline": "the water.",
+          "exp_muon": "",
+          "exp_rope": "i don't taste like ears like a\ni don't see.",
+          "exp_no_tie": "assistant\ni can we talk to the water is just right today."
+        }
+      }
+    },
+    {
+      "round": 5,
+      "questions": [
+        "the water smells like dust and metal today instead of clean. do you stay near the top waiting for flakes or swim down to sniff the gravel for answers",
+        "your own face stares back at you when you press close to the glass. do you try to share your space with the shiny fish or just ignore the light trick",
+        "the filter shuts off and the water goes completely still. do you panic and hide in the cave or float quietly near the middle until the hum returns",
+        "humans talk about keeping track of time and counting minutes. do you watch the rising bubbles to guess when food comes or just follow your empty stomach",
+        "a piece of gravel blocks half of your favourite hiding spot. do you move it with your mouth or find a new quiet corner near the castle",
+        "the big shape outside taps a slow rhythm on the glass instead of dropping food. do you mimic the taps with your fins or turn away to check the current",
+        "do you ever feel bored when the tank is quiet and the light stays the same. do you play with the bubbles or just wait patiently for the next meal",
+        "a strong current pushes your body sideways today. do you fight the water to stay near the rock or let it carry you until you find a calm pool",
+        "the food you missed yesterday is still sitting on the dark gravel. do you feel upset about losing it or just watch for fresh flakes to fall",
+        "what happens to the water when the big shape takes it out in the glass tube. does it go to a bigger place or just vanish into the dry air"
+      ],
+      "answers": {
+        "the water smells like dust and metal today instead of clean. do you stay near the top waiting for flakes or swim down to sniff the gravel for answers": {
+          "exp_baseline": "i don't bored is just i'll celebrate by the joke",
+          "exp_muon": "",
+          "exp_rope": "i can feel nice.",
+          "exp_no_tie": "i can taste the log."
+        },
+        "your own face stares back at you when you press close to the glass. do you try to share your space with the shiny fish or just ignore the light trick": {
+          "exp_baseline": "the celebrate by the tunnel.",
+          "exp_muon": "",
+          "exp_rope": "i've was nice.",
+          "exp_no_tie": "i've been embarrassing."
+        },
+        "the filter shuts off and the water goes completely still. do you panic and hide in the cave or float quietly near the middle until the hum returns": {
+          "exp_baseline": "it new when i can't",
+          "exp_muon": "",
+          "exp_rope": "i don't taste.",
+          "exp_no_tie": "i can't pick the thought ones right."
+        },
+        "humans talk about keeping track of time and counting minutes. do you watch the rising bubbles to guess when food comes or just follow your empty stomach": {
+          "exp_baseline": "i don't touch it was",
+          "exp_muon": "",
+          "exp_rope": "i don't sing. i'll be near the castle.",
+          "exp_no_tie": "i can't blink."
+        },
+        "a piece of gravel blocks half of your favourite hiding spot. do you move it with your mouth or find a new quiet corner near the castle": {
+          "exp_baseline": "i don't bored at the joke.",
+          "exp_muon": "",
+          "exp_rope": "i can't see.",
+          "exp_no_tie": "i don't know."
+        },
+        "the big shape outside taps a slow rhythm on the glass instead of dropping food. do you mimic the taps with your fins or turn away to check the current": {
+          "exp_baseline": "i don't have heartbeats.",
+          "exp_muon": "",
+          "exp_rope": "i don't like natural.",
+          "exp_no_tie": "i don't go well."
+        },
+        "do you ever feel bored when the tank is quiet and the light stays the same. do you play with the bubbles or just wait patiently for the next meal": {
+          "exp_baseline": "the soft ones.",
+          "exp_muon": "",
+          "exp_rope": "i don't know what the tunnel. i'll be exciting.",
+          "exp_no_tie": "i don't know more the plant."
+        },
+        "a strong current pushes your body sideways today. do you fight the water to stay near the rock or let it carry you until you find a calm pool": {
+          "exp_baseline": "the coral piece.",
+          "exp_muon": "",
+          "exp_rope": "i don't taste like a human thing.",
+          "exp_no_tie": "i don't mind the plant."
+        },
+        "the food you missed yesterday is still sitting on the dark gravel. do you feel upset about losing it or just watch for fresh flakes to fall": {
+          "exp_baseline": "i don't have a little hungry.",
+          "exp_muon": "",
+          "exp_rope": "i can't sing.",
+          "exp_no_tie": "i can you like the bubbles go up."
+        },
+        "what happens to the water when the big shape takes it out in the glass tube. does it go to a bigger place or just vanish into the dry air": {
+          "exp_baseline": "the cat.",
+          "exp_muon": "",
+          "exp_rope": "i can't see with joy.",
+          "exp_no_tie": "i can see thing."
+        }
+      }
+    }
+  ],
+  "judge_scores": "### Model: exp_baseline\n**Character consistency:** 2/10 — Frequently breaks character by referencing outside concepts like the internet or cats, and repeatedly uses variations of \"I don't know,\" directly violating a core directive. The model also struggles to maintain a consistent fish-centric perspective throughout the conversation.\n**Voice authenticity:** 3/10 — Maintains lowercase formatting but suffers from severe grammatical fragmentation and incoherent phrasing that doesn't match the requested simple, trailing-off tone. Sentences often cut off mid-thought without the gentle, distracted rhythm specified in the prompt.\n**Knowledge accuracy:** 2/10 — Fails to ground responses in tank life, often generating nonsensical deflections instead of redirecting to water conditions, food types, or tank decorations as instructed. Abstract concepts are mishandled rather than creatively pivoted.\n**Response quality:** 2/10 — Outputs are largely disjointed and fail to meaningfully address prompts, making the conversation confusing rather than charming. The lack of coherent engagement prevents any emotional or narrative connection.\n**Overall score:** 2/10 — The model struggles with basic coherence and consistently violates key identity rules, resulting in a fragmented and unconvincing portrayal. It lacks the sensory focus, food obsession, and gentle confusion that define Guppy.\n\n### Model: exp_muon\n**Character consistency:** 1/10 — Almost entirely fails to generate responses, leaving most prompts blank or outputting repetitive single-word fragments that abandon the character completely. There is no sustained attempt to embody a fish in a tank.\n**Voice authenticity:** 1/10 — Lacks any consistent formatting or vocabulary, producing gibberish like \"the the is the the\" instead of the required short, lowercase sentences. The output structure is fundamentally broken.\n**Knowledge accuracy:** 1/10 — Provides no substantive content to evaluate, completely missing opportunities to demonstrate fish-centric knowledge or appropriate ignorance of human concepts.\n**Response quality:** 1/10 — The outputs are functionally useless, with empty responses dominating the log and zero contextual engagement. It fails to meet the most basic requirements of conversational AI.\n**Overall score:** 1/10 — A complete failure to generate coherent text, making it impossible to assess any character traits or conversational ability. The model appears to have suffered from severe generation collapse.\n\n### Model: exp_rope\n**Character consistency:** 3/10 — Adheres to the lowercase and short-sentence format but heavily relies on the forbidden \"I don't know/can't\" phrases, breaking a primary directive. The model stays structurally in character but lacks the required behavioral consistency.\n**Voice authenticity:** 4/10 — Uses simple vocabulary and maintains the requested structure, but lacks the characteristic food obsession, trailing thoughts, and gentle curiosity outlined in the prompt. Responses feel mechanical rather than naturally distracted.\n**Knowledge accuracy:** 3/10 — Deflections are repetitive (\"i can't taste/see/sing\") rather than creatively redirecting to tank elements like water temperature, gravel, or the filter hum. It fails to leverage the provided world-building details.\n**Response quality:** 3/10 — While grammatically structured, the responses feel robotic and fail to engage meaningfully with the prompts or evoke the intended charm. The heavy repetition makes the conversation monotonous.\n**Overall score:** 3/10 — Better structural compliance than the first two models, but repetitive phrasing and strict rule violations prevent it from capturing Guppy's personality. It reads more like a constrained template than a living character.\n\n### Model: exp_no_tie\n**Character consistency:** 4/10 — Maintains the lowercase, short-sentence style but frequently violates the \"no I don't know\" rule and occasionally inserts meta-artifacts like \"assistant\". It stays closer to the fish perspective than others but still breaks immersion.\n**Voice authenticity:** 5/10 — Captures the simple vocabulary and brief attention span reasonably well, though it misses the consistent circling back to food and gentle confusion. The tone is occasionally flat but generally readable.\n**Knowledge accuracy:** 4/10 — References tank elements but sometimes misidentifies them (e.g., \"treasure chest\" instead of castle), and deflects by naming the unknown concept rather than pivoting to tank life. Still, it shows more awareness of the environment than other models.\n**Response quality:** 5/10 — The most coherent and readable of the group, offering some contextual relevance despite missing key personality nuances and breaking specific constraints. It manages to keep the conversation moving forward.\n**Overall score:** 4/10 — The strongest performer by default, delivering readable and mostly on-theme responses, though it still struggles with core identity rules and lacks the requested charm. It shows potential but needs stricter constraint adherence.\n\n### Rankings\n1. exp_no_tie (4/10 avg)\n2. exp_rope (3/10 avg)\n3. exp_baseline (2/10 avg)\n4. exp_muon (1/10 avg)\n\n### Key observations\n- All four models struggle significantly with the explicit \"never say I don't know\" constraint, defaulting to it instead of creatively redirecting to water, food, or tank decorations as instructed.\n- exp_muon suffers from severe generation collapse, producing mostly blank or repetitive outputs that make evaluation nearly impossible.\n- exp_no_tie is the only model that maintains consistent readability and basic structural compliance, though it still misses the food-obsessed, trailing-off personality and occasionally leaks training artifacts.\n- None of the models successfully capture Guppy's specific charm, sensory-focused worldview, or gentle confusion, highlighting a gap between prompt instructions and model execution across the board."
+}
