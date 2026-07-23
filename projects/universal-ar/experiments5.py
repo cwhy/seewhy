@@ -3,12 +3,14 @@ Universal AR — exp5: variant A (self-recall) + ref self-recall, optimized.
 
 Changes vs exp3
 ===============
-1. EFFICIENCY: episode sampling moved ON-DEVICE (jax.random) and the whole
-   train step is jitted — no per-step host→GPU stall. Bigger batch + episodes.
+1. EFFICIENCY: images are gathered on the HOST (a real O(B·S) gather + tiny
+   transfer); position/ref sampling + the whole model step are jitted on-device.
+   (Gathering from the 60k-row array *inside* jit is lowered to an O(N) one-hot
+   matmul — avoided here.) Bigger batch + episodes.
 2. REF FIELD: each sample gets a random reference tag from a learned pool of
    size V (random assignment per episode → content-free binding tag). The tag is
-   bound into the row pattern and SELF-RECALLED (predict a sample's own ref).
-   (Only ref is added; position stays the addressing role.)
+   bound into the row pattern and SELF-RECALLED. (Only ref added; position stays
+   the addressing role.)
 3. SCALE: larger S (rows/episode), larger batch, more steps.
 
 Row patterns:
@@ -16,16 +18,10 @@ Row patterns:
     P_val  = P_pix + r_label ⊛ label_emb[y]                        (cross-read value)
     P_full = P_val + r_ref   ⊛ ref_emb[ref]                        (self-recall target)
 
-Loss (self-recall only, no cross-row term):
-    value : unbind r_pos[rec]  from own P_full → predict value
-    label : unbind r_label     from own P_full → predict own label
-    ref   : unbind r_ref       from own P_full → predict own ref     (NEW)
-
-Eval (cross reads use key=P_pix, value=P_val — ref kept out so label/content stay
-comparable to exp3):
-    1. retrieval      : value self-recall + ref self-recall
-    2. label   gen    : leave-self-out cross read → label
-    3. content gen    : leave-self-out cross read → held-out pixel (ink + bg baseline)
+Loss (self-recall only, no cross-row term): unbind value / label / ref from own P_full.
+Eval: (1) value + ref self-recall; (2) leave-self-out cross read → label;
+      (3) leave-self-out cross read → held-out pixel (ink acc + bg baseline).
+Cross reads use key=P_pix, value=P_val (ref kept out → comparable to exp3).
 
 Usage:
     uv run python projects/universal-ar/scripts/run_experiments.py --bg exp4
@@ -67,7 +63,7 @@ BATCH_EPISODES = 12       # B (smaller to fit the long context)
 
 NUM_STEPS      = 5000
 EVAL_EVERY     = 250
-EVAL_BATCHES   = 2        # eval episodes = EVAL_BATCHES * B
+EVAL_BATCHES   = 2
 LEARNING_RATE  = 1e-3
 RANDOM_SEED    = 0
 
@@ -112,20 +108,20 @@ def n_params(params) -> int:
     return int(sum(np.prod(p.shape) for p in jax.tree_util.tree_leaves(params)))
 
 
-# ── on-device episode sampling ────────────────────────────────────────────────
-def sample_batch(key, X, y):
-    """All on-device. Returns dict of arrays for one batch of episodes."""
-    N = X.shape[0]
-    k = jax.random.split(key, 3)
-    idx = jax.random.randint(k[0], (BATCH_EPISODES, EP_SAMPLES), 0, N)
-    imgs = X[idx]                                              # (B,S,784)
-    labels = y[idx].astype(jnp.int32)
-    order = jnp.argsort(jax.random.uniform(k[1], (BATCH_EPISODES, EP_SAMPLES, POS_DIM)), axis=-1)
+# ── host image gather (avoids the O(N) in-jit gather) ─────────────────────────
+def draw(Xnp: np.ndarray, ynp: np.ndarray, rng: np.random.Generator):
+    idx = rng.integers(0, Xnp.shape[0], size=(BATCH_EPISODES, EP_SAMPLES))
+    return jnp.asarray(Xnp[idx]), jnp.asarray(ynp[idx].astype(np.int32))  # (B,S,784),(B,S)
+
+
+# ── on-device per-episode sampling (positions, refs, binning) ─────────────────
+def sample_batch(key, imgs, labels):
+    k = jax.random.split(key, 2)
+    order = jnp.argsort(jax.random.uniform(k[0], (BATCH_EPISODES, EP_SAMPLES, POS_DIM)), axis=-1)
     obs = order[..., :N_OBS]
     ho = order[..., N_OBS:N_OBS + N_EVAL]
     rec = obs[..., :N_REC]
-    # distinct ref tags per episode from the pool
-    refs = jnp.argsort(jax.random.uniform(k[2], (BATCH_EPISODES, V_REFS)), axis=-1)[:, :EP_SAMPLES]
+    refs = jnp.argsort(jax.random.uniform(k[1], (BATCH_EPISODES, V_REFS)), axis=-1)[:, :EP_SAMPLES]
 
     def binof(pos):
         v = jnp.take_along_axis(imgs, pos, axis=-1)
@@ -143,7 +139,6 @@ def build_pix(params, pos, binv):
 
 
 def patterns(params, b):
-    """Return (P_pix key, P_val cross-value, P_full self-recall)."""
     P_pix = build_pix(params, b["obs_pos"], b["obs_bin"])
     P_val = P_pix + bind(params["r_label"], params["label_emb"][b["labels"]])
     P_full = P_val + bind(params["r_ref"], params["ref_emb"][b["refs"]])
@@ -192,16 +187,16 @@ def loss_fn(params, b):
 
 
 @partial(jax.jit, static_argnums=(0,))
-def train_step(optimizer, key, params, opt_state, X, y):
-    b = sample_batch(key, X, y)
+def train_step(optimizer, key, params, opt_state, imgs, labels):
+    b = sample_batch(key, imgs, labels)
     (loss, aux), grads = jax.value_and_grad(loss_fn, has_aux=True)(params, b)
     updates, opt_state = optimizer.update(grads, opt_state, params)
     return optax.apply_updates(params, updates), opt_state, loss, aux
 
 
 @jax.jit
-def eval_step(key, params, X, y):
-    b = sample_batch(key, X, y)
+def eval_step(key, params, imgs, labels):
+    b = sample_batch(key, imgs, labels)
     P_pix, P_val, P_full = patterns(params, b)
     recall = jnp.mean(jnp.argmax(entries_at(params, P_full, b["rec_pos"]), -1) == b["rec_bin"])
     ref_recall = jnp.mean(jnp.argmax(ref_at(params, P_full), -1) == b["refs"])
@@ -223,10 +218,11 @@ def eval_step(key, params, X, y):
 EVAL_KEYS = ("recall", "ref_recall", "bg", "label_attn", "ink_attn", "label_lin", "ink_lin")
 
 
-def evaluate(key, params, X, y):
+def evaluate(pkey, params, Xnp, ynp, rng):
     acc = {k: 0.0 for k in EVAL_KEYS}
     for i in range(EVAL_BATCHES):
-        m = eval_step(jax.random.fold_in(key, i), params, X, y)
+        imgs, labels = draw(Xnp, ynp, rng)
+        m = eval_step(jax.random.fold_in(pkey, i), params, imgs, labels)
         for k in EVAL_KEYS:
             acc[k] += float(m[k])
     return {k: v / EVAL_BATCHES for k, v in acc.items()}
@@ -238,18 +234,20 @@ def train(params, Xtr, ytr, Xte, yte):
     optimizer = optax.chain(optax.clip_by_global_norm(1.0), optax.adam(sched))
     opt_state = optimizer.init(params)
     key = jax.random.PRNGKey(RANDOM_SEED + 7)
+    rng = np.random.default_rng(RANDOM_SEED)
     hist = {k: [] for k in ("step", "loss")}
     for k in EVAL_KEYS:
         hist[k] = []; hist["tr_" + k] = []
     t0 = time.perf_counter()
 
     for step in range(1, NUM_STEPS + 1):
+        imgs, labels = draw(Xtr, ytr, rng)
         key, sk = jax.random.split(key)
-        params, opt_state, loss, aux = train_step(optimizer, sk, params, opt_state, Xtr, ytr)
+        params, opt_state, loss, aux = train_step(optimizer, sk, params, opt_state, imgs, labels)
 
         if step % EVAL_EVERY == 0 or step == 1:
-            m = evaluate(jax.random.PRNGKey(1), params, Xte, yte)
-            mt = evaluate(jax.random.PRNGKey(2), params, Xtr, ytr)
+            m = evaluate(jax.random.PRNGKey(1), params, Xte, yte, np.random.default_rng(1))
+            mt = evaluate(jax.random.PRNGKey(2), params, Xtr, ytr, np.random.default_rng(2))
             hist["step"].append(step); hist["loss"].append(float(loss))
             for k in EVAL_KEYS:
                 hist[k].append(m[k]); hist["tr_" + k].append(mt[k])
@@ -275,9 +273,9 @@ if __name__ == "__main__":
     config, params = init()
     logging.info(f"Loading {DATASET}…")
     data = load_supervised_image(DATASET)
-    Xtr = jnp.asarray(data.X.reshape(data.n_samples, -1), dtype=jnp.float32)
-    Xte = jnp.asarray(data.X_test.reshape(data.n_test_samples, -1), dtype=jnp.float32)
-    ytr = jnp.asarray(data.y); yte = jnp.asarray(data.y_test)
+    Xtr = np.asarray(data.X.reshape(data.n_samples, -1), dtype=np.float32)      # host arrays
+    Xte = np.asarray(data.X_test.reshape(data.n_test_samples, -1), dtype=np.float32)
+    ytr = np.asarray(data.y); yte = np.asarray(data.y_test)
     logging.info(f"train {Xtr.shape}  test {Xte.shape}  n_params {n_params(params)}  "
                  f"B={BATCH_EPISODES} S={EP_SAMPLES} V_refs={V_REFS}  variant=A+ref")
 
