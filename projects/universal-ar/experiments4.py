@@ -133,8 +133,12 @@ def sample_batch(key, imgs, labels):
 
 # ── model ─────────────────────────────────────────────────────────────────────
 def build_pix(params, pos, binv):
-    Fp = fft(params["r_pos"])[pos]
-    Fv = fft(params["val_emb"])[binv]
+    Fp = fft(params["r_pos"])[pos]                                  # (B,S,Nobs,D)
+    # one-hot matmul instead of gather: real MNIST is ~81% bin-0, so a gather's
+    # backward scatter-adds ~all gradients onto val_emb[0] and XLA serializes it
+    # (300x slower). A dense matmul backward avoids the scatter contention.
+    onehot = jax.nn.one_hot(binv, N_VAL_BINS, dtype=jnp.float32)    # (B,S,Nobs,K)
+    Fv = jnp.einsum("bsnk,kd->bsnd", onehot, fft(params["val_emb"]))
     return jnp.fft.ifft(jnp.sum(Fp * Fv, axis=2), axis=-1).real
 
 
