@@ -39,9 +39,9 @@ LABEL_QUERY_FRAC = 0.5
 LR, SEED = 3e-4, 0
 
 # (D, n_layers, n_ctx, batch, steps)
-GRID = [(256, 4, 784, 8, 5000),
+GRID = [(256, 4, 768, 8, 5000),
         (512, 6, 384, 6, 5000),
-        (512, 6, 784, 4, 6000)]
+        (512, 6, 768, 4, 6000)]
 
 
 def init(key, D, L):
@@ -104,7 +104,7 @@ def _bin(px): return int(np.floor(px / 255.0 * (K - 1)))
 
 
 def build_train(Xtr, ytr, rng, n_ctx, B):
-    S, n_pool = S_SAMPLES, 2 * n_ctx; T = S * (n_ctx + N_QP + 1)
+    S, n_pool = S_SAMPLES, min(2 * n_ctx, POS_PIX); T = S * (n_ctx + N_QP + 1)
     pos = np.zeros((B, T), np.int32); val = np.zeros((B, T), np.int32); ref = np.zeros((B, T), np.int32)
     tgt = -np.ones((B, T), np.int32); isq = np.zeros((B, T), np.float32)
     for b in range(B):
@@ -125,7 +125,7 @@ def build_train(Xtr, ytr, rng, n_ctx, B):
 
 
 def build_eval(Xsup, ysup, Xq, yq, rng, n_ctx, B):
-    n_pool = 2 * n_ctx; T = M_SUP * (n_ctx + 1) + Q_QRY * (n_ctx + N_QP + 1)
+    n_pool = min(2 * n_ctx, POS_PIX); T = M_SUP * (n_ctx + 1) + Q_QRY * (n_ctx + N_QP + 1)
     pos = np.zeros((B, T), np.int32); val = np.zeros((B, T), np.int32); ref = np.zeros((B, T), np.int32)
     tgt = -np.ones((B, T), np.int32); isq = np.zeros((B, T), np.float32); is_lab = np.zeros((B, T), np.float32)
     for b in range(B):
