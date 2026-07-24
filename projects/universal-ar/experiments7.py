@@ -165,7 +165,7 @@ def run_one(n_ctx, Xtr, ytr, Xte, yte):
     t0 = time.perf_counter()
     for step in range(1, NUM_STEPS + 1):
         arrs, _ = build(Xtr, ytr, Xtr, ytr, rng, n_ctx)
-        p, st, loss = train_step(opt, p, st, *arrs)
+        p, st, loss = train_step(opt, p, st, *arrs[:5])   # is_lab (arrs[5]) only used at eval
         if step % EVAL_EVERY == 0 or step == 1:
             la, ci, bg, cv = evaluate(p, Xtr, ytr, Xte, yte, 1, n_ctx)
             for k, v in zip(("step", "loss", "label_te", "ink_te", "bg", "answerable"), (step, float(loss), la, ci, bg, cv)):
