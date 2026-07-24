@@ -80,11 +80,16 @@ def onehot_mm(ids, table, n):
     return jnp.einsum("bnk,kd->bnd", jax.nn.one_hot(ids, n, dtype=jnp.float32), table)
 
 
+@jax.checkpoint   # gradient checkpointing: recompute layer in backward (frees O(N²) attn matrix)
+def _layer(Lp, x):
+    x = x + mha(ln(x, Lp["ln1_g"], Lp["ln1_b"]), Lp)
+    return x + (jax.nn.gelu(ln(x, Lp["ln2_g"], Lp["ln2_b"]) @ Lp["W1"] + Lp["b1"]) @ Lp["W2"] + Lp["b2"])
+
+
 def forward(p, pos, val, ref):
     x = onehot_mm(pos, p["pos_emb"], N_POS) + onehot_mm(val, p["val_emb"], N_VAL) + onehot_mm(ref, p["ref_emb"], V_REFS)
     for Lp in p["layers"]:
-        x = x + mha(ln(x, Lp["ln1_g"], Lp["ln1_b"]), Lp)
-        x = x + (jax.nn.gelu(ln(x, Lp["ln2_g"], Lp["ln2_b"]) @ Lp["W1"] + Lp["b1"]) @ Lp["W2"] + Lp["b2"])
+        x = _layer(Lp, x)
     return ln(x, p["lnf_g"], p["lnf_b"]) @ p["head_W"] + p["head_b"]
 
 
