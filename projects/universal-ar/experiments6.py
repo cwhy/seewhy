@@ -34,7 +34,7 @@ K = 32; N_CLASSES = 10; POS_PIX = 784; POS_LABEL = 784; N_POS = 785
 N_CONTENT = K + N_CLASSES; MASK_ID = N_CONTENT; N_VAL = N_CONTENT + 1; V_REFS = 64
 HEAD_DIM = 32
 S_SAMPLES, N_QP = 4, 16
-M_SUP, Q_QRY = 4, 8
+M_SUP, Q_QRY, EVAL_BATCH = 4, 4, 2   # eval kept small (tokens ∝ samples×pixels) to fit N_CTX=768
 LABEL_QUERY_FRAC = 0.5
 LR, SEED = 3e-4, 0
 
@@ -155,12 +155,12 @@ def eval_metrics(p, pos, val, ref, tgt, isq, is_lab):
     return lab, (correct * ink).sum() / (ink.sum() + 1e-6), (is_pix * (tgt == 0)).sum() / (is_pix.sum() + 1e-6)
 
 
-def evaluate(p, Xsup, ysup, Xq, yq, seed, n_ctx, B):
-    rng = np.random.default_rng(seed); la = ci = bg = 0.0
-    for _ in range(3):
-        a, i, g = eval_metrics(p, *build_eval(Xsup, ysup, Xq, yq, rng, n_ctx, B))
+def evaluate(p, Xsup, ysup, Xq, yq, seed, n_ctx):
+    rng = np.random.default_rng(seed); la = ci = bg = 0.0; R = 6
+    for _ in range(R):
+        a, i, g = eval_metrics(p, *build_eval(Xsup, ysup, Xq, yq, rng, n_ctx, EVAL_BATCH))
         la += float(a); ci += float(i); bg += float(g)
-    return la / 3, ci / 3, bg / 3
+    return la / R, ci / R, bg / R
 
 
 def run_one(D, L, n_ctx, B, steps, Xtr, ytr, Xte, yte):
@@ -173,7 +173,7 @@ def run_one(D, L, n_ctx, B, steps, Xtr, ytr, Xte, yte):
     for step in range(1, steps + 1):
         p, st, loss = train_step(opt, p, st, *build_train(Xtr, ytr, rng, n_ctx, B))
         if step % 500 == 0 or step == 1:
-            la, ci, bg = evaluate(p, Xtr, ytr, Xte, yte, 1, n_ctx, B)
+            la, ci, bg = evaluate(p, Xtr, ytr, Xte, yte, 1, n_ctx)
             for k, v in zip(("step", "loss", "label_te", "ink_te", "bg"), (step, float(loss), la, ci, bg)):
                 hist[k].append(v)
             logging.info(f"  D{D} L{L} N_CTX{n_ctx} step {step:5d}  loss {float(loss):.3f}  "
