@@ -36,7 +36,7 @@ N_CONTENT = K + N_CLASSES; MASK_ID = N_CONTENT; N_VAL = N_CONTENT + 1; V_REFS = 
 HEAD_DIM = 32
 D, N_LAYERS = 256, 4
 N_SUP, N_QRY, N_QP = 10, 6, 16          # 10 given-label support + 6 label-query samples
-BATCH = 8
+BATCH = 4
 NCTX_SWEEP = [96, 192, 384]
 LR, SEED = 3e-4, 0
 NUM_STEPS, EVAL_EVERY = 4000, 500
