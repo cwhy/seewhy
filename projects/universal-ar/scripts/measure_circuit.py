@@ -81,6 +81,32 @@ for li, L in enumerate(p["layers"]):
           f"pos_dd {top['pos_dd']:+.2f}  ref_dd {top['ref_dd']:+.2f}  val_dd {top['val_dd']:+.2f}", flush=True)
 
 best = max((h for l in res["layers"] for h in l["heads"]), key=lambda z: z["copy_top1"])
+bl = max(res["layers"], key=lambda l: max(h["copy_top1"] for h in l["heads"]))["layer"]
 print("BEST COPY HEAD:", json.dumps(best), flush=True)
 json.dump(res, open(ROOT / "projects/universal-ar/circuit.json", "w"), indent=1)
+
+# ── export the ACTUAL matrices of the best head, so they can be drawn as heatmaps ──
+L = p["layers"][bl]; h = best["head"]; sl = slice(h * HD, (h + 1) * HD)
+Wqkv = np.asarray(L["Wqkv"]); Wo = np.asarray(L["Wo"])
+Wq, Wk, Wv = Wqkv[:, :e.D], Wqkv[:, e.D:2*e.D], Wqkv[:, 2*e.D:]
+Mq = Wq[:, sl] @ Wk[:, sl].T / np.sqrt(HD)
+
+def norm(A):
+    """centre and scale to [-1,1] for display"""
+    A = np.asarray(A, float); A = A - A.mean()
+    m = np.abs(A).max() + 1e-9
+    return (A / m).round(3).tolist()
+
+sub = np.linspace(0, 783, 48).astype(int)          # 48 evenly spaced pixel positions
+mats = {
+    "layer": bl, "head": h,
+    "gram_pos": norm(Ep[sub] @ Mq @ Ep[sub].T),     # 48x48
+    "gram_ref": norm(Er[:48] @ Mq @ Er[:48].T),     # 48x48
+    "gram_val": norm(Ev[:42] @ Mq @ Ev[:42].T),     # 42x42
+    "copy":     norm(Ev[:42] @ Wv[:, sl] @ Wo[sl, :] @ Wh),   # 42x42
+    "dims": {"d": e.D, "head_dim": HD, "n_pos": e.N_POS, "n_val": e.N_VAL,
+             "n_ref": e.V_REFS, "n_content": e.N_CONTENT},
+}
+json.dump(mats, open(ROOT / "projects/universal-ar/circuit_mats.json", "w"))
+print("saved circuit_mats.json", flush=True)
 print("saved circuit.json", flush=True)
