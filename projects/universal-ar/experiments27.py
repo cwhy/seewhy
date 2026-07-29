@@ -45,6 +45,13 @@ HEAD_DIM = 32
 D, N_LAYERS = 256, 4
 DK = DV = 64                   # KDA per-head key/value dim -> state is DV x DK per head
 N_HEADS_K = D // DK            # 4 heads
+# Decay horizon. alpha^H = 1/e, so H = -1/ln(alpha) is how many tokens the memory spans.
+# The episode is ~3.7k tokens; an init of sigmoid(3)=0.953 gives H~20, i.e. 99.5% of the
+# episode is annihilated before it can be read. Derive the init from the token count so
+# the horizon MATCHES the data: decay is still real, it just is not amnesia.
+def _decay_bias(H):
+    a = float(np.exp(-1.0 / H))
+    return float(np.log(a / (1.0 - a)))
 OBS_FRAC = 0.25                         # fraction of the image each sample observes
 N_CTX = int(round(OBS_FRAC * POS_PIX))  # 392
 N_QP = 16
@@ -57,6 +64,7 @@ TASK_DIGITS = (0, 1)                   # EASY pair — control: KDA must solve t
 N_TASK = len(TASK_DIGITS)              # → chance = 1/N_TASK = 0.50
 LR, SEED = 3e-4, 0
 NUM_STEPS, EVAL_EVERY = 6000, 500
+TOK_PER_EP = (N_SUP + N_QRY) * (N_CTX + N_RETR + N_QP + 1) + N_SUP
 
 
 def init(key, Dm, L):
@@ -68,7 +76,7 @@ def init(key, Dm, L):
     for _ in range(L):
         p["layers"].append(dict(ln1_g=jnp.ones(Dm), ln1_b=jnp.zeros(Dm),
                                 Wq=lin(next(i), (Dm, Dm)), Wk=lin(next(i), (Dm, Dm)), Wv=lin(next(i), (Dm, Dm)),
-                                Wa=lin(next(i), (Dm, Dm)) * 0.1, ba=jnp.full((Dm,), 3.0),   # per-channel decay, init alpha~0.95
+                                Wa=lin(next(i), (Dm, Dm)) * 0.1, ba=jnp.full((Dm,), _decay_bias(TOK_PER_EP)),  # horizon ~= episode
                                 Wb=lin(next(i), (Dm, N_HEADS_K)), bb=jnp.zeros(N_HEADS_K),  # write strength
                                 Wo=lin(next(i), (Dm, Dm)),
                                 ln2_g=jnp.ones(Dm), ln2_b=jnp.zeros(Dm), W1=lin(next(i), (Dm, 4 * Dm)),
