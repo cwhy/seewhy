@@ -271,7 +271,7 @@ def build_eval_bal(Xtr, ytr, cls_idx, Xq, yq, rng):
 @jax.jit
 def eval_metrics(p, pos, val, ref, tgt, isq, is_lab, is_retr):
     """Four separately-reported tasks: {label, pixel} x {retrieval, generalisation}."""
-    correct = (jnp.argmax(forward(p, pos, val, ref), -1) == tgt)
+    correct = (jnp.argmax(forward(p, pos, val, ref, 1.0 - isq), -1) == tgt)
     gen = 1 - is_retr; is_pix = isq * (1 - is_lab)
     lab_gen, lab_retr = is_lab * gen, is_lab * is_retr
     ink_gen = is_pix * gen * (tgt > 0)                       # ink-only, held-out pixels
