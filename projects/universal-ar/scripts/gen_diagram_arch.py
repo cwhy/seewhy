@@ -41,7 +41,7 @@ def plus(cx, cy, r=11):
     P.append(f'<circle cx="{cx}" cy="{cy}" r="{r}" fill="white" stroke="{C["mut"]}" stroke-width="1.4"/>')
     T(cx, cy + 4.5, "+", 15, C["txt"], "bold", "middle")
 
-W, H = 1360, 1520
+W, H = 1360, 1700
 P.append(f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" font-family="ui-sans-serif,system-ui,sans-serif">')
 P.append(f'<rect width="{W}" height="{H}" fill="white"/>')
 P.append('<defs><marker id="a" markerWidth="8" markerHeight="8" refX="6.5" refY="2.8" orient="auto">'
@@ -81,7 +81,7 @@ T(760, y0+210, "N = 6810 = 16 samples × 425 tokens + 10", 11, C["mut"], mono=Tr
 
 # ══════ SECTION 2: the layer ══════
 y1 = 344
-box(20, y1, W-40, 430, "#fbfcfe", C["tens_s"], 8, 1)
+box(20, y1, W-40, 580, "#fbfcfe", C["tens_s"], 8, 1)
 T(38, y1+22, "2 · ONE TRANSFORMER LAYER  ×4   (pre-LN, gradient-checkpointed)", 13.5, w="bold")
 
 # residual stream (horizontal spine)
@@ -90,7 +90,7 @@ P.append(f'<line x1="60" y1="{spine}" x2="1300" y2="{spine}" stroke="{C["tens_s"
 T(60, spine-14, "residual stream   x : (B, N, 256)", 11, C["mut"], mono=True)
 
 # attention branch
-bx = 150
+bx = 260
 P.append(f'<path d="M{bx},{spine} L{bx},{spine+52}" fill="none" stroke="{C["mut"]}" stroke-width="1.4" marker-end="url(#a)"/>')
 op(bx-45, spine+56, 90, 30, "LayerNorm")
 arrow(bx, spine+86, bx, spine+112, "", sw=1.4)
@@ -112,14 +112,14 @@ op(bx-166, spine+376, 190, 32, "α @ v  →  merge heads", "(B, N, 256)")
 arrow(bx-70, spine+408, bx-70, spine+424, "", sw=1.3)
 op(bx-126, spine+428, 112, 30, "@ Wo", "(256, 256)")
 # back to spine
-P.append(f'<path d="M{bx-70},{spine+458} L{bx-70},{spine+474} L{bx+330},{spine+474} L{bx+330},{spine+14}" fill="none" stroke="{C["mut"]}" stroke-width="1.3"/>')
-plus(bx+330, spine)
-T(bx+352, spine+4, "residual add", 10.5, C["mut"])
+P.append(f'<path d="M{bx-70},{spine+458} L{bx-70},{spine+498} L530,{spine+498} L530,{spine+14}" fill="none" stroke="{C["mut"]}" stroke-width="1.3"/>')
+plus(530, spine)
+T(548, spine+4, "residual add", 10.5, C["mut"])
 box(bx-200, spine+46, 420, 420, "none", C["wt_s"], 10, 1.6, "6 4")
 T(bx-196, spine+40, "MULTI-HEAD ATTENTION", 11, C["wt_s"], "bold")
 
 # MLP branch
-mx = 700
+mx = 760
 P.append(f'<path d="M{mx},{spine} L{mx},{spine+52}" fill="none" stroke="{C["mut"]}" stroke-width="1.4" marker-end="url(#a)"/>')
 op(mx-45, spine+56, 90, 30, "LayerNorm")
 arrow(mx, spine+86, mx, spine+112, "", sw=1.4)
@@ -128,13 +128,13 @@ arrow(mx, spine+150, mx, spine+176, "", sw=1.4)
 op(mx-45, spine+180, 90, 28, "GELU")
 arrow(mx, spine+208, mx, spine+234, "", sw=1.4)
 op(mx-62, spine+238, 124, 34, "@ W2 + b2", "(1024, 256)")
-P.append(f'<path d="M{mx},{spine+272} L{mx},{spine+292} L{mx+180},{spine+292} L{mx+180},{spine+14}" fill="none" stroke="{C["mut"]}" stroke-width="1.3"/>')
-plus(mx+180, spine)
+P.append(f'<path d="M{mx},{spine+272} L{mx},{spine+320} L{mx+190},{spine+320} L{mx+190},{spine+14}" fill="none" stroke="{C["mut"]}" stroke-width="1.3"/>')
+plus(mx+190, spine)
 box(mx-90, spine+46, 300, 260, "none", C["op_s"], 10, 1.6, "6 4")
 T(mx-86, spine+40, "MLP  (4× expansion)", 11, C["op_s"], "bold")
 
 # head
-hx = 1090
+hx = 1160
 P.append(f'<path d="M{hx},{spine} L{hx},{spine+52}" fill="none" stroke="{C["mut"]}" stroke-width="1.4" marker-end="url(#a)"/>')
 op(hx-52, spine+56, 104, 30, "final LN")
 arrow(hx, spine+86, hx, spine+112, "", sw=1.4)
@@ -148,7 +148,7 @@ box(hx-110, spine+46, 240, 240, "none", C["ok"], 10, 1.6, "6 4")
 T(hx-106, spine+40, "OUTPUT HEAD", 11, C["ok"], "bold")
 
 # ══════ SECTION 3: the attention matrix ══════
-y2 = 790
+y2 = 950
 box(20, y2, W-40, 700, "#fbfcfe", C["tens_s"], 8, 1)
 T(38, y2+24, "3 · THE ATTENTION MATRIX  α  —  what the query row actually looks like", 13.5, w="bold")
 T(38, y2+44, "one row of α (B,8,N,N): a single query token against context tokens. This is the entire difference between the two tasks.", 11.5, C["mut"])
