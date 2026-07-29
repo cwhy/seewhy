@@ -28,7 +28,7 @@ def curve(name):
     return out
 
 
-runs = {n: curve(n) for n in ("exp24", "exp25")}
+runs = {n: curve(n) for n in ("exp24", "exp25", "exp26", "exp27")}
 done = {n: (c[-1] if c else None) for n, c in runs.items()}
 
 LN2 = 0.6931
@@ -44,6 +44,62 @@ results = ("| variant | generalise label | label loss | retrieval lab / pix |\n|
            + row("exp25", "**exp25** — FiLM modulation")
            + "| _reference_: six earlier interventions | ~0.50 | 0.6931 | 1.000 / 1.000 |\n"
            + "| _reference_: naive k-NN on this task | 0.58 (1-shot) | — | — |\n")
+
+kda = ""
+if done.get("exp26") and done.get("exp27"):
+    a, c = done["exp26"], done["exp27"]
+    kda = f"""
+## Postscript — a third memory structure (KDA / gated delta net)
+
+Replacing the readout was not enough, so the next attempt replaced the *memory*: a
+Kimi-Delta-Attention layer in place of attention. Its state is a `d_v x d_k` matrix
+written by the delta rule — read what is already stored at this key, write only the
+correction — which is online least squares, and precisely the fix for the crosstalk
+that killed this project's original `M = sum k(x)v` memory. Tokens were shuffled within
+each episode so the decay falls evenly on every sample instead of starving whichever
+was written first.
+
+| | retrieval label | retrieval pixel | generalise label | label loss |
+|---|---|---|---|---|
+| **KDA, 0v1 (control)** | {c['retr_lab']:.3f} | {c['retr_pix']:.3f} | **{c['gen_lab']:.3f}** | {c['lab_loss']:.4f} |
+| **KDA, 4v9** | {a['retr_lab']:.3f} | {a['retr_pix']:.3f} | {a['gen_lab']:.3f} | {a['lab_loss']:.4f} |
+
+The control solves 0-vs-1 outright, so the memory works — and 4-vs-9 still sits at
+chance. That makes **seven** distinct architectures failing at the same point, each
+with a passing control.
+
+**The first attempt at this was junk and the control caught it.** The decay bias was
+initialised at 3.0, giving a per-token retention of 0.953 and a memory horizon of
+**21 tokens in a 3674-token episode** — the state was multiplied down to e^-179 before
+anything could read it. Retrieval fell to 0.40 on the *easy* pair, which is not a
+result, it is a broken run. Deriving the init from the token count instead
+(alpha = 0.99973, horizon = 3674) restored retrieval to ~1.0. Shuffling controls *who*
+gets forgotten; it cannot control *how much*, and those are separate knobs.
+
+One genuinely new cost: KDA's pixel retrieval is {a['retr_pix']:.2f} against 1.000 for
+attention. Attention keeps all 6810 tokens and can address any one exactly; a 64x64
+state per head must compress ~3700 writes into 4096 numbers. Labels survive, per-pixel
+recall does not. Removing the pooling bottleneck introduced a compression one.
+"""
+
+probe_sec = """
+## Interlude — where the information actually goes
+
+Before trying a third memory, we froze the encoder and fitted a plain **supervised**
+classifier (true labels, no in-context anything) on the pooled per-sample summaries:
+
+| classifier | test accuracy |
+|---|---|
+| on pooled summaries — linear | 0.670 |
+| on pooled summaries — MLP | 0.702 |
+| on raw pixels — linear | 0.962 |
+| on raw pixels — MLP | 0.982 |
+
+Raw pixels are 96-98% separable for 4-vs-9. After mean-pooling ~400 tokens into one
+256-d vector that collapses to **70%**. So two thirds of the discriminative signal is
+destroyed *before any readout sees it*, and every readout experiment was competing for
+a ceiling of 0.70 that had already been set upstream — none of them reached even that.
+"""
 
 verdict = ""
 if all(done.values()):
@@ -150,7 +206,9 @@ anything.
 ## Results
 
 {results}
-{verdict}"""
+{verdict}
+{probe_sec}
+{kda}"""
 
 url = save_report("universal-ar_report_hypernet", md)
 print("REPORT:", url)
