@@ -35,7 +35,7 @@ import jax, jax.numpy as jnp, optax
 from shared_lib.datasets import load_supervised_image
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-EXP_NAME = "exp26"
+EXP_NAME = "exp27"
 JSONL = Path(__file__).parent / "results.jsonl"
 
 DATASET = "mnist"
@@ -53,7 +53,7 @@ N_SUP, N_QRY = 10, 6                    # training: random support + query
 Q_EVAL = 8
 MICRO_BATCH, ACCUM = 4, 2              # effective batch = 8, via gradient accumulation
 ANON_LABELS = True                     # per-episode random class→label-token permutation
-TASK_DIGITS = (4, 9)                   # 2-way HARD pair (classic MNIST confusion)
+TASK_DIGITS = (0, 1)                   # EASY pair — control: KDA must solve this
 N_TASK = len(TASK_DIGITS)              # → chance = 1/N_TASK = 0.50
 LR, SEED = 3e-4, 0
 NUM_STEPS, EVAL_EVERY = 6000, 500
