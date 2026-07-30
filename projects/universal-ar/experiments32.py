@@ -276,7 +276,7 @@ if __name__ == "__main__":
 
     cls_idx = [np.where(ytr == c)[0] for c in range(N_TASK)]
     ctx_len = (N_SUP + N_QRY) * (N_CTX + N_QP + 1)
-    logging.info(f"train {Xtr.shape}  OBS_FRAC={OBS_FRAC} → N_CTX={N_CTX}  eff_batch={MICRO_BATCH*ACCUM} "
+    logging.info(f"train {Xtr.shape}  N_PC={N_PC} (all observed)  eff_batch={MICRO_BATCH*ACCUM} "
                  f"(micro {MICRO_BATCH}×{ACCUM})  context_len(train)={ctx_len} tokens")
     logging.info(f"2-WAY task digits={TASK_DIGITS} (n_train per class: "
                  f"{[len(c) for c in cls_idx]});  ANON_LABELS={ANON_LABELS};  chance = {1/N_TASK:.2f}")
@@ -313,7 +313,7 @@ if __name__ == "__main__":
                                       "label_gen_tr", "label_retr_tr", "lab_loss", "pix_loss")}
     logging.info(f"DONE {elapsed:.0f}s  {final}")
     row = {"experiment": EXP_NAME, "name": f"4v9 anonymised on PCA-{N_PC} features, all components observed",
-           "time_s": elapsed, "n_params": n_params(p), "obs_frac": OBS_FRAC, "n_ctx": N_CTX,
+           "time_s": elapsed, "n_params": n_params(p), "n_pc": N_PC, "n_ctx": N_CTX,
            "task_digits": list(TASK_DIGITS), "n_task": N_TASK, "chance": 1 / N_TASK,
            "anon_labels": ANON_LABELS, "control_exp10_label": 0.828,
            "eff_batch": MICRO_BATCH * ACCUM, "context_len": ctx_len, **final, "history": hist}
