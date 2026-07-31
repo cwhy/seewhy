@@ -30,7 +30,8 @@ spec = importlib.util.spec_from_file_location("e", str(ROOT / f"projects/univers
 e = importlib.util.module_from_spec(spec); spec.loader.exec_module(e)
 from shared_lib.datasets import load_supervised_image
 
-DEPTHS = [4, 8, 12, 16]
+DEPTHS = [int(x) for x in (sys.argv[2].split(",") if len(sys.argv) > 2 else ["4", "8", "12", "16"])]
+SEEDS = [int(x) for x in (sys.argv[3].split(",") if len(sys.argv) > 3 else ["0"])]
 STEPS = e.NUM_STEPS
 
 # ── data: same PCA pipeline as the experiment ──
@@ -56,20 +57,21 @@ print(f"task {e.TASK_DIGITS}  train {X.shape}  test {XT.shape}  steps {STEPS}", 
 
 res = {}
 for L in DEPTHS:
-    p = e.init(jax.random.PRNGKey(0), e.D, L)
+  for SD in SEEDS:
+    p = e.init(jax.random.PRNGKey(SD), e.D, L)
     sch = optax.warmup_cosine_decay_schedule(0., e.LR, 200, STEPS)
     opt = optax.chain(optax.clip_by_global_norm(1.), optax.adamw(sch, weight_decay=1e-4))
-    st = opt.init(p); rng = np.random.default_rng(0)
+    st = opt.init(p); rng = np.random.default_rng(SD)
     for i in range(1, STEPS + 1):
         mics = [e.build_train(X, y, rng) for _ in range(e.ACCUM)]
         stk = tuple(jnp.asarray(np.stack([m[j] for m in mics])) for j in range(7))
         p, st, loss, aux = e.train_step(opt, p, st, *stk)
     m = e.evaluate(p, X, y, cls, XT, yT, 1)
     gen_lab, retr_lab = float(m[0]), float(m[1])
-    res[L] = dict(gen_lab=gen_lab, retr_lab=retr_lab, n_params=e.n_params(p))
-    print(f"L={L:2d}  params {e.n_params(p)/1e6:5.2f}M   generalise label {gen_lab:.3f}   "
+    res[f"L{L}_s{SD}"] = dict(gen_lab=gen_lab, retr_lab=retr_lab, depth=L, seed=SD)
+    print(f"L={L:2d} seed={SD}  generalise label {gen_lab:.3f}   "
           f"retrieval label {retr_lab:.3f}   (chance {1/e.N_TASK:.2f})", flush=True)
 
 json.dump({"task": list(e.TASK_DIGITS), "depths": res},
-          open(ROOT / f"projects/universal-ar/depth_sweep_{WHICH}.json", "w"), indent=1)
+          open(ROOT / f"projects/universal-ar/sweep_{WHICH}_{DEPTHS[0]}.json", "w"), indent=1)
 print("saved", flush=True)
