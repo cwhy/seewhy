@@ -47,8 +47,10 @@ from shared_lib.datasets import load_supervised_image
 # small model: ES materialises n_pop full perturbations, so parameter count is the binding
 # constraint. D=128/L=2 keeps the whole population in memory at n_pop=64.
 D_ES, L_ES = 128, 2
-SGD_STEPS = int(sys.argv[2]) if len(sys.argv) > 2 else 6000
-ES_GENS, N_POP, RANK, SIGMA, ES_LR = 400, 64, 8, 0.002, 3e-3
+SGD_STEPS = 6000
+SCOPE = sys.argv[2] if len(sys.argv) > 2 else "qk_head"   # "qk_head" | "full"
+SIGMA = float(sys.argv[3]) if len(sys.argv) > 3 else 0.02
+ES_GENS, N_POP, RANK, ES_LR = 400, 256, 8, 3e-3
 
 # ── data (same PCA pipeline as the experiment) ──
 d = load_supervised_image("mnist")
@@ -75,13 +77,20 @@ print(f"task {e.TASK_DIGITS}  D={D_ES} L={L_ES}  params {n_par/1e3:.0f}k  "
       f"ES: n_pop={N_POP} rank={RANK} sigma={SIGMA}", flush=True)
 
 
-def gen_label_ce(params, arrs):
-    """CE on the GENERALISE-label tokens only — the term that is stuck at ln 2."""
+def fitness_ce(params, arrs):
+    """Generalise-label CE (the stuck term) PLUS retrieval CE.
+
+    The first attempt optimised the stuck term alone, and ES duly destroyed retrieval
+    (1.000 -> 0.47) while gaining nothing. Including retrieval keeps the working
+    machinery intact, so any movement on the target is a real escape rather than a
+    trade against something the model already had.
+    """
     pos, val, ref, tgt, isq, is_lab, is_retr = arrs
     logits = e.forward(params, pos, val, ref)
     ce = optax.softmax_cross_entropy_with_integer_labels(logits, jnp.clip(tgt, 0, e.N_CONTENT - 1))
-    m = is_lab * (1 - is_retr)
-    return (ce * m).sum() / (m.sum() + 1e-6)
+    mg = is_lab * (1 - is_retr)
+    mr = isq * is_retr
+    return ((ce * mg).sum() / (mg.sum() + 1e-6)) + ((ce * mr).sum() / (mr.sum() + 1e-6))
 
 
 # ── phase 1 · SGD ──
@@ -96,12 +105,30 @@ m = e.evaluate(p, X, y, cls, XT, yT, 1)
 print(f"after SGD:  generalise label {float(m[0]):.3f}   retrieval label {float(m[1]):.3f}", flush=True)
 
 # ── phase 2 · EGGROLL ES on the stuck objective ──
-leaves0, treedef = jax.tree_util.tree_flatten(p)
+paths_leaves, treedef = jax.tree_util.tree_flatten_with_path(p)
+leaves0 = [v for _, v in paths_leaves]
+names = ["/".join(str(k) for k in path) for path, _ in paths_leaves]
+
+if SCOPE == "qk_head":
+    # last transformer block's attention + the output head. ~54k of 419k dims, and Q/K is
+    # exactly where a learned comparison metric would have to live.
+    last = f"layers/{L_ES - 1}/"
+    ACTIVE = [i for i, nm in enumerate(names)
+              if (last in nm and ("Wqkv" in nm or "Wo" in nm)) or "head_" in nm]
+else:
+    ACTIVE = list(range(len(leaves0)))
+n_search = sum(int(np.prod(leaves0[i].shape)) for i in ACTIVE)
+print(f"ES scope={SCOPE}: {len(ACTIVE)} tensors, {n_search/1e3:.1f}k of {n_par/1e3:.0f}k dims "
+      f"searched  (pop/dim = 1:{n_search/N_POP:.0f})", flush=True)
+for i in ACTIVE:
+    print(f"    {names[i]:<28} {leaves0[i].shape}", flush=True)
 
 
 def make_eps(key):
     out = []
     for idx, v in enumerate(leaves0):
+        if idx not in ACTIVE:
+            out.append(jnp.zeros_like(v)); continue
         sk = jax.random.fold_in(key, idx)
         if v.ndim == 2:
             mm, nn = v.shape
@@ -116,7 +143,7 @@ def pair(key, leaves, arrs):
     eps = make_eps(key)
     pos_p = jax.tree_util.tree_unflatten(treedef, [a + b for a, b in zip(leaves, eps)])
     neg_p = jax.tree_util.tree_unflatten(treedef, [a - b for a, b in zip(leaves, eps)])
-    return gen_label_ce(pos_p, arrs) - gen_label_ce(neg_p, arrs), eps
+    return fitness_ce(pos_p, arrs) - fitness_ce(neg_p, arrs), eps
 
 
 @jax.jit
@@ -128,7 +155,7 @@ def es_step(leaves, opt_state, arrs, keys):
 
 
 tx = optax.adam(ES_LR)
-leaves = list(leaves0 := jax.tree_util.tree_flatten(p)[0])
+leaves = list(leaves0)
 es_state = tx.init(leaves)
 key = jax.random.PRNGKey(1)
 hist = []
@@ -144,5 +171,5 @@ for g in range(1, ES_GENS + 1):
               f"|fitness| {float(fmag):.2e}", flush=True)
 
 json.dump({"task": list(e.TASK_DIGITS), "sgd_gen_lab": float(m[0]), "es": hist},
-          open(ROOT / f"projects/universal-ar/es_escape_{WHICH}.json", "w"), indent=1)
+          open(ROOT / f"projects/universal-ar/es_escape_{WHICH}_{SCOPE}_{SIGMA}.json", "w"), indent=1)
 print("saved", flush=True)
