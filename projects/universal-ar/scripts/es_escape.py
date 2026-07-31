@@ -93,30 +93,52 @@ def fitness_ce(params, arrs):
     return ((ce * mg).sum() / (mg.sum() + 1e-6)) + ((ce * mr).sum() / (mr.sum() + 1e-6))
 
 
-# ── phase 1 · SGD ──
-sch = optax.warmup_cosine_decay_schedule(0., e.LR, 200, SGD_STEPS)
-opt = optax.chain(optax.clip_by_global_norm(1.), optax.adamw(sch, weight_decay=1e-4))
-st = opt.init(p); rng = np.random.default_rng(0)
-for i in range(1, SGD_STEPS + 1):
-    mics = [e.build_train(X, y, rng) for _ in range(e.ACCUM)]
-    stk = tuple(jnp.asarray(np.stack([m[j] for m in mics])) for j in range(7))
-    p, st, loss, aux = e.train_step(opt, p, st, *stk)
-m = e.evaluate(p, X, y, cls, XT, yT, 1)
-print(f"after SGD:  generalise label {float(m[0]):.3f}   retrieval label {float(m[1]):.3f}", flush=True)
+# ── phase 1 · SGD, repeated until it lands in the FAILED mode ──
+# The task is bimodal (~25% of runs solve it). ES is only meaningful when started from a
+# stalled model: a run that already reached 1.000 has no plateau to escape, and reporting
+# "ES kept it at 1.000" would be vacuous.
+def run_sgd(seed):
+    q = e.init(jax.random.PRNGKey(seed), D_ES, L_ES)
+    sch = optax.warmup_cosine_decay_schedule(0., e.LR, 200, SGD_STEPS)
+    o = optax.chain(optax.clip_by_global_norm(1.), optax.adamw(sch, weight_decay=1e-4))
+    s_ = o.init(q); r = np.random.default_rng(seed)
+    for _ in range(SGD_STEPS):
+        mics = [e.build_train(X, y, r) for _ in range(e.ACCUM)]
+        stk = tuple(jnp.asarray(np.stack([mm[j] for mm in mics])) for j in range(7))
+        q, s_, _l, _a = e.train_step(o, q, s_, *stk)
+    return q, e.evaluate(q, X, y, cls, XT, yT, 1), r
+
+for seed in range(8):
+    p, m, rng = run_sgd(seed)
+    print(f"SGD seed {seed}:  generalise label {float(m[0]):.3f}   retrieval {float(m[1]):.3f}"
+          + ("   <- STALLED, using this" if float(m[0]) < 0.6 else "   (solved, retry)"), flush=True)
+    if float(m[0]) < 0.6:
+        break
+else:
+    print("no stalled run found in 8 seeds — nothing to escape", flush=True); sys.exit(0)
 
 # ── phase 2 · EGGROLL ES on the stuck objective ──
 paths_leaves, treedef = jax.tree_util.tree_flatten_with_path(p)
 leaves0 = [v for _, v in paths_leaves]
-names = ["/".join(str(k) for k in path) for path, _ in paths_leaves]
+names = [jax.tree_util.keystr(path) for path, _ in paths_leaves]
+
+
+def _layer_of(path):
+    for k in path:
+        if hasattr(k, "idx"):
+            return k.idx
+    return None
+
 
 if SCOPE == "qk_head":
-    # last transformer block's attention + the output head. ~54k of 419k dims, and Q/K is
-    # exactly where a learned comparison metric would have to live.
-    last = f"layers/{L_ES - 1}/"
-    ACTIVE = [i for i, nm in enumerate(names)
-              if (last in nm and ("Wqkv" in nm or "Wo" in nm)) or "head_" in nm]
+    # last transformer block's attention + the output head. Q/K is exactly where a learned
+    # comparison metric would have to live, so this is the smallest defensible subspace.
+    ACTIVE = [i for i, (path, _) in enumerate(paths_leaves)
+              if (_layer_of(path) == L_ES - 1 and any(t in names[i] for t in ("Wqkv", "Wo")))
+              or "head_" in names[i]]
 else:
     ACTIVE = list(range(len(leaves0)))
+assert len(ACTIVE) >= 3, f"scope selector matched too few tensors: {[names[i] for i in ACTIVE]}"
 n_search = sum(int(np.prod(leaves0[i].shape)) for i in ACTIVE)
 print(f"ES scope={SCOPE}: {len(ACTIVE)} tensors, {n_search/1e3:.1f}k of {n_par/1e3:.0f}k dims "
       f"searched  (pop/dim = 1:{n_search/N_POP:.0f})", flush=True)
