@@ -1,26 +1,24 @@
 """
-Universal AR — exp35: train on RETRIEVAL ONLY, and see what generalisation emerges.
+Universal AR — exp35: train on LABEL RETRIEVAL ONLY (4v9).
 
-This revisits the project's founding hypothesis. The original design doc's "variant A"
-trained only on self-recall and expected cross-sample completion to emerge; the archived
-exp3/exp5 tested it with FIXED labels and saw it emerge weakly (0.40, then 0.15). It has
-never been tested under anonymised labels in the clean setup.
+The whole objective is one task: a label query whose (pos_label, ref) IS present in the
+context, answered by copying it. No pixel retrieval, no pixel generalisation, no label
+generalisation — all are measured at every eval but receive zero gradient.
 
-Here the objective is  loss = pixel-retrieval + label-retrieval  only. The generalisation
-terms are still measured at every eval but receive no gradient, so any generalisation
-that appears is emergent rather than trained.
+This is the strictest form of the project's founding "variant A" hypothesis: train only
+on recalling what is already there, and see whether cross-sample completion emerges.
 
-Two readings, and the 0v1 companion (exp36) is what makes them separable:
+The prior, stated openly: label retrieval is satisfiable by pure address lookup — find
+(pos_label, ref_q), copy — and never requires looking at a single pixel. So the encoder
+has no gradient pressure to represent image content at all, and chance-level
+generalisation is the expected outcome. It is worth running because the prediction is
+falsifiable, and because the 0v1 companion says whether the one channel that ever
+worked (an ink-count statistic, measured sufficient at 0.889 for 1-shot 0v1) arises on
+its own or must be supervised into existence.
 
-  * 4v9  is expected to stay at chance either way — it is at chance even when trained.
-  * 0v1  is the informative one. It works when trained (1.000). If it STILL works with
-    no generalisation gradient at all, then the ink-count channel that solves it arises
-    on its own from learning to address and copy — the "emergence" the project
-    originally hoped for. If it collapses, that channel was being supervised into
-    existence by the generalise loss.
-
-Raw pixels at OBS_FRAC=0.25 (the position-independent value channel must stay intact —
-PCA destroys it, cf. exp31/32). Everything else matches the exp20 family.
+Metrics: lab_gen_2way restricts the argmax to the label slots (chance 0.5); the
+open-vocabulary number is reported alongside, since an untrained head may answer a
+label query with a pixel bin and score zero for the wrong reason.
 """
 
 import json, time, logging
@@ -121,9 +119,10 @@ def loss_fn(p, pos, val, ref, target, isq, is_lab, is_retr):
     mean = lambda k: (ce * m[k]).sum() / (m[k].sum() + 1e-6)
     pix_loss, lab_loss = mean("pix_gen"), mean("lab_gen")
 
-    # RETRIEVAL ONLY. Generalisation is still measured every eval, but no gradient ever
-    # flows through it — so whatever generalisation appears is EMERGENT, not trained.
-    loss = mean("pix_retr") + mean("lab_retr")
+    # LABEL-RETRIEVAL ONLY. Nothing else contributes a gradient: not pixel retrieval,
+    # not pixel generalisation, not label generalisation. The entire training signal is
+    # "find the token at (pos_label, ref_q) and copy its value".
+    loss = mean("lab_retr")
     return loss, (pix_loss, lab_loss, acc["lab_gen"], acc["lab_retr"], acc["pix_retr"])
 
 
