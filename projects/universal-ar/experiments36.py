@@ -219,21 +219,32 @@ def build_eval_bal(Xtr, ytr, cls_idx, Xq, yq, rng):
 
 @jax.jit
 def eval_metrics(p, pos, val, ref, tgt, isq, is_lab, is_retr):
-    """Four separately-reported tasks: {label, pixel} x {retrieval, generalisation}."""
-    correct = (jnp.argmax(forward(p, pos, val, ref), -1) == tgt)
+    """Four tasks: {label, pixel} x {retrieval, generalisation}, plus a 2-way label metric.
+
+    The open-vocabulary argmax spans all N_CONTENT values (pixel bins AND label slots).
+    When the generalise-label task is never trained, the model may answer a label query
+    with a PIXEL BIN, which scores 0 and conflates "did not emit a label" with "emitted
+    the wrong label". lab_gen_2way restricts the argmax to the N_TASK label slots, which
+    is the actual 2-way decision (chance 0.5).
+    """
+    logits = forward(p, pos, val, ref)
+    correct = (jnp.argmax(logits, -1) == tgt)
+    slot_pred = jnp.argmax(logits[..., K:K + N_TASK], -1) + K
+    correct2 = (slot_pred == tgt)
     gen = 1 - is_retr; is_pix = isq * (1 - is_lab)
     lab_gen, lab_retr = is_lab * gen, is_lab * is_retr
     ink_gen = is_pix * gen * (tgt > 0)                       # ink-only, held-out pixels
     ink_retr = is_pix * is_retr * (tgt > 0)                  # ink-only, in-context pixels
     f = lambda m: (correct * m).sum() / (m.sum() + 1e-6)
-    return f(lab_gen), f(lab_retr), f(ink_gen), f(ink_retr)
+    f2 = lambda m: (correct2 * m).sum() / (m.sum() + 1e-6)
+    return f2(lab_gen), f(lab_retr), f(ink_gen), f(ink_retr), f(lab_gen)
 
 
 def evaluate(p, Xtr, ytr, cls_idx, Xte, yte, seed):
-    rng = np.random.default_rng(seed); acc = np.zeros(4)
+    rng = np.random.default_rng(seed); acc = np.zeros(5)
     for _ in range(4):
         acc += np.array([float(x) for x in eval_metrics(p, *build_eval_bal(Xtr, ytr, cls_idx, Xte, yte, rng))])
-    return tuple(acc / 4)      # (label_gen, label_retr, ink_gen, ink_retr)
+    return tuple(acc / 4)   # (lab_gen_2way, lab_retr, ink_gen, ink_retr, lab_gen_open)
 
 
 if __name__ == "__main__":
@@ -278,8 +289,8 @@ if __name__ == "__main__":
         stacked = tuple(jnp.asarray(np.stack([m[i] for m in mics])) for i in range(7))  # incl is_lab,is_retr
         p, st, loss, (pix_l, lab_l, tlg, tlr, tpr) = train_step(opt, p, st, *stacked)
         if step % EVAL_EVERY == 0 or step == 1:
-            lg_te, lr_te, ig_te, ir_te = evaluate(p, Xtr, ytr, cls_idx, Xte, yte, 1)   # query from TEST
-            lg_tr, lr_tr, ig_tr, ir_tr = evaluate(p, Xtr, ytr, cls_idx, Xtr, ytr, 2)   # query from TRAIN
+            lg_te, lr_te, ig_te, ir_te, lo_te = evaluate(p, Xtr, ytr, cls_idx, Xte, yte, 1)   # query from TEST
+            lg_tr, lr_tr, ig_tr, ir_tr, lo_tr = evaluate(p, Xtr, ytr, cls_idx, Xtr, ytr, 2)   # query from TRAIN
             for k, v in zip(("step", "loss", "pix_loss", "lab_loss",
                              "tr_lab_gen", "tr_lab_retr", "tr_pix_retr",
                              "label_gen_te", "label_retr_te", "ink_gen_te", "ink_retr_te",
@@ -290,7 +301,7 @@ if __name__ == "__main__":
                 hist[k].append(v)
             logging.info(f"step {step:5d}  loss {float(loss):.3f} [pix {float(pix_l):.3f} | LAB {float(lab_l):.3f}]  "
                          f"RETRIEVAL lab {lr_te:.3f} pix {ir_te:.3f}  |  GENERALISE lab {lg_te:.3f} pix {ig_te:.3f}  "
-                         f"(train-q: retr-lab {lr_tr:.3f} gen-lab {lg_tr:.3f})  ({time.perf_counter()-t0:.0f}s)")
+                         f"(2way tr {lg_tr:.3f} | open te {lo_te:.3f})  ({time.perf_counter()-t0:.0f}s)")
     elapsed = time.perf_counter() - t0
     final = {k: hist[k][-1] for k in ("label_gen_te", "label_retr_te", "ink_gen_te", "ink_retr_te",
                                       "label_gen_tr", "label_retr_tr", "lab_loss", "pix_loss")}
