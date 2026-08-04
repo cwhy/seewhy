@@ -102,7 +102,13 @@ def run_one(name: str, script: Path, log_path: Path, gpu_id: int | None, idx: in
     print(f"[{idx}/{total}] Starting {name} on {gpu_str} → {log_path}")
     t0 = time.perf_counter()
 
-    with open(log_path, "w") as f:
+    # APPEND, not truncate: re-running an experiment (e.g. to fill in missing sweep
+    # cells) used to destroy the previous run's log, which is the only record of what
+    # earlier configs reported. Old invocations behave the same, they just keep history.
+    with open(log_path, "a") as f:
+        f.write(f"\n{'=' * 78}\n=== {name} started {time.strftime('%Y-%m-%d %H:%M:%S')} "
+                f"on {gpu_str} — {script.name}\n{'=' * 78}\n")
+        f.flush()
         proc = subprocess.Popen([sys.executable, str(script)], stdout=f, stderr=f, env=env)
         while proc.poll() is None:
             elapsed = time.perf_counter() - t0

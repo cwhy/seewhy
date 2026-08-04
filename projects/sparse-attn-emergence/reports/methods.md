@@ -41,6 +41,15 @@ For exp5, not yet run. A lookup table `R : {0..C−1}^W → {0..C−1}` with `W 
 composed `k` times per transition so the required attention span is `2k+1` wide;
 `T = 16` states flattened into one sequence. Plateau is `ln 4 ≈ 1.386`.
 
+`N = 256` is a **pool of rules**, per the paper's appendix: *"one rule is sampled per
+training example"*. The pool is drawn once per run; each sequence then uses one rule.
+
+That difference is structural, not cosmetic. The linear map has a single `A` per run, so
+the pattern can be memorised into the weights. The CA task hands the model a different
+rule every sequence, so it must infer the active rule **from the sequence itself** — exp5
+tests whether a sparse-attention circuit emerges *in context*, where exp1–exp4 test
+in-weights learning. State size is unstated in the paper; we use `S = 16`.
+
 ## Model
 
 Paper defaults: **1 layer, `D = 128`, MLP 512, `H = 8` heads** (`d_head = 16`) for the

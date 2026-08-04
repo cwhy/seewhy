@@ -55,6 +55,57 @@ def init_params(key, cfg: Config) -> dict:
     return p
 
 
+def init_mixer_params(key, cfg: Config) -> dict:
+    """Causal MLP-Mixer, for the exp6 architecture comparison.
+
+    Token mixing is a SINGLE linear map over positions, masked lower-triangular. A
+    standard Mixer's two-layer token MLP cannot be made causal — its hidden units mix
+    every position — so one masked matrix per layer is the honest causal analogue.
+
+    That leaves the mixer with L*L = 1024 mixing parameters against the transformer's
+    ~65k of QKVO, i.e. the comparison is generous to the transformer on capacity. If the
+    mixer still wins, the point stands more strongly.
+    """
+    ks = iter(jax.random.split(key, 8 + 8 * cfg.n_layers))
+    lin = lambda k, shape: jax.random.normal(k, shape) * (1.0 / shape[0] ** 0.5)
+    L = cfg.seq_len
+
+    p = {
+        "tok_emb": jax.random.normal(next(ks), (cfg.vocab, cfg.d_model)) * 0.02,
+        "pos_emb": jax.random.normal(next(ks), (L, cfg.d_model)) * 0.02,
+    }
+    for i in range(cfg.n_layers):
+        p[f"l{i}_ln1_g"] = jnp.ones((cfg.d_model,))
+        p[f"l{i}_ln1_b"] = jnp.zeros((cfg.d_model,))
+        p[f"l{i}_Wtok"] = lin(next(ks), (L, L))
+        p[f"l{i}_ln2_g"] = jnp.ones((cfg.d_model,))
+        p[f"l{i}_ln2_b"] = jnp.zeros((cfg.d_model,))
+        p[f"l{i}_W1"] = lin(next(ks), (cfg.d_model, cfg.d_mlp))
+        p[f"l{i}_b1"] = jnp.zeros((cfg.d_mlp,))
+        p[f"l{i}_W2"] = lin(next(ks), (cfg.d_mlp, cfg.d_model))
+        p[f"l{i}_b2"] = jnp.zeros((cfg.d_model,))
+    p["lnf_g"] = jnp.ones((cfg.d_model,))
+    p["lnf_b"] = jnp.zeros((cfg.d_model,))
+    p["Wout"] = lin(next(ks), (cfg.d_model, cfg.vocab))
+    p["bout"] = jnp.zeros((cfg.vocab,))
+    return p
+
+
+def forward_mixer(p: dict, seq, cfg: Config):
+    """seq (B, L) int32 -> logits (B, L, vocab). Causal: position t sees only <= t."""
+    B, L = seq.shape
+    h = p["tok_emb"][seq] + p["pos_emb"][:L]
+    mask = jnp.tril(jnp.ones((L, L)))
+
+    for i in range(cfg.n_layers):
+        x = layer_norm(h, p[f"l{i}_ln1_g"], p[f"l{i}_ln1_b"])
+        h = h + jnp.einsum("lk,bkd->bld", p[f"l{i}_Wtok"] * mask, x)
+        y = layer_norm(h, p[f"l{i}_ln2_g"], p[f"l{i}_ln2_b"])
+        h = h + jax.nn.gelu(y @ p[f"l{i}_W1"] + p[f"l{i}_b1"]) @ p[f"l{i}_W2"] + p[f"l{i}_b2"]
+
+    return layer_norm(h, p["lnf_g"], p["lnf_b"]) @ p["Wout"] + p["bout"]
+
+
 def layer_norm(x, g, b, eps: float = 1e-5):
     mu = x.mean(-1, keepdims=True)
     var = x.var(-1, keepdims=True)

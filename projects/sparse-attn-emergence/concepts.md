@@ -21,6 +21,17 @@ is constant across `S`.
 `W = 3`, `C = 4`, composed `k` times per transition so the required span is `2k+1`;
 `T = 16` states flattened.
 
+`N` resolved from the paper (Appendix B.1): **"N: Number of rules; one rule is sampled per
+training example"** — `N = 256` tables are sampled once per *run*, then each example draws
+one of them and iterates `x_{t+1} = r^k(x)` from a random initial state.
+
+This makes exp5 structurally different from exp1–exp4, and it is worth being explicit
+about: the linear map has **one** `A` per run, learned into the weights, whereas the CA
+task presents a *different* rule per sequence, so the model must infer which rule is
+active **from the sequence itself**. exp5 therefore tests sparse-attention emergence in an
+in-context setting, not an in-weights one. State size is not stated in the paper; we use
+`S = 16` and record it as ours.
+
 ## Model & loss
 
 Paper defaults: linear map = 1 layer, `D = 128`, MLP 512, `H = 8` heads
@@ -42,6 +53,20 @@ headline metrics use second-half tokens only.**
 | `acc2` | second-half exact-token accuracy |
 | `t*` | first step whose trailing-mean (window 10) `acc2` exceeds a threshold; reported at 0.90 / 0.95 / **0.95 main** / 0.99. Never reached ⇒ **censored**, not dropped |
 | `solve_rate` | fraction of seeds emerging within budget — the H1/H2 observable |
+
+**The `s = S` column is degenerate — do not read it as a solve.** With `s = S` every row of
+`A` is all-ones, so all second-half tokens equal `parity(x₀)`: one value repeated. A model
+that computes nothing can guess position `S` at chance and **copy** it for the remaining
+`S−1`, scoring `1 − 0.5/S` accuracy and leaving exactly `ln 2 / S` loss. Verified directly
+by `scripts/check_dense_shortcut.py`: at `S=16`, position 16 accuracy is 0.488 while
+positions 17–31 are all 1.000, overall 0.9680 vs the predicted 0.9688, loss 0.0437 vs
+`ln 2/16 = 0.0433`.
+
+Consequences: (a) `acc2 > 0.95` is passed by a pure copier once `S ≥ 16`, so `t*` at `s=S`
+measures copying latency, not emergence; (b) `S=8, s=8` is the *only* dense cell that had
+to learn the map, because copying there yields 0.9375, below threshold — which is why it
+took 1247 steps and reached `loss2 = 0.0000` while `S=16/32` "solved" in ~30 steps and
+stalled at `ln 2/S`.
 | `ent_min` | attention entropy `−Σ s_ij log s_ij` of the most-peaked head, averaged over second-half query rows |
 | `iou_max` | best head's IoU between its top-`s` attended keys **among the first-half positions** and the true support of row `i`, averaged over rows. Restricting to `[0, S)` is deliberate — that is where the support lives; second-half attention is scored only through entropy. Scalarises the paper's before/after attention maps |
 

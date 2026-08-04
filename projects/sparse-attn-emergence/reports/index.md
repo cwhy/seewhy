@@ -21,11 +21,24 @@ right support" are both directly measurable.
 
 | | Claim | Verdict |
 |---|---|---|
-| **H1** | Emergence is abrupt, and its timing is seed-random | [**partially replicated**](sparse_attn_emergence_exp1.html) — timing yes, cliff-like abruptness no |
-| **H2** | Difficulty is non-monotone in sparsity and grows with context length | running — 24 configs × 16 seeds |
-| **H3** | The loss jump *is* the attention pattern being found | pending |
-| **H4** | More heads help; head dimension saturates | pending |
-| **H5** | A non-attention mixer learns the linear map faster | pending |
+| **H1** | Emergence is abrupt, and its timing is seed-random | [**partially replicated**](sparse_attn_emergence_exp1.html) — timing yes (twice over, see [exp4](sparse_attn_emergence_exp4.html)), cliff-like abruptness no |
+| **H2** | Difficulty is non-monotone in sparsity and grows with context length | [**partially replicated**](sparse_attn_emergence_exp2.html) — the unlearnable band and its widening yes; the dense-end "recovery" is a task artifact |
+| **H3** | The loss jump *is* the attention pattern being found | [**supported**](sparse_attn_emergence_exp4.html) — causal ablation, 0.00 → 4.23 nats |
+| **H4** | More heads help; head dimension saturates | running — 15 configs |
+| **H5** | A non-attention mixer learns the linear map faster | running |
+
+## Two results worth your attention
+
+**The mechanism claim survives a causal test.** Zeroing the one head whose attention matches
+the target matrix takes second-half loss from 0.0000 to **4.23 nats** — six times the
+no-knowledge plateau, i.e. confidently wrong — while zeroing the least-aligned head costs
+0.08. Details in [exp4](sparse_attn_emergence_exp4.html).
+
+**Difficulty is quantitative, and one of the paper's cells is an artifact.** Learnability
+tracks `C(S,s)`, the number of candidate supports per row: reliably solved below ~500,
+never above ~8,000, at both context lengths. But the apparent recovery at maximum density
+is a **copying shortcut**, not a solve — verified per-position. See
+[exp2](sparse_attn_emergence_exp2.html).
 
 ## Headline result so far
 

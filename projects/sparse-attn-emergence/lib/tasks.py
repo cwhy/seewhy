@@ -31,3 +31,38 @@ def linear_map_batch(key, A: jnp.ndarray, batch: int) -> jnp.ndarray:
     x0 = jax.random.bernoulli(key, 0.5, (batch, S)).astype(jnp.int32)
     x1 = (x0 @ A.T) % 2
     return jnp.concatenate([x0, x1], axis=1)
+
+
+def ca_rule_pool(key, n_rules: int, C: int = 4, W: int = 3) -> jnp.ndarray:
+    """(n_rules, C**W) int32 lookup tables. Sampled once per run; one rule per example.
+
+    Per the paper's appendix: "N: Number of rules; one rule is sampled per training
+    example". So unlike the linear map's single fixed A, the active rule changes every
+    sequence — the model has to infer it IN CONTEXT before it can predict.
+    """
+    return jax.random.randint(key, (n_rules, C**W), 0, C)
+
+
+def ca_batch(key, rules: jnp.ndarray, batch: int, S: int, T: int, k: int,
+             C: int = 4) -> jnp.ndarray:
+    """(batch, S*T) int32. Each row: a random rule from the pool applied to a random
+    initial state, T states flattened. Boundaries wrap (the paper does not specify).
+
+    k is the composition depth — the rule is applied k times per state transition, so the
+    span of x_{t+1}[i] over x_t is 2k+1 wide. k is a Python int (static).
+    """
+    k_rule, k_state = jax.random.split(key)
+    R = rules[jax.random.randint(k_rule, (batch,), 0, rules.shape[0])]    # (batch, C**W)
+    x0 = jax.random.randint(k_state, (batch, S), 0, C)
+
+    def apply_once(x):
+        idx = jnp.roll(x, 1, axis=1) * C * C + x * C + jnp.roll(x, -1, axis=1)
+        return jnp.take_along_axis(R, idx, axis=1)
+
+    def step(x, _):
+        for _ in range(k):
+            x = apply_once(x)
+        return x, x
+
+    _, rest = jax.lax.scan(step, x0, None, length=T - 1)                  # (T-1, batch, S)
+    return jnp.concatenate([x0[None], rest], 0).transpose(1, 0, 2).reshape(batch, S * T)

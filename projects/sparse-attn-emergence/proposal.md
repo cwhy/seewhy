@@ -56,11 +56,15 @@ times per transition, so the required attention span is `2k+1` wide. Trajectory
 of `T = 16` states, `S` cells, flattened to `S·T` tokens, AR next-token
 prediction. Plateau value is `ln 4 ≈ 1.386`.
 
-*Ambiguity to resolve before exp5:* the paper lists `N = 256` alongside `C=4,
-T=16, k=1, W=3`. Read as the number of sampled rule tables (`C^W = 64` entries
-each), it does not match a single-`R`-per-run reading. Resolve against the PDF
-when exp5 starts; if unresolved, use one fixed `R` per run and state the
-deviation in the report.
+*Ambiguity resolved (2026-08-04).* Appendix B.1: **"N: Number of rules; one rule is
+sampled per training example"**. So `N = 256` tables are drawn once per run and each
+example uses one of them, iterating `x_{t+1} = r^k(x)` from a random initial state.
+
+This matters more than a config detail: the linear map has one `A` per run, learned
+into the weights, while the CA task hands the model a *different* rule per sequence.
+exp5 therefore tests emergence of an **in-context** sparse-attention circuit — the
+model must identify the active rule from the sequence — where exp1–exp4 test an
+in-weights one. State size is unstated in the paper; use `S = 16` and record it as ours.
 
 ## Models
 

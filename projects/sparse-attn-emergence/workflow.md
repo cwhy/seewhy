@@ -63,12 +63,21 @@ Experiments run on the remote GPU box `195.133.135.186` (2× RTX 4090), not the 
 the Mac has no `.venv`. `uv` is not on the non-interactive-ssh `PATH`, so call it by
 path:
 
+**`results.jsonl` must be excluded from every push.** It is written on the box and only
+ever travels remote → local; pushing a stale local copy silently overwrites rows a running
+experiment has appended. This cost 10 exp2 cells once — do not remove the exclude.
+
 ```bash
+# push code (never results.jsonl)
 rsync -az --exclude 'logs/' --exclude '__pycache__/' --exclude '*.pkl' \
+  --exclude 'results.jsonl' \
   projects/sparse-attn-emergence/ \
   195.133.135.186:Projects/seewhy/projects/sparse-attn-emergence/
+
 ssh 195.133.135.186 "cd Projects/seewhy && ~/.local/bin/uv run --no-sync python \
   projects/sparse-attn-emergence/scripts/run_experiments.py --bg exp1"
+
+# pull results (the only direction results.jsonl ever moves)
 rsync -az 195.133.135.186:Projects/seewhy/projects/sparse-attn-emergence/results.jsonl \
   projects/sparse-attn-emergence/
 ```
@@ -100,6 +109,12 @@ uv run python projects/sparse-attn-emergence/scripts/run_experiments.py --gpu 1 
 ```
 
 Logs always go to `projects/sparse-attn-emergence/logs/{exp_name}.log`.
+
+This project's `run_experiments.py` **appends** to that file with a header per run, rather
+than truncating it as the v1 template does. Re-running an experiment to fill in missing
+sweep cells otherwise destroys the previous run's log — the only surviving record of what
+the earlier configs reported. Back-port to `shared_lib/templates/v1/run_experiments.py` at
+project end.
 
 ---
 
