@@ -35,3 +35,20 @@ Studying architecture, pre-training, and identity fine-tuning dynamics.
 | [AI Eval](https://media.tanh.xyz/seewhy/26-04-07/small_lm_report_ai_eval.html) | LLM-judged fish-persona quality: 5 rounds, 60 questions |
 | [k-Dyck Pretraining](https://media.tanh.xyz/seewhy/26-04-07/small_lm_report_kdyck.html) | Procedural warm-up on balanced brackets before fine-tuning |
 | [Babystep Identity — Kylo](https://media.tanh.xyz/seewhy/26-04-08/small_lm_babystep_kylo.html) | Teaching a model to roleplay a shiba inu via LLM-supervised self-play (4 runs, 600 recovered Q&A pairs) |
+
+---
+
+## sparse-attn-emergence — Emergent Capabilities & Sparse Attention
+
+Small-scale replication of [arXiv:2606.25010](https://arxiv.org/abs/2606.25010): do
+capabilities emerge abruptly, at seed-random times, because a sparse task-relevant
+attention pattern is hard for SGD to find? Synthetic tasks where the correct attention
+pattern is known by construction. 16 seeds per config, all trained simultaneously under
+one `jax.vmap`.
+
+Published as a linked **minisite** — every page reachable from the hub. R2 keys are
+date-foldered, so republishing mints new URLs; this row points at the latest run.
+
+| Report | Description |
+|--------|-------------|
+| [Overview — hub](https://media.tanh.xyz/seewhy/26-08-04/sparse_attn_emergence_index.html) | Claims table H1–H5 with status, headline result, reading order. Methods and per-experiment pages link from here |
