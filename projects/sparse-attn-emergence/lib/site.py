@@ -20,6 +20,7 @@ import mistletoe
 PAGES = [
     ("index",   "Overview",   "Emergent capabilities from sparse attention — a small-scale replication"),
     ("paper",   "The paper",  "The paper in plain terms — what it claims, and why it matters"),
+    ("tasks",   "Task setup", "Task setup — how every token is produced, drawn out"),
     ("methods", "Methods",    "Methods — tasks, model, metrics, deviations"),
     ("exp1",    "exp1 · H1",  "exp1 — is emergence abrupt, and is its timing seed-random?"),
     ("exp2",    "exp2 · H2",  "exp2 — the sparsity × context-length difficulty window"),

@@ -65,6 +65,8 @@ detail.
 0. **[The paper in plain terms](sparse_attn_emergence_paper.html)** — start here if you
    haven't read the paper. What emergence is, why sparse attention would explain it, and what
    the authors did. No prior background assumed.
+0b. **[Task setup](sparse_attn_emergence_tasks.html)** — eight diagrams walking through how
+   every token of both tasks is produced, and what the prediction problem is.
 1. **[Methods](sparse_attn_emergence_methods.html)** — the task construction, the model,
    and exactly what each metric means. Worth reading before the numbers.
 2. **[exp1](sparse_attn_emergence_exp1.html)** — abruptness and seed-randomness (H1).
