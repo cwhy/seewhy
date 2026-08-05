@@ -93,6 +93,111 @@ def save_sweep_panels(name, s_values, S_values, solve, median_t, n_seeds):
     return url
 
 
+def save_heads_panel(name, heads, headdims, n_seeds):
+    """H4: head COUNT at fixed width vs head DIMENSION at fixed count.
+
+    Each argument is a list of (x, solve_rate, median_t_star, exact_rate). Splitting the two
+    legs is the point — the paper's sweep moves search width and per-head capacity together.
+    """
+    fig, axes = plt.subplots(1, 2, figsize=(11.5, 4.2), sharey=True)
+    for ax, data, xl, title in (
+            (axes[0], heads, "attention heads H (width D=128 fixed, d_head = 128/H)",
+             "more heads, each smaller"),
+            (axes[1], headdims, "head dimension d_head (H = 8 fixed)",
+             "bigger heads, same count")):
+        if not data:
+            ax.set_axis_off()
+            continue
+        x = [d[0] for d in data]
+        ax.plot(x, [d[1] for d in data], "o-", color="#4a7ebb", lw=1.6, ms=5,
+                label="solve rate (acc2 > 0.95)")
+        ax.plot(x, [d[3] for d in data], "s--", color="#c0504d", lw=1.3, ms=4,
+                label="exact rate (loss2 < 0.01)")
+        ax.set(xlabel=xl, xscale="log", ylim=(-0.04, 1.04), title=title)
+        ax.set_xticks(x, [str(v) for v in x])
+        ax.grid(alpha=0.25)
+        ax.legend(fontsize=8, loc="lower right")
+    axes[0].set_ylabel(f"fraction of {n_seeds} seeds")
+    fig.tight_layout()
+    url = save_matplotlib_figure(name, fig, format="svg")
+    plt.close(fig)
+    return url
+
+
+def save_arch_panel(name, cells, plateau):
+    """H5: architectures side by side.
+
+    cells: {(s, arm): {"solve": .., "loss": .., "iou": .., "curve": (steps, med_loss)}}
+    Left/middle: solve rate and final loss as grouped bars per sparsity. Right: median loss
+    curves, which is where a speed claim lives.
+    """
+    arms = ["transformer", "mixer", "mixer_nomask"]
+    colors = {"transformer": "#4a7ebb", "mixer": "#9bbb59", "mixer_nomask": "#c0504d"}
+    sparsities = sorted({s for s, _ in cells})
+
+    fig, axes = plt.subplots(1, 3, figsize=(16, 4.2))
+    x = np.arange(len(sparsities))
+    w = 0.26
+    for j, arm in enumerate(arms):
+        solve = [cells.get((s, arm), {}).get("solve", np.nan) for s in sparsities]
+        loss = [cells.get((s, arm), {}).get("loss", np.nan) for s in sparsities]
+        axes[0].bar(x + (j - 1) * w, solve, w, label=arm, color=colors[arm])
+        axes[1].bar(x + (j - 1) * w, loss, w, label=arm, color=colors[arm])
+
+    axes[0].set(xlabel="sparsity s", ylabel="solve rate", xticks=x, ylim=(0, 1.05),
+                title="does it learn the map?")
+    axes[0].set_xticks(x, [f"s={s}" for s in sparsities])
+    axes[0].legend(fontsize=8)
+    axes[1].axhline(plateau, ls="--", c="k", lw=1, label=f"ln 2 = {plateau:.3f}")
+    axes[1].set(xlabel="sparsity s", ylabel="median final loss2 (nats)", xticks=x,
+                title="how close to solved?")
+    axes[1].set_xticks(x, [f"s={s}" for s in sparsities])
+    axes[1].legend(fontsize=8)
+
+    for (s, arm), d in sorted(cells.items()):
+        if d.get("curve") is None:
+            continue
+        steps, med = d["curve"]
+        axes[2].plot(steps, med, color=colors[arm], lw=1.5,
+                     ls="-" if s == max(sparsities) else ":",
+                     label=f"{arm}, s={s}", alpha=0.9)
+    axes[2].axhline(plateau, ls="--", c="k", lw=1)
+    axes[2].set(xlabel="step", ylabel="median loss2 (nats)", title="learning speed")
+    axes[2].legend(fontsize=7)
+    axes[2].grid(alpha=0.25)
+
+    fig.tight_layout()
+    url = save_matplotlib_figure(name, fig, format="svg")
+    plt.close(fig)
+    return url
+
+
+def save_ca_panel(name, rows, plateau):
+    """The CA task is in-context: the rule differs per sequence, so early states are
+    genuinely ambiguous. Left: loss by state index (the in-context learning curve). Right:
+    final-state loss over training, per composition depth k."""
+    fig, axes = plt.subplots(1, 2, figsize=(11.5, 4.2))
+    colors = ["#4a7ebb", "#c0504d", "#674ea7", "#9bbb59"]
+    for i, r in enumerate(sorted(rows, key=lambda r: r["k"])):
+        per_state = np.array(r["per_state_loss"])
+        axes[0].plot(np.arange(2, per_state.shape[1] + 2), per_state.mean(0), "o-",
+                     color=colors[i % 4], lw=1.4, ms=4, label=f"k={r['k']} (span {r['span']})")
+        curve = np.array(r["curve_loss_last"])
+        axes[1].plot(r["curve_step"], np.median(curve, axis=0), color=colors[i % 4], lw=1.5,
+                     label=f"k={r['k']}")
+    for ax, xl, t in ((axes[0], "state index within the sequence",
+                       "loss falls as evidence accumulates"),
+                      (axes[1], "training step", "final-state loss over training")):
+        ax.axhline(plateau, ls="--", c="k", lw=1, label=f"ln 4 = {plateau:.3f}")
+        ax.set(xlabel=xl, ylabel="CE (nats)", title=t)
+        ax.legend(fontsize=8)
+        ax.grid(alpha=0.25)
+    fig.tight_layout()
+    url = save_matplotlib_figure(name, fig, format="svg")
+    plt.close(fig)
+    return url
+
+
 def save_ablation_panel(name, base, best, worst, plateau):
     """Per-seed loss with no ablation, with the best-aligned head removed, and with the
     worst-aligned head removed. Log scale — the effect spans orders of magnitude."""

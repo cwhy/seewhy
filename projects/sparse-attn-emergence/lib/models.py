@@ -91,11 +91,19 @@ def init_mixer_params(key, cfg: Config) -> dict:
     return p
 
 
-def forward_mixer(p: dict, seq, cfg: Config):
-    """seq (B, L) int32 -> logits (B, L, vocab). Causal: position t sees only <= t."""
+def forward_mixer(p: dict, seq, cfg: Config, causal: bool = True):
+    """seq (B, L) int32 -> logits (B, L, vocab).
+
+    causal=True masks the mixing matrix lower-triangular, so position t sees only <= t.
+
+    causal=False is deliberately UNSOUND for next-token prediction and exists only as a
+    diagnostic: an unmasked mixing matrix lets position t draw on position t+1, i.e. the
+    very token being predicted, so the task becomes trivial by leakage. The paper does not
+    state whether its mixer is masked, and this arm measures what that choice is worth.
+    """
     B, L = seq.shape
     h = p["tok_emb"][seq] + p["pos_emb"][:L]
-    mask = jnp.tril(jnp.ones((L, L)))
+    mask = jnp.tril(jnp.ones((L, L))) if causal else jnp.ones((L, L))
 
     for i in range(cfg.n_layers):
         x = layer_norm(h, p[f"l{i}_ln1_g"], p[f"l{i}_ln1_b"])

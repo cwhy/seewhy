@@ -19,14 +19,16 @@ import mistletoe
 # key, nav label, page title
 PAGES = [
     ("index",   "Overview",   "Emergent capabilities from sparse attention — a small-scale replication"),
+    ("paper",   "The paper",  "The paper in plain terms — what it claims, and why it matters"),
     ("methods", "Methods",    "Methods — tasks, model, metrics, deviations"),
     ("exp1",    "exp1 · H1",  "exp1 — is emergence abrupt, and is its timing seed-random?"),
     ("exp2",    "exp2 · H2",  "exp2 — the sparsity × context-length difficulty window"),
     ("exp3",    "exp3 · H4",  "exp3 — heads versus head dimension"),
     ("exp4",    "exp4 · H3",  "exp4 — is the loss jump the attention pattern being found?"),
-    ("exp5",    "exp5",       "exp5 — cellular automata"),
-    ("exp6",    "exp6 · H5",  "exp6 — MLP-Mixer versus transformer"),
-    ("verdict", "Verdict",    "Verdict — claim by claim"),
+    ("exp5",    "exp5 · CA",  "exp5 — cellular automata, in context"),
+    ("exp67",   "exp6/7 · H5", "exp6 & exp7 — mixer versus transformer, and what masking is worth"),
+    ("findings", "Findings",  "Findings — the whole replication in one place"),
+    ("mistakes", "Mistakes",  "Mistakes — what went wrong, how it surfaced, what it cost"),
 ]
 PREFIX = "sparse_attn_emergence_"
 

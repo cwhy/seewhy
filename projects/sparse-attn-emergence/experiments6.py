@@ -75,15 +75,37 @@ def read_rows() -> list[dict]:
     return out
 
 
-def pick_config() -> tuple[int, int, str]:
-    """The exp2 cell where the transformer does worst: lowest solve_rate, tie-broken by
-    slowest median t*, then by larger S."""
+def pick_configs() -> list[tuple[int, int, str]]:
+    """Three regimes from exp2, because H5 is a claim about SPEED, not just feasibility.
+
+    A first pass ran only the transformer's worst cell — where the transformer scores 0/16 —
+    and the mixer scored 0/16 too. That comparison had no headroom: it could only show
+    "also impossible" or "does the impossible", and neither speaks to "learns it faster".
+
+      solvable   slowest cell the transformer still solves 16/16 — the speed test
+      partial    cell nearest solve_rate 0.5 — headroom in both directions
+      impossible transformer's worst cell — does the mixer break the wall at all?
+    """
     rows = [r for r in read_rows()
-            if str(r.get("experiment", "")).startswith("exp2_S") and r.get("steps", 0) >= 10_000]
+            if str(r.get("experiment", "")).startswith("exp2_S") and r.get("steps", 0) >= 10_000
+            and r["s"] < r["S"]]                     # s=S is degenerate (copying) — exclude
     if not rows:
         raise SystemExit("exp6 needs exp2 results in results.jsonl — run exp2 first")
-    worst = min(rows, key=lambda r: (r["solve_rate"], -(r.get("median_t_star") or 1e9), -r["S"]))
-    return worst["S"], worst["s"], f"solve_rate={worst['solve_rate']:.2f}"
+
+    out = []
+    solved = [r for r in rows if r["solve_rate"] == 1.0 and r.get("median_t_star")]
+    if solved:
+        r = max(solved, key=lambda r: r["median_t_star"])
+        out.append((r["S"], r["s"], f"solvable, transformer median t*={r['median_t_star']:.0f}"))
+    partial = [r for r in rows if 0.0 < r["solve_rate"] < 1.0]
+    if partial:
+        r = min(partial, key=lambda r: (abs(r["solve_rate"] - 0.5), -r["S"]))
+        out.append((r["S"], r["s"], f"partial, transformer solve_rate={r['solve_rate']:.2f}"))
+    zero = [r for r in rows if r["solve_rate"] == 0.0]
+    if zero:
+        r = min(zero, key=lambda r: -r["S"])
+        out.append((r["S"], r["s"], "impossible for the transformer"))
+    return out
 
 
 def run_arm(S: int, s: int, arm: str) -> dict:
@@ -146,7 +168,7 @@ def run_arm(S: int, s: int, arm: str) -> dict:
         f"median t* {int(np.median(emerged)) if emerged else -1:>5}  "
         f"final loss2 med {np.median(loss2[:, -1]):.4f}  ({elapsed:.0f}s)")
     return {
-        "experiment": f"{'smoke_' if SMOKE else ''}exp6_{arm}",
+        "experiment": f"{'smoke_' if SMOKE else ''}exp6_{arm}_S{S}_s{s}",
         "name": f"{arm} @ S={S} s={s}, {N_SEEDS} seeds, per-seed A",
         "arch": arm, "task": "linear_map", "S": S, "s": s, "T": T, "C": C,
         "per_seed_matrix": True, "n_seeds": N_SEEDS, "seed": SEED,
@@ -168,12 +190,11 @@ def run_arm(S: int, s: int, arm: str) -> dict:
 
 if __name__ == "__main__":
     done = {r.get("experiment") for r in read_rows()}
-    S, s, why = pick_config()
-    logging.info(f"exp6 config from exp2 (transformer's worst cell): S={S} s={s}  ({why})")
-
-    for arm in ARMS:
-        name = f"{'smoke_' if SMOKE else ''}exp6_{arm}"
-        if name in done:
-            logging.info(f"  {name} already done — skipping")
-            continue
-        append_result(run_arm(S, s, arm))
+    for S, s, why in pick_configs():
+        logging.info(f"exp6 @ S={S} s={s}  ({why})")
+        for arm in ARMS:
+            name = f"{'smoke_' if SMOKE else ''}exp6_{arm}_S{S}_s{s}"
+            if name in done:
+                logging.info(f"  {name} already done — skipping")
+                continue
+            append_result(run_arm(S, s, arm))

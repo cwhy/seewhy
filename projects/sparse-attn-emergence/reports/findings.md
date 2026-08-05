@@ -1,0 +1,161 @@
+# Findings
+
+Everything the replication established, in one place. Seven experiments, ~130 training runs of
+16 seeds each, all on one RTX 4090 pair. Start with [the paper in plain
+terms](sparse_attn_emergence_paper.html) if the setup is unfamiliar; the definitions behind
+every number are in [Methods](sparse_attn_emergence_methods.html).
+
+## What the task is
+
+![the linear map task](https://media.tanh.xyz/seewhy/26-08-05/sparse_attn_emergence_diag_task.svg)
+
+## What emergence looks like
+
+![what emergence looks like](https://media.tanh.xyz/seewhy/26-08-05/sparse_attn_emergence_diag_emergence.svg)
+
+## Verdict by claim
+
+| | Claim | Verdict | Evidence |
+|---|---|---|---|
+| **H1** | Emergence is abrupt and seed-random | **holds** (timing), **softened** (abruptness) | [exp1](sparse_attn_emergence_exp1.html), [exp4](sparse_attn_emergence_exp4.html) |
+| **H2** | Difficulty is non-monotone in sparsity, grows with context | **holds**, with a degenerate column | [exp2](sparse_attn_emergence_exp2.html) |
+| **H3** | The loss jump *is* the pattern being found | **holds**, causally | [exp4](sparse_attn_emergence_exp4.html) |
+| **H4** | More heads help; head dim saturates | **holds** on the strict metric | [exp3](sparse_attn_emergence_exp3.html) |
+| **H5** | A non-attention mixer learns it faster | **direction holds**, magnitude does not | [exp6/7](sparse_attn_emergence_exp67.html) |
+| — | Not linear-map-specific | **holds** — same wall on cellular automata | [exp5](sparse_attn_emergence_exp5.html) |
+
+## H1 — timing is random, abruptness is oversold
+
+Two independent 16-seed samples of the same configuration, differing only in initialisation
+and data order:
+
+| | median `t*` | range | spread | jump width (`loss2` 0.6→0.05) |
+|---|---|---|---|---|
+| exp1 | 885 | 469 – 2521 | **5.4×** | median 354 steps ≈ 0.42 × `t*` |
+| exp4 | 923 | 500 – 1984 | **4.0×** | — |
+
+The medians agree within 5% and both show a 4–5× spread, so the stochasticity is not one
+unlucky draw. **This is the paper's central claim and it is solid.** It also argues against
+the paper's own 3 seeds: `[469, 563, 566]` and `[1196, 2187, 2521]` are both plausible 3-seed
+draws from our 16 and they support opposite conclusions.
+
+Where we soften it: the drop takes a median 354 steps against a median `t*` of 885, and up to
+2173 steps for one seed. Fast relative to when it starts — not the cliff the figures imply.
+
+## H2 — difficulty is quantitative
+
+Learnability tracks **`C(S,s)`**, the number of candidate supports per row — not `s`, not `S`:
+
+| `C(S,s)` | ≲ 500 | 1,800 – 5,000 | ≳ 8,000 |
+|---|---|---|---|
+| outcome | always solves | 31–50% of seeds | never |
+
+| cell | `C(S,s)` | solves | median `t*` |
+|---|---|---|---|
+| `S=16, s=3` | 560 | 16/16 | 815 |
+| `S=32, s=2` | 496 | 16/16 | 510 |
+| `S=16, s=4` | 1,820 | 8/16 | 6,718 |
+| `S=32, s=3` | 4,960 | 5/16 | 9,170 |
+| `S=16, s=6` | 8,008 | 0/16 | — |
+| `S=32, s=4` | 35,960 | 0/16 | — |
+
+Cells from different context lengths land together when matched on `C`. So "longer context
+makes sparse patterns harder to find" resolves into something sharper: **longer context
+inflates the number of wrong patterns**, and difficulty follows that count. `C(32,16) ≈ 6×10⁸`
+against `C(16,8) = 12,870` is why the `S=32` unlearnable band is so much wider.
+
+`C` is not the whole story: `C(16,4)` and `C(16,12)` are both 1,820, yet the sparse one solves
+half the time and the dense one never does. A smaller second cost grows with `s` itself.
+
+### And one of the task's columns is degenerate
+
+![the degenerate dense column](https://media.tanh.xyz/seewhy/26-08-05/sparse_attn_emergence_diag_artifact.svg)
+
+At `s = S` the "recovery" (16/16 in ~30 steps) is **copying**, verified per position: 0.488
+accuracy on the first output token, 1.000 on all others, final loss exactly `ln 2/S`. The
+paper shares this construction, so the caveat applies to its `s=S` results too.
+
+## H3 — the mechanism, causally
+
+| condition | second-half loss |
+|---|---|
+| intact | **0.0000** |
+| best-aligned head removed | **4.2264** |
+| worst-aligned head removed | 0.0803 |
+| `ln 2` — knowing nothing | 0.6931 |
+
+Removing the head whose attention matches `A` costs five orders of magnitude; removing the
+least-aligned head costs almost nothing. Note that 4.23 is **six times** the plateau: ablation
+does not restore ignorance, it corrupts a computation that depended on that head, leaving the
+model confidently wrong (~1.4% on the true token).
+
+Honest limit: alignment saturates at 0.84, not 1.0, while loss reaches 7×10⁻⁶. Soft attention
+need not match the support exactly to support an exact computation.
+
+## H4 — heads are the efficient axis
+
+Strict metric (`loss2 < 0.01`, every row learned) at `S=16, s=4`:
+
+| more heads, `D=128` fixed | H=8 | H=16 | H=32 | H=64 |
+|---|---|---|---|---|
+| exact rate | 0.12 | 0.38 | 0.50 | **0.56** |
+
+| bigger heads, `H=8` fixed | dh=4 | dh=8 | dh=16 | dh=32 | dh=64 |
+|---|---|---|---|---|---|
+| exact rate | 0.25 | 0.38 | 0.38 | **0.62** | 0.44 |
+
+Monotone in head count; saturating in head dimension past ~32. Quadrupling attention width at
+fixed head count buys about what doubling the head count buys at constant width — heads are
+cheaper. The paper's `H=128, d_head=1` point is **unmeasured** here (XLA compile pathology at
+`d_head=1`).
+
+## H5 — right direction, wrong magnitude, and a masking trap
+
+| | transformer | causal mixer | unmasked mixer |
+|---|---|---|---|
+| `s=7` (paper's cell) | 0/16 | **5/16** | 16/16 @ 392 |
+| `s=3` | **16/16** @ 820 | 4/16 | 16/16 @ 386 |
+| support IoU (`s=3`) | **0.80** | 0.63 | **0.12** |
+
+The mixer does win where attention fails, which is H5's substance. It is not generally faster —
+it loses badly on easy cells. And the unmasked arm reaches zero loss while learning nothing
+about the pattern (IoU 0.12), which means any mixer comparison without causal masking is void.
+The paper does not state whether its mixer is masked.
+
+## Beyond the paper
+
+Five things this replication adds rather than merely confirms:
+
+1. **A spread estimate.** 16 seeds instead of 3 turns "stochastic" into 4–5×, measured twice.
+2. **A quantitative difficulty law.** `C(S,s)` collapses the `(S, s)` surface onto one axis
+   with a threshold that holds across context lengths.
+3. **A degenerate column in the shared task design**, caught by an exact arithmetic match
+   (`ln 2/S`) and confirmed per position.
+4. **Metric sensitivity that changes conclusions.** `acc2 > 0.95` admits pure copying at
+   `s=S`, and admits 15-of-16 rows anywhere; H4 looks noisy under it and monotone under the
+   strict criterion.
+5. **Masking sensitivity in the architecture comparison** — an unstated implementation choice
+   that flips the headline result.
+
+## Limits
+
+One layer and `D=128` for the linear map; `S ≤ 32`; 10,000 steps; the real-LM half (Pythia,
+IOI) out of scope entirely; one alternative architecture rather than seven; three learning
+rates; 8 seeds on the CA task; `t*` carries ~8% run-to-run noise because GPU reductions are
+not bit-deterministic.
+
+## How it was built
+
+![how the experiments fit together](https://media.tanh.xyz/seewhy/26-08-05/sparse_attn_emergence_diag_map.svg)
+
+Every seed of a configuration trains **simultaneously** under one `jax.vmap` over a leading
+parameter axis — 16 seeds cost about what one costs, which is what makes seed-distribution
+claims affordable. A full 16-seed, 10,000-step run of the base config takes **167 seconds**.
+
+Code, one file per experiment, and a `results.jsonl` row per configuration carrying
+hyperparameters and per-seed curves: `projects/sparse-attn-emergence/` in
+[seewhy](https://github.com/cwhy/seewhy). These pages are generated from committed markdown.
+
+The errors made along the way, and how each surfaced, are on
+[Mistakes](sparse_attn_emergence_mistakes.html) — including one wrong published claim that was
+caught only because a reader pushed back.

@@ -101,6 +101,11 @@ def pick_config() -> tuple[int, int, str]:
 def run_config(S: int, s: int, n_heads: int, d_head: int, leg: str) -> dict:
     seq_len = S * T
     batch = BATCH_TOKENS // seq_len
+    # H=128 first OOMed instantiating a CUDA graph for a 100-step scan, then wedged for
+    # 2h in XLA compilation with command buffers disabled. A shorter scan keeps the graph
+    # small enough for either path. Data order differs from the other configs as a result,
+    # which is harmless — every config is an independent sample.
+    chunk = 25 if n_heads >= 128 else CHUNK
     cfg = Config(N_LAYERS, D_MODEL, D_MLP, n_heads, d_head, C, seq_len)
 
     seed_keys = jax.random.split(jax.random.key(SEED), N_SEEDS)
@@ -138,10 +143,10 @@ def run_config(S: int, s: int, n_heads: int, d_head: int, leg: str) -> dict:
     base = jax.random.fold_in(jax.random.key(SEED), 1)
     loss_c, acc_c = [], []
     t0 = time.perf_counter()
-    for c in range(STEPS // CHUNK):
-        keys = jax.random.split(jax.random.fold_in(base, c), N_SEEDS * CHUNK)
+    for c in range(STEPS // chunk):
+        keys = jax.random.split(jax.random.fold_in(base, c), N_SEEDS * chunk)
         params, opt_state, loss, acc = chunk_fn(
-            params, opt_state, keys.reshape(N_SEEDS, CHUNK), A_all)
+            params, opt_state, keys.reshape(N_SEEDS, chunk), A_all)
         loss_c.append(np.asarray(loss))
         acc_c.append(np.asarray(acc))
 
@@ -198,6 +203,13 @@ if __name__ == "__main__":
         if name in done:
             logging.info(f"  {name} already done — skipping")
             continue
-        append_result(run_config(S, s, h, dh, leg))
+        # One config must not take the sweep down with it. H=128 OOMed on the first pass
+        # (16 seeds x 128 heads is a 2 GB attention tensor) and killed the seven
+        # head-dim configs queued behind it.
+        try:
+            append_result(run_config(S, s, h, dh, leg))
+        except Exception as e:
+            logging.error(f"  {name} FAILED, continuing: {type(e).__name__}: "
+                          f"{str(e).splitlines()[0][:200]}")
 
     logging.info(f"exp3 finished in {time.perf_counter() - t_all:.0f}s")

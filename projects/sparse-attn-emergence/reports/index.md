@@ -17,6 +17,9 @@ Synthetic tasks make this testable rather than anecdotal: the correct attention 
 is known **by construction**, so "did the capability emerge" and "did a head find the
 right support" are both directly measurable.
 
+*New to this? [The paper in plain terms](sparse_attn_emergence_paper.html) explains the whole
+setup with no background assumed.*
+
 ## Status
 
 | | Claim | Verdict |
@@ -24,8 +27,13 @@ right support" are both directly measurable.
 | **H1** | Emergence is abrupt, and its timing is seed-random | [**partially replicated**](sparse_attn_emergence_exp1.html) — timing yes (twice over, see [exp4](sparse_attn_emergence_exp4.html)), cliff-like abruptness no |
 | **H2** | Difficulty is non-monotone in sparsity and grows with context length | [**partially replicated**](sparse_attn_emergence_exp2.html) — the unlearnable band and its widening yes; the dense-end "recovery" is a task artifact |
 | **H3** | The loss jump *is* the attention pattern being found | [**supported**](sparse_attn_emergence_exp4.html) — causal ablation, 0.00 → 4.23 nats |
-| **H4** | More heads help; head dimension saturates | running — 15 configs |
-| **H5** | A non-attention mixer learns the linear map faster | running |
+| **H4** | More heads help; head dimension saturates | [**replicated**](sparse_attn_emergence_exp3.html) — on the strict metric |
+| **H5** | A non-attention mixer learns the linear map faster | [**direction only**](sparse_attn_emergence_exp67.html) — wins where attention fails, loses elsewhere |
+| — | Not specific to the linear map | [**holds**](sparse_attn_emergence_exp5.html) — same wall on cellular automata |
+
+**All seven experiments are complete.** The whole thing in one place, with diagrams:
+[**Findings**](sparse_attn_emergence_findings.html). The errors made along the way, and how
+each was caught: [**Mistakes**](sparse_attn_emergence_mistakes.html).
 
 ## Two results worth your attention
 
@@ -54,6 +62,9 @@ detail.
 
 ## Read in order
 
+0. **[The paper in plain terms](sparse_attn_emergence_paper.html)** — start here if you
+   haven't read the paper. What emergence is, why sparse attention would explain it, and what
+   the authors did. No prior background assumed.
 1. **[Methods](sparse_attn_emergence_methods.html)** — the task construction, the model,
    and exactly what each metric means. Worth reading before the numbers.
 2. **[exp1](sparse_attn_emergence_exp1.html)** — abruptness and seed-randomness (H1).
