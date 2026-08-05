@@ -119,6 +119,75 @@ near-zero past `s=4`; the mixer's advantage is real but sits largely in the band
 0.77 / 0.57 / 0.49 / 0.48 at `s=3,4,5,7` against chance levels of 0.10 / 0.14 / 0.19 / 0.28 —
 comfortably above chance everywhere, and nothing like the unmasked arm's chance-level 0.31.
 
+## exp9 — a third mechanism: KDA linear attention
+
+The two arms so far sit at opposite extremes, which leaves the *cause* ambiguous. Is sparse
+pattern learning hard because of **softmax competition**, or because the mixing weights are
+**computed from content** at all? A linear-attention model separates those: KDA (Kimi Delta
+Attention — a matrix-valued memory written by the delta rule, with per-channel decay) computes
+its mixing per input like attention, but with no softmax anywhere. Implementation ported from
+`projects/universal-ar`.
+
+| | position mixing | from content? | softmax? |
+|---|---|---|---|
+| transformer | query–key match, normalised | yes | yes |
+| static mixer | a fixed learned matrix | **no** | no |
+| KDA | associative memory, key match | yes | **no** |
+
+Solve rate, best learning rate per cell, all three arms:
+
+![crossover](https://media.tanh.xyz/seewhy/26-08-05/sparse_attn_emergence_exp8_crossover.svg)
+
+| `s` | 3 | 4 | 5 | 6 | 7 | 8 |
+|---|---|---|---|---|---|---|
+| transformer | 1.00 @732 | 0.50 | 0.06 | 0.00 | 0.00 | 0.00 |
+| static mixer | 1.00 @3693 | **0.69** | **0.62** | **0.31** | **0.31** | **0.19** |
+| **KDA** | 1.00 @1817 | **0.00** | 0.00 | 0.00 | 0.00 | 0.00 |
+
+**KDA tracks attention, not the mixer** — in fact it is the most brittle of the three. It
+solves the easy cell completely (between the other two in speed) and then fails from `s=4`
+onward, one cell *earlier* than the transformer.
+
+That is the informative result. Removing the softmax is **not** what buys the mixer its range.
+What distinguishes the mixer is that its position-mixing weights are free parameters optimised
+directly, independent of content; KDA computes them from content through a compressed state and
+inherits attention's difficulty, with the state as an extra bottleneck. So the paper's "sparse
+attention patterns are hard to learn" is better localised as: **content-dependent position
+selection is hard to learn** — softmax is not the culprit.
+
+### Two hyperparameters, both mine, both worth recording
+
+KDA needed its own tuning before it was worth reporting, and the process is on
+[Mistakes](sparse_attn_emergence_mistakes.html) in more detail:
+
+- **Decay horizon.** Initialised to the sequence length (following the reference, where the
+  horizon was an episode), the memory attenuates the earliest `x₀` positions by ~1/e before
+  late queries read them: mean per-row accuracy 0.836, and `s=3` only reaching 14/16. At decay
+  ≈ 1 it is 0.985 and `s=3` solves 16/16 exactly. The table above uses the long horizon.
+- **Head count does *not* matter for KDA** (no trend across `H` = 2…32) — unlike the
+  transformer, where [exp3](sparse_attn_emergence_exp3.html) found it monotone. An earlier
+  version of this page claimed the opposite; that claim came from a leaking implementation and
+  is withdrawn.
+
+### The leak, and why this section exists at all
+
+The first KDA run solved *every* sparsity in a median of 53 steps. It was a reshape bug: the
+scan stacks outputs as `(L, B, H, DV)` and the code folded that into `(B, L, H·DV)` through the
+wrong transpose, interleaving position with head so each position received values from other
+positions — including later ones. Every array shape was valid and no error was raised.
+
+The tell was that `t*` was **identical at `s=3` and `s=8`**: difficulty ought to matter. The
+control that settled it is now `scripts/check_kda_leak.py` — train on a second half of pure
+noise, where any causal model must sit at `ln 2`:
+
+| | KDA H=32 | KDA H=8 | transformer |
+|---|---|---|---|
+| before fix | **0.0000** | **0.4333** | 0.6932 |
+| after fix | 0.6932 | 0.6932 | 0.6932 |
+
+Every number in this section comes from the fixed implementation, and the arm that produced
+the exciting result produced a much duller one afterwards.
+
 ## The learning rate was not a detail
 
 The causal mixer went **0/16 → 5/16 → 3/16** across `3e-4 → 1e-3 → 3e-3`. exp6 gave both arms

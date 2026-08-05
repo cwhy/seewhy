@@ -117,11 +117,20 @@ Solve rate, both arms, best learning rate per cell (16 seeds each):
 |---|---|---|---|---|---|---|
 | transformer | **1.00** @732 | 0.50 | 0.06 | 0.00 | 0.00 | 0.00 |
 | causal mixer | **1.00** @3693 | **0.69** | **0.62** | **0.31** | **0.31** | **0.19** |
+| KDA linear attention | **1.00** @1817 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 |
 
 Attention is better while the search is easy — both solve `s=3`, the transformer 5× faster —
 and mixing takes over from `s=4`, becoming the only architecture that solves anything from
 `s=5` on. **The paper's claim holds in the regime it was made about**; the unqualified reading
 ("learns the linear map faster") does not.
+
+**A third architecture localises the cause.** KDA linear attention computes its mixing from
+content like attention but without any softmax, and it tracks *attention*, not the mixer —
+solving `s=3` (in 1817 steps) and then failing from `s=4`, one cell earlier than the
+transformer. So removing the softmax is not what buys the mixer its range. What does is that
+the mixer's position weights are free parameters optimised directly, rather than computed from
+content. The paper's "sparse attention patterns are hard to learn" is more precisely
+**content-dependent position selection is hard to learn**.
 
 Two qualifications. Read strictly (every row learned, not 15 of 16), both architectures
 collapse past `s=4` and the mixer's advantage lives mostly in partial solutions. And an
@@ -143,6 +152,10 @@ Five things this replication adds rather than merely confirms:
    strict criterion.
 5. **Masking sensitivity in the architecture comparison** — an unstated implementation choice
    that flips the headline result.
+6. **A sharper statement of the mechanism.** Three architectures separate softmax from
+   content-dependence, and the difficulty follows content-dependence: KDA has no softmax and
+   still fails like attention, while the mixer's directly-optimised weights are what extend its
+   range.
 
 ## Limits
 

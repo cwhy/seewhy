@@ -131,8 +131,8 @@ def save_crossover_panel(name, cells, n_seeds):
     Left: success vs sparsity, both metrics. Right: alignment among seeds that solved,
     against the chance level — without which no IoU number is interpretable.
     """
-    arms = ["transformer", "mixer"]
-    col = {"transformer": "#4a7ebb", "mixer": "#9bbb59"}
+    arms = [a for a in ("transformer", "mixer", "kda") if any(x == a for _, x in cells)]
+    col = {"transformer": "#4a7ebb", "mixer": "#9bbb59", "kda": "#674ea7"}
     ss = sorted({s for s, _ in cells})
 
     fig, axes = plt.subplots(1, 2, figsize=(12, 4.4))
@@ -142,8 +142,10 @@ def save_crossover_panel(name, cells, n_seeds):
                      ms=5, label=f"{arm} — solved (acc2 > 0.95)")
         axes[0].plot(ss, [x.get("exact", np.nan) for x in d], "s--", color=col[arm], lw=1.2,
                      ms=4, alpha=0.65, label=f"{arm} — every row exact")
-        axes[1].plot(ss, [x.get("iou_solved", np.nan) for x in d], "o-", color=col[arm],
-                     lw=1.8, ms=5, label=f"{arm} (solved seeds)")
+        iou = [x.get("iou_solved") for x in d]
+        if any(v is not None for v in iou):
+            axes[1].plot(ss, [np.nan if v is None else v for v in iou], "o-", color=col[arm],
+                         lw=1.8, ms=5, label=f"{arm} (solved seeds)")
 
     axes[1].plot(ss, [cells.get((s, "transformer"), {}).get("chance", np.nan) for s in ss],
                  "k:", lw=1.4, label="chance (random top-s)")

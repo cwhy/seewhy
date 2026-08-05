@@ -27,7 +27,7 @@ PAGES = [
     ("exp3",    "exp3 · H4",  "exp3 — heads versus head dimension"),
     ("exp4",    "exp4 · H3",  "exp4 — is the loss jump the attention pattern being found?"),
     ("exp5",    "exp5 · CA",  "exp5 — cellular automata, in context"),
-    ("exp67",   "exp6/7 · H5", "exp6 & exp7 — mixer versus transformer, and what masking is worth"),
+    ("exp67",   "exp6–9 · H5", "exp6–exp9 — mixer, transformer and KDA: what actually makes the pattern hard"),
     ("findings", "Findings",  "Findings — the whole replication in one place"),
     ("mistakes", "Mistakes",  "Mistakes — what went wrong, how it surfaced, what it cost"),
 ]

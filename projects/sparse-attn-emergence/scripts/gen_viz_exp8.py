@@ -23,7 +23,7 @@ for line in (PROJECT / "results.jsonl").read_text().splitlines():
     except Exception:
         continue
     e = str(r.get("experiment", ""))
-    if e.startswith("exp8_") and e not in seen:
+    if e.startswith(("exp8_", "exp9_")) and e not in seen:      # exp9 adds the KDA arm
         seen.add(e)
         rows.append(r)
 
@@ -36,10 +36,11 @@ for r in rows:
     key = (r["s"], r["arch"])
     rank = (r["solve_rate"], r["exact_rate"], -(r.get("median_t_star") or 1e9))
     if key not in cells or rank > cells[key]["rank"]:
+        iou = r.get("support_iou")
         cells[key] = {"rank": rank, "solve": r["solve_rate"], "exact": r["exact_rate"],
                       "t": r.get("median_t_star"), "lr": r["lr"],
                       "iou_solved": r.get("support_iou_solved"),
-                      "iou_all": float(np.mean(r["support_iou"])),
+                      "iou_all": float(np.mean(iou)) if iou else None,
                       "chance": r["support_iou_chance"]}
 
 print(f"{'s':>3} {'arm':<12} {'lr':>7} {'solved':>7} {'exact':>6} {'median t*':>10} "
