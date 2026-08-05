@@ -51,7 +51,7 @@ date-foldered, so republishing mints new URLs; this row points at the latest run
 
 | Report | Description |
 |--------|-------------|
-| [Overview — hub](https://media.tanh.xyz/seewhy/26-08-05/sparse_attn_emergence_index.html) | Claims table H1–H5 with verdicts and reading order — start here |
-| [The paper in plain terms](https://media.tanh.xyz/seewhy/26-08-05/sparse_attn_emergence_paper.html) | Explainer for readers who haven't read the paper: what emergence is, why sparse attention would explain it |
-| [Findings](https://media.tanh.xyz/seewhy/26-08-05/sparse_attn_emergence_findings.html) | All seven experiments in one place, with diagrams. H1–H4 hold; H5 in direction only; a degenerate column found in the task design |
-| [Mistakes](https://media.tanh.xyz/seewhy/26-08-05/sparse_attn_emergence_mistakes.html) | Every error made, what it cost, and how each surfaced — including one wrong claim caught only by reader pushback |
+| [Overview — hub](https://media.tanh.xyz/seewhy/26-08-06/sparse_attn_emergence_index.html) | Claims table H1–H5 with verdicts and reading order — start here |
+| [The paper in plain terms](https://media.tanh.xyz/seewhy/26-08-06/sparse_attn_emergence_paper.html) | Explainer for readers who haven't read the paper: what emergence is, why sparse attention would explain it |
+| [Findings](https://media.tanh.xyz/seewhy/26-08-06/sparse_attn_emergence_findings.html) | All seven experiments in one place, with diagrams. H1–H4 hold; H5 in direction only; a degenerate column found in the task design |
+| [Mistakes](https://media.tanh.xyz/seewhy/26-08-06/sparse_attn_emergence_mistakes.html) | Every error made, what it cost, and how each surfaced — including one wrong claim caught only by reader pushback |
