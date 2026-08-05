@@ -124,6 +124,43 @@ def save_heads_panel(name, heads, headdims, n_seeds):
     return url
 
 
+def save_crossover_panel(name, cells, n_seeds):
+    """Where does mixing overtake attention?
+
+    cells: {(s, arm): {solve, exact, t, iou_solved, chance}} at the best LR per cell.
+    Left: success vs sparsity, both metrics. Right: alignment among seeds that solved,
+    against the chance level — without which no IoU number is interpretable.
+    """
+    arms = ["transformer", "mixer"]
+    col = {"transformer": "#4a7ebb", "mixer": "#9bbb59"}
+    ss = sorted({s for s, _ in cells})
+
+    fig, axes = plt.subplots(1, 2, figsize=(12, 4.4))
+    for arm in arms:
+        d = [cells.get((s, arm), {}) for s in ss]
+        axes[0].plot(ss, [x.get("solve", np.nan) for x in d], "o-", color=col[arm], lw=1.8,
+                     ms=5, label=f"{arm} — solved (acc2 > 0.95)")
+        axes[0].plot(ss, [x.get("exact", np.nan) for x in d], "s--", color=col[arm], lw=1.2,
+                     ms=4, alpha=0.65, label=f"{arm} — every row exact")
+        axes[1].plot(ss, [x.get("iou_solved", np.nan) for x in d], "o-", color=col[arm],
+                     lw=1.8, ms=5, label=f"{arm} (solved seeds)")
+
+    axes[1].plot(ss, [cells.get((s, "transformer"), {}).get("chance", np.nan) for s in ss],
+                 "k:", lw=1.4, label="chance (random top-s)")
+    axes[0].set(xlabel="sparsity s", ylabel=f"fraction of {n_seeds} seeds",
+                ylim=(-0.04, 1.04), title="attention wins left, mixing wins right")
+    axes[1].set(xlabel="sparsity s", ylabel="support IoU",
+                title="did it find the pattern? (solved seeds only)")
+    for ax in axes:
+        ax.set_xticks(ss)
+        ax.grid(alpha=0.25)
+        ax.legend(fontsize=8)
+    fig.tight_layout()
+    url = save_matplotlib_figure(name, fig, format="svg")
+    plt.close(fig)
+    return url
+
+
 def save_arch_panel(name, cells, plateau):
     """H5: architectures side by side.
 

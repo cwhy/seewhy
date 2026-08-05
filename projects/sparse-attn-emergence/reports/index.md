@@ -28,7 +28,7 @@ setup with no background assumed.*
 | **H2** | Difficulty is non-monotone in sparsity and grows with context length | [**partially replicated**](sparse_attn_emergence_exp2.html) — the unlearnable band and its widening yes; the dense-end "recovery" is a task artifact |
 | **H3** | The loss jump *is* the attention pattern being found | [**supported**](sparse_attn_emergence_exp4.html) — causal ablation, 0.00 → 4.23 nats |
 | **H4** | More heads help; head dimension saturates | [**replicated**](sparse_attn_emergence_exp3.html) — on the strict metric |
-| **H5** | A non-attention mixer learns the linear map faster | [**direction only**](sparse_attn_emergence_exp67.html) — wins where attention fails, loses elsewhere |
+| **H5** | A non-attention mixer learns the linear map faster | [**holds past `s=4`**](sparse_attn_emergence_exp67.html) — crossover measured; below it attention is 5× faster |
 | — | Not specific to the linear map | [**holds**](sparse_attn_emergence_exp5.html) — same wall on cellular automata |
 
 **All seven experiments are complete.** The whole thing in one place, with diagrams:

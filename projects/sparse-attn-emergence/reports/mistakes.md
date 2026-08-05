@@ -9,9 +9,12 @@ Ordered by consequence.
 
 | # | Mistake | Cost | How it surfaced |
 |---|---|---|---|
+| 0 | Repeated the shared-LR error at `s=3` after fixing it at `s=7` | a second wrong published claim | **a reader asked why the result looked weird** |
 | 1 | Asserted H5 refuted after testing the wrong config | one wrong published claim | **a reader pushed back** |
 | 2 | `rsync` push overwrote the remote `results.jsonl` | 10 completed sweep cells, ~25 min GPU | `pick_config` found no rows |
 | 3 | Re-running an experiment truncated its log | the only on-disk record of the lost cells | noticed the file was short |
+| 3b | Averaged attention alignment over seeds that never learned | understated the mixer, 0.35 vs 0.48 | conditioning on solved seeds |
+| 3c | Reported IoU with no chance baseline | every alignment number was uninterpretable | computing what random selection scores |
 | 4 | Emergence threshold admitted non-solutions | distorted headline numbers in two experiments | a loss value was *too exactly* `ln 2/S` |
 | 5 | Explained a metric gap with a story that was wrong | a wrong sentence on a published page | exp4's per-head numbers |
 | 6 | Proposed XOR arity as the difficulty driver | a wrong hypothesis, stated twice | the `s=32` cell refuted it |
@@ -24,6 +27,27 @@ Ordered by consequence.
 | 13 | Wrote page links to pages that did not exist | none — publish aborted | a validator written for the purpose |
 | 14 | Scaffolding gaps against my own new checklist | none | reviewing the staged diff |
 | 15 | Misread elapsed time, declared a healthy run stalled | a wrong paragraph | checking the clock |
+
+## The same mistake, twice
+
+exp6 compared architectures at a config chosen from our own data instead of the paper's, and
+gave both arms the transformer's learning rate. exp7 fixed both — at `s=7`. It then reported an
+easy-cell comparison at `s=3` that used **one** learning rate, and concluded the mixer "loses
+badly where the search is easy".
+
+At `lr=1e-3` the mixer solves `s=3` 16/16. The conclusion was wrong, and it was wrong for the
+identical reason as the first time, in the same experiment that was written to correct it. The
+fix I applied was local to the cell I was thinking about rather than to the comparison as a
+whole.
+
+Two other errors surfaced in the same pass, both in analysis rather than training:
+**alignment averaged over seeds that never learned anything** (which understated the mixer at
+0.35 when its solving seeds scored 0.48), and **no chance baseline for IoU**, without which
+none of those numbers meant anything — random selection scores 0.28 at `s=7`, so the unmasked
+mixer's "0.31" was not weak alignment but *exactly none*.
+
+All three were found by re-examining stored per-seed data, at no compute cost, after being
+asked why a result looked odd.
 
 ## The one that mattered
 

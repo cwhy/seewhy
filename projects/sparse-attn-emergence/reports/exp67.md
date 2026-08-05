@@ -38,14 +38,16 @@ Learning rates `{3e-4, 1e-3, 3e-3}`, 16 seeds, 10,000 steps, best LR shown per a
 
 ![architectures](https://media.tanh.xyz/seewhy/26-08-05/sparse_attn_emergence_exp7_arch.svg)
 
-| | transformer | causal mixer | unmasked mixer |
-|---|---|---|---|
-| **`s=7`** (paper's cell) solves | **0/16** | **5/16** | 16/16 |
-| median `t*` | — | 5844 | **392** |
-| support IoU | 0.47 | 0.35 | 0.31 |
-| **`s=3`** (easy cell) solves | **16/16** | 4/16 | 16/16 |
-| median `t*` | 820 | 7986 | **386** |
-| support IoU | **0.80** | 0.63 | 0.12 |
+| | transformer | causal mixer | unmasked mixer | chance |
+|---|---|---|---|---|
+| **`s=7`** (paper's cell) solves | **0/16** | **5/16** | 16/16 | |
+| median `t*` | — | 5844 | **392** | |
+| support IoU, all seeds | 0.47 | 0.35 | 0.31 | 0.28 |
+| support IoU, **solved seeds only** | — (none) | **0.48** | 0.31 | 0.28 |
+| **`s=3`** (easy cell) solves | **16/16** | 4/16 | 16/16 | |
+| median `t*` | 820 | 7986 | **386** | |
+| support IoU, all seeds | **0.80** | 0.63 | 0.12 | 0.10 |
+| support IoU, **solved seeds only** | **0.80** | **0.73** | 0.12 | 0.10 |
 
 ## Three findings
 
@@ -53,10 +55,10 @@ Learning rates `{3e-4, 1e-3, 3e-3}`, 16 seeds, 10,000 steps, best LR shown per a
 transformer fails at every learning rate tried, the causal mixer solves 5/16. Attention-free
 mixing does succeed where attention cannot. That is the substance of H5 and it holds.
 
-**2. It is not a general speed advantage.** At `s=3` the transformer solves every seed in 820
-steps while the causal mixer manages 4/16 in ~8000. So "the mixer learns the linear map
-faster" is too broad: it wins only in the regime where the search is hard enough to defeat
-attention, and loses badly where the search is easy.
+**2. The easy-cell result was a learning-rate artifact — see exp8 below.** exp7 reported the
+mixer at 4/16 on `s=3`, but ran only one learning rate there while sweeping three at `s=7`.
+At `lr=1e-3` the mixer solves `s=3` **16/16**. The claim that it "loses badly where the search
+is easy" was wrong.
 
 **3. Without causal masking the comparison is void, and the IoU proves it.** The unmasked mixer
 reaches *exactly zero* loss in ~390 steps in both cells — while its support IoU is **0.31 and
@@ -65,10 +67,57 @@ about the pattern, because it reads the answer from the token it is predicting.
 
 That third point speaks to a specific paper claim. They report the mixer "outperforms a
 transformer by an order of magnitude in learning the ground-truth attention pattern" — but a
-leaking model has *poor* alignment by construction, so their pattern-learning result cannot
-come from an unmasked model. Their mixer was therefore very likely masked, and the
-disagreement is about magnitude: our causal mixer's alignment (0.35) sits **below** the
-transformer's (0.47), so we do not reproduce a mixer that finds the pattern better.
+leaking model has *chance-level* alignment by construction, so their pattern-learning result
+cannot come from an unmasked model. Their mixer was therefore very likely masked.
+
+**Correction.** An earlier version of this page said our causal mixer's alignment sat *below*
+the transformer's (0.35 against 0.47), so we did not reproduce a mixer that finds the pattern
+better. That comparison was wrong: it averaged the mixer's IoU over eleven seeds that never
+learned anything and compared it against a transformer that never solved the cell at all.
+Conditioned on seeds that actually solve, the mixer reaches **0.48** at `s=7` — the only arm
+that both solves the cell and sits meaningfully above chance on it. The right statement is
+that we cannot compare pattern-learning between an arm that succeeds and an arm that never
+does; the paper's magnitude claim remains untested here rather than contradicted.
+
+The chance column is why this matters. Random top-`s` selection scores 0.28 at `s=7` and 0.10
+at `s=3`, so the unmasked mixer's 0.31 and 0.12 are **exactly chance** — a rigorous statement
+of "learned nothing about the pattern", not an eyeballed one.
+
+## exp8 — the crossover, swept properly
+
+Both arms across `s ∈ {3…8}`, two learning rates each, 16 seeds, best setting per cell:
+
+![crossover](https://media.tanh.xyz/seewhy/26-08-05/sparse_attn_emergence_exp8_crossover.svg)
+
+| `s` | 3 | 4 | 5 | 6 | 7 | 8 |
+|---|---|---|---|---|---|---|
+| **transformer** solved | **1.00** @732 | 0.50 | 0.06 | 0.00 | 0.00 | 0.00 |
+| **mixer** solved | **1.00** @3693 | **0.69** | **0.62** | **0.31** | **0.31** | **0.19** |
+| transformer, every row exact | **1.00** | 0.19 | 0.00 | 0.00 | 0.00 | 0.00 |
+| mixer, every row exact | 0.81 | 0.19 | 0.06 | 0.00 | 0.06 | 0.00 |
+| chance IoU | 0.10 | 0.14 | 0.19 | 0.23 | 0.28 | 0.33 |
+
+**The crossover is at `s = 4`.** Below it attention is better — both architectures solve `s=3`
+completely, but the transformer gets there in 732 steps against the mixer's 3693, five times
+faster. From `s=4` on the mixer leads, and from `s=5` it is the only architecture that solves
+anything at all: 10/16 where attention manages 1/16, then 5/16, 5/16 and 3/16 across cells
+where attention never once succeeds.
+
+**So the paper's claim holds, in the regime it was made about.** Sparse patterns are hard to
+*find* by softmax competition, and an architecture that learns its mixing weights directly
+keeps working past the point where attention stops. What does not hold is the unqualified
+"learns the linear map faster": at low sparsity the transformer is five times quicker, and the
+advantage only appears once the search gets hard.
+
+**One caveat the strict metric exposes.** The mixer's wins are mostly *partial* solutions. At
+`s=5` it "solves" 10/16 by the `acc2 > 0.95` bar but learns every row in only 1/16 — at
+`S=16` that bar tolerates one unlearned row. Read strictly, both architectures collapse to
+near-zero past `s=4`; the mixer's advantage is real but sits largely in the band between
+"learns most rows" and "learns all of them".
+
+**And when the mixer solves, it has found the pattern.** Alignment among solving seeds runs
+0.77 / 0.57 / 0.49 / 0.48 at `s=3,4,5,7` against chance levels of 0.10 / 0.14 / 0.19 / 0.28 —
+comfortably above chance everywhere, and nothing like the unmasked arm's chance-level 0.31.
 
 ## The learning rate was not a detail
 

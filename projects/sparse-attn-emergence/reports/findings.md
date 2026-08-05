@@ -21,7 +21,7 @@ every number are in [Methods](sparse_attn_emergence_methods.html).
 | **H2** | Difficulty is non-monotone in sparsity, grows with context | **holds**, with a degenerate column | [exp2](sparse_attn_emergence_exp2.html) |
 | **H3** | The loss jump *is* the pattern being found | **holds**, causally | [exp4](sparse_attn_emergence_exp4.html) |
 | **H4** | More heads help; head dim saturates | **holds** on the strict metric | [exp3](sparse_attn_emergence_exp3.html) |
-| **H5** | A non-attention mixer learns it faster | **direction holds**, magnitude does not | [exp6/7](sparse_attn_emergence_exp67.html) |
+| **H5** | A non-attention mixer learns it faster | **holds past `s=4`**, reversed below it | [exp6/7/8](sparse_attn_emergence_exp67.html) |
 | — | Not linear-map-specific | **holds** — same wall on cellular automata | [exp5](sparse_attn_emergence_exp5.html) |
 
 ## H1 — timing is random, abruptness is oversold
@@ -109,18 +109,25 @@ fixed head count buys about what doubling the head count buys at constant width 
 cheaper. The paper's `H=128, d_head=1` point is **unmeasured** here (XLA compile pathology at
 `d_head=1`).
 
-## H5 — right direction, wrong magnitude, and a masking trap
+## H5 — holds in its regime, with a crossover at `s = 4`
 
-| | transformer | causal mixer | unmasked mixer |
-|---|---|---|---|
-| `s=7` (paper's cell) | 0/16 | **5/16** | 16/16 @ 392 |
-| `s=3` | **16/16** @ 820 | 4/16 | 16/16 @ 386 |
-| support IoU (`s=3`) | **0.80** | 0.63 | **0.12** |
+Solve rate, both arms, best learning rate per cell (16 seeds each):
 
-The mixer does win where attention fails, which is H5's substance. It is not generally faster —
-it loses badly on easy cells. And the unmasked arm reaches zero loss while learning nothing
-about the pattern (IoU 0.12), which means any mixer comparison without causal masking is void.
-The paper does not state whether its mixer is masked.
+| `s` | 3 | 4 | 5 | 6 | 7 | 8 |
+|---|---|---|---|---|---|---|
+| transformer | **1.00** @732 | 0.50 | 0.06 | 0.00 | 0.00 | 0.00 |
+| causal mixer | **1.00** @3693 | **0.69** | **0.62** | **0.31** | **0.31** | **0.19** |
+
+Attention is better while the search is easy — both solve `s=3`, the transformer 5× faster —
+and mixing takes over from `s=4`, becoming the only architecture that solves anything from
+`s=5` on. **The paper's claim holds in the regime it was made about**; the unqualified reading
+("learns the linear map faster") does not.
+
+Two qualifications. Read strictly (every row learned, not 15 of 16), both architectures
+collapse past `s=4` and the mixer's advantage lives mostly in partial solutions. And an
+**unmasked** mixer solves everything in ~390 steps at *chance-level* alignment (0.31 against
+chance 0.28) — it reads the token it is predicting, so any mixer comparison without causal
+masking is void. The paper does not state whether its mixer is masked.
 
 ## Beyond the paper
 
