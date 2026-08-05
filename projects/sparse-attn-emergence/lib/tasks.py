@@ -33,6 +33,25 @@ def linear_map_batch(key, A: jnp.ndarray, batch: int) -> jnp.ndarray:
     return jnp.concatenate([x0, x1], axis=1)
 
 
+def linear_map_traj_batch(key, A: jnp.ndarray, batch: int, T: int) -> jnp.ndarray:
+    """(batch, S*T) — T states of a trajectory x_{t+1} = A x_t mod 2, flattened.
+
+    T=2 reduces to linear_map_batch. Larger T puts several applications of the SAME A in
+    one sequence, i.e. more worked examples of the map per sequence. The paper fixes T=2
+    for the linear map ("We always use C=2 and T=2") and only varies trajectory length on
+    the cellular automata task, so this axis is untested for the linear map.
+    """
+    S = A.shape[0]
+    x0 = jax.random.bernoulli(key, 0.5, (batch, S)).astype(jnp.int32)
+
+    def step(x, _):
+        nx = (x @ A.T) % 2
+        return nx, nx
+
+    _, rest = jax.lax.scan(step, x0, None, length=T - 1)          # (T-1, batch, S)
+    return jnp.concatenate([x0[None], rest], 0).transpose(1, 0, 2).reshape(batch, S * T)
+
+
 def ca_rule_pool(key, n_rules: int, C: int = 4, W: int = 3) -> jnp.ndarray:
     """(n_rules, C**W) int32 lookup tables. Sampled once per run; one rule per example.
 

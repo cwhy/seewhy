@@ -124,6 +124,42 @@ def save_heads_panel(name, heads, headdims, n_seeds):
     return url
 
 
+def save_traj_panel(name, cells, n_seeds):
+    """Does packing more worked examples into one sequence help?
+
+    cells: {(s, T): {solve, exact, t}} at the best LR. Tokens per step are held fixed, so
+    larger T means a shorter batch but MORE supervised targets per step — the confound runs
+    against the observed effect.
+    """
+    ss = sorted({s for s, _ in cells})
+    Ts = sorted({T for _, T in cells})
+    col = {3: "#4a7ebb", 4: "#c0504d", 6: "#674ea7"}
+
+    fig, axes = plt.subplots(1, 2, figsize=(11.5, 4.2))
+    for s in ss:
+        d = [cells.get((s, T), {}) for T in Ts]
+        axes[0].plot(Ts, [x.get("exact", np.nan) for x in d], "o-", color=col.get(s), lw=1.8,
+                     ms=5, label=f"s={s}")
+        t = [x.get("t") for x in d]
+        if any(v for v in t):
+            axes[1].plot(Ts, [np.nan if not v else v for v in t], "o-", color=col.get(s),
+                         lw=1.8, ms=5, label=f"s={s}")
+
+    axes[0].set(xlabel="trajectory length T (worked examples per sequence)",
+                ylabel=f"fraction of {n_seeds} seeds solving every row", ylim=(-0.04, 1.04),
+                title="more examples per sequence → fewer seeds succeed")
+    axes[1].set(xlabel="trajectory length T", ylabel="median time-to-emergence (steps)",
+                title="…and the ones that do take longer")
+    for ax in axes:
+        ax.set_xticks(Ts)
+        ax.grid(alpha=0.25)
+        ax.legend(fontsize=8)
+    fig.tight_layout()
+    url = save_matplotlib_figure(name, fig, format="svg")
+    plt.close(fig)
+    return url
+
+
 def save_crossover_panel(name, cells, n_seeds):
     """Where does mixing overtake attention?
 

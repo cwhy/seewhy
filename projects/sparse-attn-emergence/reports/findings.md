@@ -75,6 +75,44 @@ At `s = S` the "recovery" (16/16 in ~30 steps) is **copying**, verified per posi
 accuracy on the first output token, 1.000 on all others, final loss exactly `ln 2/S`. The
 paper shares this construction, so the caveat applies to its `s=S` results too.
 
+## Would more examples help? No — more context makes it harder
+
+A natural question the paper only half answers. It sweeps trajectory length `T` on the
+cellular automata task (longer trajectories → longer plateaus, non-monotonically) but fixes
+`T = 2` for the linear map, so on that task the axis is untested. exp10 tests it: same matrix
+`A`, but `T ∈ {2, 4, 8}` states per sequence, i.e. **1, 3 or 7 worked examples of the same map
+inside every sequence**.
+
+![trajectory length](https://media.tanh.xyz/seewhy/26-08-06/sparse_attn_emergence_exp10_traj.svg)
+
+| | `T=2` | `T=4` | `T=8` |
+|---|---|---|---|
+| supervised targets per step | 4,096 | 6,144 | **7,168** |
+| `s=3`, every row exact | **1.00** | 0.56 | **0.12** |
+| `s=3`, median `t*` | **820** | 3,617 | **6,525** |
+| `s=4`, solved | **7/16** | **0/16** | **0/16** |
+
+**More examples per sequence makes it strictly worse** — 8× slower at `s=3`, and it turns a
+half-solvable cell (`s=4`) into an unsolvable one. Note the confound points the other way:
+tokens per step are held fixed, so larger `T` actually delivers *more* supervised targets per
+step, because a smaller fraction of each sequence is the unpredictable first state.
+
+**Why, most likely: with absolute position embeddings, more examples means more patterns, not
+more evidence for one pattern.** Predicting `x₁[i]` requires attending to row `i`'s support
+inside `x₀`; predicting `x₂[i]` requires the same support one state later, at *different
+absolute positions*. Nothing in the architecture ties those together, so `T=8` asks the model
+to find seven separate absolute patterns, each with the same `C(S,s)` search space, instead of
+one. That predicts relative position encoding (RoPE) should flip the result — untested here,
+and the obvious next experiment.
+
+**So: the failure is not sample-limited.** Training samples are unlimited already (fresh
+sequences every step, ~2.5M per run), the paper's own attention-biasing experiment converges
+"almost instantly" once the pattern is supplied, and adding worked examples *inside* the
+context makes learning slower. What helps is being given the pattern; what does not help is
+more data. In-context examples do help *inference* — exp5's per-state loss falls 1.298 → 0.130
+within a CA sequence as the active rule becomes identifiable — but that is using a circuit,
+not forming one.
+
 ## H3 — the mechanism, causally
 
 | condition | second-half loss |
