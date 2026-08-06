@@ -52,6 +52,34 @@ def linear_map_traj_batch(key, A: jnp.ndarray, batch: int, T: int) -> jnp.ndarra
     return jnp.concatenate([x0[None], rest], 0).transpose(1, 0, 2).reshape(batch, S * T)
 
 
+def induction_batch(key, batch: int, n_pairs: int, V: int):
+    """Associative recall / induction. Returns (seq (batch, 2*n_pairs), recallable mask).
+
+    A sequence is pairs `a, f(a), a', f(a'), ...` where **f is a fresh random permutation
+    per sequence**. When a key repeats, its value is recoverable only by matching the
+    earlier occurrence of that key and copying the token after it — the canonical induction
+    circuit.
+
+    This is the axis both of the paper's synthetic tasks miss. There, the correct attention
+    pattern is a fixed set of POSITIONS (row support, or a local window), so it can be
+    expressed by position information alone. Here the correct position depends on the
+    CONTENT and moves from sequence to sequence, which is what IOI, copying and in-context
+    repetition actually require.
+
+    `recallable[b, i]` marks pairs whose key already appeared, i.e. the positions where the
+    answer is determined rather than a 1/V guess.
+    """
+    k_perm, k_keys = jax.random.split(key)
+    f = jax.vmap(lambda k: jax.random.permutation(k, V))(jax.random.split(k_perm, batch))
+    a = jax.random.randint(k_keys, (batch, n_pairs), 0, V)
+    fa = jnp.take_along_axis(f, a, axis=1)
+    seq = jnp.stack([a, fa], axis=-1).reshape(batch, 2 * n_pairs)
+
+    same = (a[:, :, None] == a[:, None, :])
+    earlier = jnp.tril(jnp.ones((n_pairs, n_pairs)), -1)[None]
+    return seq, (same * earlier).sum(-1) > 0
+
+
 def ca_rule_pool(key, n_rules: int, C: int = 4, W: int = 3) -> jnp.ndarray:
     """(n_rules, C**W) int32 lookup tables. Sampled once per run; one rule per example.
 
@@ -62,18 +90,12 @@ def ca_rule_pool(key, n_rules: int, C: int = 4, W: int = 3) -> jnp.ndarray:
     return jax.random.randint(key, (n_rules, C**W), 0, C)
 
 
-def ca_batch(key, rules: jnp.ndarray, batch: int, S: int, T: int, k: int,
-             C: int = 4) -> jnp.ndarray:
-    """(batch, S*T) int32. Each row: a random rule from the pool applied to a random
-    initial state, T states flattened. Boundaries wrap (the paper does not specify).
+def _ca_rollout(R, x0, T: int, k: int, C: int) -> jnp.ndarray:
+    """Roll a per-sequence lookup table forward: T states, wrapped boundaries, flattened.
 
     k is the composition depth — the rule is applied k times per state transition, so the
     span of x_{t+1}[i] over x_t is 2k+1 wide. k is a Python int (static).
     """
-    k_rule, k_state = jax.random.split(key)
-    R = rules[jax.random.randint(k_rule, (batch,), 0, rules.shape[0])]    # (batch, C**W)
-    x0 = jax.random.randint(k_state, (batch, S), 0, C)
-
     def apply_once(x):
         idx = jnp.roll(x, 1, axis=1) * C * C + x * C + jnp.roll(x, -1, axis=1)
         return jnp.take_along_axis(R, idx, axis=1)
@@ -84,4 +106,32 @@ def ca_batch(key, rules: jnp.ndarray, batch: int, S: int, T: int, k: int,
         return x, x
 
     _, rest = jax.lax.scan(step, x0, None, length=T - 1)                  # (T-1, batch, S)
+    batch, S = x0.shape
     return jnp.concatenate([x0[None], rest], 0).transpose(1, 0, 2).reshape(batch, S * T)
+
+
+def ca_batch(key, rules: jnp.ndarray, batch: int, S: int, T: int, k: int,
+             C: int = 4) -> jnp.ndarray:
+    """(batch, S*T) int32 — one rule drawn per sequence from a POOL fixed for the run.
+
+    The pool is what makes this memorisable: with N tables drawn once per run, a model can
+    store all of them and only has to infer WHICH is active from the context.
+    """
+    k_rule, k_state = jax.random.split(key)
+    R = rules[jax.random.randint(k_rule, (batch,), 0, rules.shape[0])]    # (batch, C**W)
+    x0 = jax.random.randint(k_state, (batch, S), 0, C)
+    return _ca_rollout(R, x0, T, k, C)
+
+
+def ca_fresh_batch(key, batch: int, S: int, T: int, k: int, C: int = 4,
+                   W: int = 3) -> jnp.ndarray:
+    """(batch, S*T) int32 — a FRESH lookup table per sequence, drawn from all C^(C^W).
+
+    No pool, so nothing can be memorised: the rule in play has almost certainly never been
+    seen before. This is the genuine in-context version of the task, and the control that
+    separates "learned the rules" from "learned to infer a rule".
+    """
+    k_rule, k_state = jax.random.split(key)
+    R = jax.random.randint(k_rule, (batch, C**W), 0, C)
+    x0 = jax.random.randint(k_state, (batch, S), 0, C)
+    return _ca_rollout(R, x0, T, k, C)

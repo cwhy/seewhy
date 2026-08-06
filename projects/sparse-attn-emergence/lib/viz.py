@@ -124,6 +124,39 @@ def save_heads_panel(name, heads, headdims, n_seeds):
     return url
 
 
+def save_pool_panel(name, cells, n_seeds):
+    """Memorisation vs in-context learning, as a function of rule-pool size.
+
+    cells: {N: {solve, t, gain}} with N=None meaning a fresh rule per sequence (plotted at
+    the right edge). The in-context gain — how far per-state loss falls WITHIN a sequence —
+    is the quantity that separates the two regimes: zero means nothing is being inferred.
+    """
+    xs = sorted(k for k in cells if k is not None)
+    labels = [str(x) for x in xs] + (["fresh"] if None in cells else [])
+    pos = list(range(len(labels)))
+    order = xs + ([None] if None in cells else [])
+
+    fig, axes = plt.subplots(1, 2, figsize=(11.5, 4.2))
+    axes[0].plot(pos, [cells[k]["t"] for k in order], "o-", color="#4a7ebb", lw=1.8, ms=6)
+    axes[0].set(xlabel="rule pool size N", ylabel="median time-to-emergence (steps)",
+                title="bigger pool → later emergence", yscale="log")
+    axes[1].plot(pos, [cells[k]["gain"] for k in order], "o-", color="#c0504d", lw=1.8, ms=6)
+    axes[1].axhline(0, ls=":", c="#666", lw=1)
+    axes[1].set(xlabel="rule pool size N",
+                ylabel="in-context gain (per-state loss, first − last)",
+                title="how much is inferred from context, not memorised")
+    for ax in axes:
+        ax.set_xticks(pos, labels)
+        ax.grid(alpha=0.25)
+    axes[1].annotate("memorised:\nnothing inferred", xy=(0, 0.02), xytext=(0.35, 0.35),
+                     fontsize=8, color="#666",
+                     arrowprops=dict(arrowstyle="->", color="#999", lw=1))
+    fig.tight_layout()
+    url = save_matplotlib_figure(name, fig, format="svg")
+    plt.close(fig)
+    return url
+
+
 def save_traj_panel(name, cells, n_seeds):
     """Does packing more worked examples into one sequence help?
 

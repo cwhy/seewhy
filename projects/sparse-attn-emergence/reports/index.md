@@ -31,7 +31,12 @@ setup with no background assumed.*
 | **H5** | A non-attention mixer learns the linear map faster | [**holds past `s=4`**](sparse_attn_emergence_exp67.html) — crossover measured; below it attention is 5× faster |
 | — | Not specific to the linear map | [**holds**](sparse_attn_emergence_exp5.html) — same wall on cellular automata |
 
-**All seven experiments are complete.** The whole thing in one place, with diagrams:
+**Scope of the paper's tasks** — [exp11 & exp12](sparse_attn_emergence_scope.html) ask whether
+the synthetic setting is in-context learning at all (it is), and whether any of it transfers to
+attention patterns keyed on *content* rather than position (emergence does; the architecture
+result does not).
+
+**All twelve experiments are complete.** The whole thing in one place, with diagrams:
 [**Findings**](sparse_attn_emergence_findings.html). The errors made along the way, and how
 each was caught: [**Mistakes**](sparse_attn_emergence_mistakes.html).
 
