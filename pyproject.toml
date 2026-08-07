@@ -16,6 +16,7 @@ dependencies = [
     "python-dotenv>=1.1.1",
     "mistletoe>=1.4",
     "requests>=2.32.4",
+    "typst>=0.15",
 ]
 
 [tool.setuptools.packages.find]

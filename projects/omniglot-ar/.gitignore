@@ -1,0 +1,15 @@
+logs/
+scripts/tmp/
+report/assets/
+report/figures/
+report/.build.json
+report/out.*
+*.pkl
+*.npy
+*.json
+!results.jsonl
+paper/assets/
+paper/figures/
+paper/.build.json
+paper/out.*
+paper/page*.png

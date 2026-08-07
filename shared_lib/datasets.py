@@ -39,6 +39,33 @@ class ImageClassification(NamedTuple):
     y_test: Array
 
 
+class FewShotImages(NamedTuple):
+    """Two *class-disjoint* image sets, for few-shot / in-context learning.
+
+    Unlike ImageClassification, the split is over CLASSES, not samples: no
+    character in `y_ev` appears anywhere in `y_bg`. A model cannot answer an
+    evaluation episode from a memorised class prototype, because it has never
+    seen the class. `bg` (background) is for training, `ev` (evaluation) for
+    testing.
+
+    Character ids are contiguous within each split (`0..n_char_bg-1` and
+    `0..n_char_ev-1`) — they index into that split only and are not comparable
+    across splits. Alphabet ids stay on the shared 0..49 scale so the two
+    splits' alphabet inventories can be checked against each other.
+    """
+
+    d_x: tuple[int, int]
+    n_channels: int
+    X_bg: Array   # (n_bg, 1, size, size) uint8
+    y_bg: Array   # (n_bg,) int32 — character id within the background split
+    a_bg: Array   # (n_bg,) int32 — alphabet id (global)
+    X_ev: Array
+    y_ev: Array
+    a_ev: Array
+    n_char_bg: int
+    n_char_ev: int
+
+
 cache_dir = str(Path.home() / ".cache/huggingface/datasets")
 
 
@@ -272,6 +299,88 @@ def load_supervised_image(
             "Unsupported image dataset "
             f"'{data}'. Supported values are: 'mnist', 'fashion_mnist', 'cifar10'."
         )
+
+
+def load_omniglot(
+    size: int = 28,
+    invert: bool = True,
+    n_bg: int | None = None,
+    n_ev: int | None = None,
+) -> FewShotImages:
+    """Load Omniglot from `dpdl-benchmark/omniglot` as class-disjoint splits.
+
+    The two HuggingFace splits are Lake et al.'s originals: `train` is the
+    *background* set (964 characters from 30 alphabets, 20 drawings each) and
+    `test` is the *evaluation* set (659 characters from 20 alphabets). The
+    character inventories are disjoint, which is the whole point — see
+    FewShotImages.
+
+    Args:
+        size:   edge length to resize to (105 native; 28 matches MNIST).
+        invert: Omniglot ships black strokes on white. Inverting puts the ink
+                at high values, matching MNIST, so a shared pixel-bin
+                vocabulary means the same thing on both and "ink" is `> 0`.
+        n_bg / n_ev: optional caps on images per split, for quick runs.
+    """
+    from PIL import Image
+
+    kind = f"fewshot{size}{'_inv' if invert else ''}"
+    cache_path = _get_cache_path("omniglot", n_bg, n_ev, kind=kind)
+    cached = _load_from_cache(cache_path)
+    if cached is not None:
+        return cached
+
+    ds = load_dataset("dpdl-benchmark/omniglot", cache_dir=cache_dir)
+    assert isinstance(ds, DatasetDict)
+
+    def to_arrays(split, n):
+        rows = split if n is None else split.select(range(min(n, len(split))))
+        imgs = np.stack([
+            np.asarray(
+                im.convert("L").resize((size, size), Image.BILINEAR), dtype=np.uint8
+            )
+            for im in rows["image"]
+        ])
+        if invert:
+            imgs = 255 - imgs
+        return (
+            imgs,
+            np.asarray(rows["label"], dtype=np.int32),
+            np.asarray(rows["alphabet"], dtype=np.int32),
+        )
+
+    X_bg, chars_bg, a_bg = to_arrays(ds["train"], n_bg)
+    X_ev, chars_ev, a_ev = to_arrays(ds["test"], n_ev)
+
+    overlap = set(chars_bg.tolist()) & set(chars_ev.tolist())
+    if overlap:
+        raise ValueError(
+            f"background and evaluation splits share {len(overlap)} character "
+            "ids — the class-disjointness this loader promises does not hold"
+        )
+
+    def contiguous(labels):
+        uniq = np.unique(labels)
+        remap = {int(v): i for i, v in enumerate(uniq)}
+        return np.array([remap[int(v)] for v in labels], dtype=np.int32), len(uniq)
+
+    y_bg, n_char_bg = contiguous(chars_bg)
+    y_ev, n_char_ev = contiguous(chars_ev)
+
+    result = FewShotImages(
+        d_x=(size, size),
+        n_channels=1,
+        X_bg=jnp.asarray(X_bg.reshape(-1, 1, size, size)),
+        y_bg=jnp.asarray(y_bg),
+        a_bg=jnp.asarray(a_bg),
+        X_ev=jnp.asarray(X_ev.reshape(-1, 1, size, size)),
+        y_ev=jnp.asarray(y_ev),
+        a_ev=jnp.asarray(a_ev),
+        n_char_bg=n_char_bg,
+        n_char_ev=n_char_ev,
+    )
+    _save_to_cache(cache_path, result)
+    return result
 
 
 def load_sudoku_extreme(
