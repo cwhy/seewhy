@@ -24,7 +24,7 @@ every number are in [Methods](sparse_attn_emergence_methods.html).
 | **H5** | A non-attention mixer learns it faster | **holds past `s=4`**, reversed below it | [exp6/7/8](sparse_attn_emergence_exp67.html) |
 | — | Not linear-map-specific | **holds** — same wall on cellular automata | [exp5](sparse_attn_emergence_exp5.html) |
 | — | The CA task is in-context learning, not memorisation | **holds** — unmemorisable rules cost nothing | [exp12](sparse_attn_emergence_scope.html) |
-| — | Does any of it transfer to *content*-keyed patterns? | **H1 yes, H5 no** — the mixer cannot do induction at all | [exp11](sparse_attn_emergence_scope.html) |
+| — | Does any of it transfer to *content*-keyed patterns? | **H1 yes, H5 inverts** — mixer cannot do induction; KDA goes worst → best | [exp11](sparse_attn_emergence_scope.html) |
 
 ## H1 — timing is random, abruptness is oversold
 
@@ -171,6 +171,12 @@ transformer. So removing the softmax is not what buys the mixer its range. What 
 the mixer's position weights are free parameters optimised directly, rather than computed from
 content. The paper's "sparse attention patterns are hard to learn" is more precisely
 **content-dependent position selection is hard to learn**.
+
+**But that ranking is specific to positional tasks, and inverts on content-keyed ones**
+([scope](sparse_attn_emergence_scope.html)): on induction the mixer cannot do the task at all
+while KDA is the *best* arm, solving 14/16 with perfect recall where the transformer manages
+7/16. Whether mixing is conditioned on content is the axis; which side of it you want depends
+entirely on the task.
 
 Two qualifications. Read strictly (every row learned, not 15 of 16), both architectures
 collapse past `s=4` and the mixer's advantage lives mostly in partial solutions. And an

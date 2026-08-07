@@ -65,6 +65,24 @@ architecture comparison of leaking. We built a leak detector for someone else's 
 then shipped one in our own — and every routine check passed, because a shape bug produces
 valid arrays, plausible losses, and a believable story.
 
+## The same mistake, three times: judging an architecture at a setting that was never adequate
+
+1. exp6 compared mixer against transformer at a config picked from our own sweep, not the
+   paper's, and at the transformer's learning rate. Both wrong; the conclusion was wrong.
+2. exp7 fixed that at `s=7` and then repeated it at `s=3`, where a single learning rate made
+   the mixer look hopeless. At `lr=1e-3` it solves that cell 16/16.
+3. exp11 reported KDA as unable to do induction on a 10,000-step budget — **the same budget
+   where the transformer was also at chance**. At 30,000 steps KDA solves it 14/16 with
+   perfect recall accuracy, beating the transformer outright.
+
+Each time the failure looked like a property of the architecture and was a property of the
+setting. The third is the sharpest, because the evidence that the budget was inadequate was
+already on the page: the transformer needed ~27,000 steps, so nothing could be concluded from
+10,000. I had even written that caveat about the transformer and did not apply it to KDA.
+
+The cheap guard is to state, before reporting a negative, what a positive result would have
+required — and to check the failing arm was given it.
+
 ## The same mistake, twice
 
 exp6 compared architectures at a config chosen from our own data instead of the paper's, and

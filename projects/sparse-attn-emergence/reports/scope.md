@@ -65,14 +65,35 @@ At 30,000 steps (10,000 was not enough for any arm to finish):
 
 | arm | recall accuracy | solves | median `t*` | recall loss (plateau 3.466) |
 |---|---|---|---|---|
-| **transformer** | **0.905** | **7/16** | **26,929** | **0.295** |
+| **KDA** | **1.000** | **14/16** | **15,889** | **0.0005** |
+| transformer | 0.905 | 7/16 | 26,929 | 0.295 |
 | static mixer | 0.125 | **0/16** | — | 3.135 |
-| KDA (at 10k) | 0.050 | 0/16 | — | 3.442 |
 
 **The mixer never solves it, at any learning rate or budget.** On the linear map the same
 architecture *beat* attention across four sparsity levels. Here it cannot do the task at all,
 which is what the taxonomy predicts: a static matrix expresses a fixed positional pattern
 exactly and a content-matched one not at all.
+
+**And KDA beats the transformer** — perfect recall, twice the seeds, emerging at half the step
+count. A delta-rule memory is key→value storage retrieved by key match, which is this task's
+native operation.
+
+### The ranking inverts between the two task families
+
+| | linear map (position-keyed) | induction (content-keyed) |
+|---|---|---|
+| static mixer | **best** — 0.69 / 0.62 / 0.31 past `s=4` | **cannot do it at all** |
+| transformer | middle | middle — 7/16, 0.905 |
+| KDA | **worst** — fails from `s=4` | **best** — 14/16, 1.000 |
+
+The ordering is exactly reversed, and the axis that explains it is **whether mixing is
+conditioned on content**. The mixer's weights are constants: unbeatable when the correct
+routing is fixed, useless when it must be computed per sequence. KDA conditions entirely on
+content matching: excellent at recall, poor at finding an arbitrary position subset. Attention
+does both adequately and neither best.
+
+So "an MLP-Mixer beats a transformer" is not a fact about mixers. It is a fact about
+*positional* tasks — the only kind the paper tested.
 
 Its accuracy does creep above chance (0.032 → 0.125), and that has a mundane explanation worth
 stating rather than mistaking for partial induction: the answer to a recallable pair is always
@@ -90,9 +111,10 @@ central claim reproducing in the content-keyed regime it never tested.
   The strongest and most portable of the paper's claims.
 - **The CA task is genuine ICL** — the memorisation objection does not survive contact with
   the pool sweep.
-- **H5 (architecture)** — does **not** transfer. The mixer's advantage is a property of tasks
-  whose correct routing is fixed and positional. For the capabilities the paper set out to
-  explain, it is not merely slower but incapable.
+- **H5 (architecture)** — does **not** transfer, and inverts. The mixer's advantage belongs to
+  tasks whose correct routing is fixed and positional; on content-keyed routing it is not
+  merely slower but incapable, while KDA goes from worst to best. Any ranking of architectures
+  from the paper's synthetic tasks describes positional routing only.
 - **Untested by both the paper and us**: whether the sparsity and context-length *laws* from
   [exp2](sparse_attn_emergence_exp2.html) — difficulty tracking `C(S,s)` — have an analogue
   when the pattern is content-keyed. The candidate space there is a set of matching rules
