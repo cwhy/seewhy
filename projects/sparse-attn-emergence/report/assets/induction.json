@@ -1,0 +1,12 @@
+{
+ "architecture": [
+  "transformer",
+  "static mixer",
+  "KDA"
+ ],
+ "recall": [
+  0.9349899888038635,
+  0.127020001411438,
+  1.0
+ ]
+}

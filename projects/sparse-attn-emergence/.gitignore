@@ -4,5 +4,8 @@ scripts/tmp/
 *.npy
 *.json
 !results.jsonl
+# figure data the report compiles against — without these a fresh clone cannot
+# rebuild the PDF, since each figures/*.typ reads its own assets/*.json
+!report/assets/*.json
 report/out.*
 report/.build-state.json
