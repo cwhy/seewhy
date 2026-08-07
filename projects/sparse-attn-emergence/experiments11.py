@@ -65,7 +65,8 @@ if SMOKE:
 if ARM:
     ARMS = tuple(ARM.split(","))          # e.g. ARM=transformer,mixer
 
-N_LAYERS, D_MODEL, D_MLP, N_HEADS = 2, 128, 512, 8
+N_LAYERS = int(os.environ.get("LAYERS", 2))       # capacity control for the mixer arm
+D_MODEL, D_MLP, N_HEADS = 128, 512, 8
 D_HEAD = D_MODEL // N_HEADS
 SEQ_LEN = 2 * N_PAIRS
 BATCH_TOKENS = 8192
@@ -73,6 +74,8 @@ BATCH = BATCH_TOKENS // SEQ_LEN
 WARMUP, WD = 200, 0.01
 STEPS, CHUNK = (200, 50) if SMOKE else (int(os.environ.get("STEPS", 10_000)), 100)
 SUF = "" if STEPS in (10_000, 200) else f"_st{STEPS // 1000}k"    # keep budgets distinct
+if N_LAYERS != 2:
+    SUF += f"_L{N_LAYERS}"
 N_SEEDS = 4 if SMOKE else 16
 SEED = 0
 MAIN_THRESH = 0.95

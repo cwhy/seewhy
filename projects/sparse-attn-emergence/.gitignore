@@ -4,3 +4,5 @@ scripts/tmp/
 *.npy
 *.json
 !results.jsonl
+report/out.*
+report/.build-state.json
