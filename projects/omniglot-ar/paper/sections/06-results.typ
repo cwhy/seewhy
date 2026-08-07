@@ -25,6 +25,7 @@
     [exp6], [coarse 10×10, fully observed], [0.200], [0.606], [0.203], [0.222],
     [exp7], [*identity query* (positive control)], [0.200], [*1.000*], [0.191], [0.166],
     [exp8], [plateau recipe, 2-way real], [0.500], [0.729], [0.488], [0.510],
+    [exp9], [plateau recipe, 5-way real], [0.200], [0.480], [0.228], [0.191],
     [exp10], [plateau recipe, coarse 10×10], [0.500], [0.805], [0.488], [0.516],
   ),
   caption: [Final accuracies. Each run's 1-NN floor is computed on that run's own
@@ -37,12 +38,14 @@ Every "unseen" figure is within noise of its own chance level (standard error
 0.022 at $N=5$, 0.044 at $N=2$), and every one is far below the
 nearest-neighbour floor computed on the very same pixels.
 
-exp8 and exp10 are 25 000-step runs under the batch-64 / lr-$10^(-3)$ recipe
+exp8, exp9 and exp10 are 25 000-step runs under the batch-64 / lr-$10^(-3)$ recipe
 that crosses the plateau on exact matching in 3000 steps
-(§#link(<sec:analysis>)[7.5]). Both stay flat at $ln 2$ throughout — exp10 with
-a nearest-neighbour floor of 0.805, so the information is abundant. The recipe
-that solves exact matching does not solve approximate matching, and coarsening
-the images does not close the gap.
+(§#link(<sec:analysis>)[7.5]). All three stay flat throughout — exp10 with a
+nearest-neighbour floor of 0.805, so the information is abundant. exp9's 0.228
+against chance 0.200 is 1.3 standard errors out, inside noise and far below its
+own 0.480 floor. The recipe that solves exact matching does not solve
+approximate matching, at either episode width, and coarsening the images does
+not close the gap.
 
 #callout(title: [exp7 is the one to read])[
   In exp7 each query drawing #emph[is] its class's support drawing, so the match

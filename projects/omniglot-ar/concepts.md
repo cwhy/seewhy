@@ -96,7 +96,9 @@ a declarative spec instead of imperative drawing code.
 
 ## Findings
 
-**exp1–exp7 (2026-08-06) — chance on every run, including a positive control.**
+**exp1–exp10 (2026-08-06/07) — chance on every run on the real task, including a
+positive control. The first table is the original 12k-step batch-16 sweep; exp8–10
+are the later 25k-step batch-64 runs and appear further down.**
 
 | run | change | chance | 1-NN | unseen | seen |
 |---|---|---|---|---|---|
@@ -158,7 +160,8 @@ same recipe is flat at ln 2 after 25 000 steps:
 | run | matching required | 1-NN | model |
 |---|---|---|---|
 | `identity/ink/196` | exact | 1.000 | **1.000** |
-| exp8 | approximate, 28x28 196px | 0.729 | 0.488 |
+| exp8 | approximate, 28x28 196px, 2-way | 0.729 | 0.488 |
+| exp9 | approximate, 28x28 196px, 5-way | 0.480 | 0.228 |
 | exp10 | approximate, 10x10 fully observed | 0.805 | 0.488 |
 
 exp10 was the sharpest test of "approximate is just far-away exact": coarser
@@ -181,9 +184,8 @@ per-position accumulator cannot express that. This is a limitation of the
 (ink pool, binarising, coarsening) failed: each nudges the margin, none replaces
 the additive accumulation with a normalised comparison.
 
-exp9 (5-way, 28x28, plateau recipe) was stopped ~5500/25000 steps once exp8 and
-exp10 made it foregone; re-run with
-`run_experiments.py --gpu N exp9` if the number is wanted.
+exp9 (5-way) was re-run to completion: 0.228 vs chance 0.200 (1.3 SE, inside
+noise) against a 0.480 floor. Both episode widths behave the same way.
 
 **Consequence for the plan.** Judge runs in this family by *whether they crossed
 a transition*, not by accuracy at a fixed step count — "chance at 12 000 steps"
