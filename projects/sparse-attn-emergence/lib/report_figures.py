@@ -128,6 +128,49 @@ def pool_curve(rows):
 
 # ─────────────────────────── background: H1 ───────────────────────────────────
 
+def kofm_difficulty(rows):
+    """Solve rate against k for the content-keyed task, both task variants.
+
+    The ambiguous variant is kept because it is the control: if the curve were an artifact
+    of low-k retrieval being ill-posed, fixing that would have flattened it.
+    """
+    xs, ys, cs = [], [], []
+    for prefix, label in (("exp13_", "ambiguous match"), ("exp13u_", "unique match")):
+        src = [r for r in rows if r["experiment"].startswith(prefix)]
+        best = _best(src, lambda r: r["k"], lambda r: r["solve_rate"])
+        for k, r in sorted(best.items()):
+            xs.append(k)
+            ys.append(r["solve_rate"])
+            cs.append(label)
+    return line_chart(
+        "kofm_k", {"k": xs, "solve": ys, "variant": cs},
+        x="k", y="solve", colour="variant", points=True,
+        x_label="k — relevant attributes the match depends on (of m = 8)",
+        y_label="fraction of 16 seeds solving", colour_label="task variant",
+        y_limits=(-0.04, 1.04),
+        alt="Solve rate rising with k for both variants of the k-of-m task.",
+    )
+
+
+def kofm_candidates(rows):
+    """The same solve rates plotted against C(m,k) — the quantity that governs the
+    positional task. Two cells share C = 28 and land at opposite ends."""
+    src = [r for r in rows if r["experiment"].startswith("exp13u_")]
+    best = _best(src, lambda r: r["k"], lambda r: r["solve_rate"])
+    ks = sorted(best)
+    return bar_chart(
+        "kofm_candidates",
+        {"cell": [f"k={k}, C={best[k]['candidates']}" for k in ks],
+         "solve": [best[k]["solve_rate"] for k in ks]},
+        x="cell", y="solve",
+        x_order=[f"k={k}, C={best[k]['candidates']}" for k in
+                 sorted(ks, key=lambda k: best[k]["candidates"])],
+        x_label="ordered by candidate count C(m, k)", y_label="fraction of seeds solving",
+        y_limits=(0, 1.05),
+        alt="Solve rate ordered by candidate count, showing no relationship.",
+    )
+
+
 def emergence_spread(rows):
     """Per-seed time-to-emergence for the two independent 16-seed samples."""
     xs, ys, cs = [], [], []

@@ -15,7 +15,8 @@ PROJECT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT))
 
 from lib.report_figures import (crossover, emergence_spread, induction,   # noqa: E402
-                                load_results, pool_curve)
+                                kofm_candidates, kofm_difficulty, load_results,
+                                pool_curve)
 from shared_lib.typst_plot import write_figures                          # noqa: E402
 
 REPORT = PROJECT / "report"
@@ -27,7 +28,8 @@ def main() -> None:
         print("results.jsonl is empty — run an experiment first", file=sys.stderr)
         raise SystemExit(1)
 
-    figs = [crossover(rows), induction(rows), emergence_spread(rows), *pool_curve(rows)]
+    figs = [crossover(rows), induction(rows), emergence_spread(rows), *pool_curve(rows),
+            kofm_difficulty(rows), kofm_candidates(rows)]
     written = write_figures(REPORT, figs)
     print(f"{len(figs)} figures; {len(written)} files written/updated")
     for p in written:

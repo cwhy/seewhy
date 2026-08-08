@@ -15,4 +15,5 @@
 #include "/sections/03-positional.typ"
 #include "/sections/04-content.typ"
 #include "/sections/05-memorisation.typ"
-#include "/sections/06-reading.typ"
+#include "/sections/06-scaling.typ"
+#include "/sections/07-reading.typ"
