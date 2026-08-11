@@ -291,6 +291,11 @@ def run(rn: Run, make_figs: bool = True) -> dict:
                     in (rn.conditions or evalsets.DEFAULT_CONDITIONS).items()},
         n_params=np_, time_s=round(elapsed, 1),
         final={c: {k: v for k, v in final[c].items() if k != "preds"} for c in final},
+        # Derived, but logged rather than left to be recomputed: the paper's
+        # numeric lint reads `final`, not the curves, so anything quoted in prose
+        # that lives only in `history` has to be allow-listed by hand.
+        gain=final["D_novel_absent"]["nmse"] - final["B_novel_present"]["nmse"],
+        best_nmse={c: min(hist["nmse"][c]) for c in ev},
         history={"step": hist["step"], "loss": hist["loss"],
                  "nmse": hist["nmse"], "id_acc": hist["id_acc"]},
         urls=urls,

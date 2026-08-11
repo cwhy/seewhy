@@ -1,0 +1,66 @@
+# Prose numbers that are legitimately not experiment results.
+# One per line, with a reason. A growing file here is a smell — it usually means
+# results that should be logged are not being logged.
+
+# --- dataset and task constants, not measurements ---
+28      # image side length in pixels, from MNIST
+784     # 28 x 28, the flattened image length
+392     # 28 x 14, hidden pixels per query at the default mask
+255     # uint8 pixel maximum, the divisor that puts pixels in [0,1]
+70      # first half of "70 000", the MNIST total
+60      # first half of "60 000", the MNIST training split size
+0.0625  # 1/16, the derived chance level for identification at M=16
+
+# --- digit-grouped numerals the checker splits on the thin space ---
+# Typst renders these with a space inside the numeral ("16 384"), so the linter
+# sees two tokens. The leading group matches a real value; the trailing one
+# cannot.
+384     # trailing group of "16 384", the state size (H x dk x dk = 4 x 64 x 64)
+544     # trailing group of "12 544", context content at M=16 (16 x 784)
+704     # trailing group of "200 704", context content at M=256 (256 x 784)
+176     # trailing group of "50 176", context content at M=64 (64 x 784)
+136     # trailing group of "3 136", context content at M=4 (4 x 784)
+192     # trailing group of "8 192", state size at dk=32
+096     # trailing group of "4 096", state size at dk=16
+048     # trailing group of "2 048", state size at dk=8
+000     # trailing group of "12 000" (steps), "60 000" / "70 000" (dataset)
+
+# --- optimiser and reporting constants ---
+300     # learning-rate warm-up steps
+80      # "80% more per step", a wall-clock observation not stored in results
+
+# --- derived quantities, computed from results.jsonl rather than stored in it ---
+# `gain` is nMSE(D) - nMSE(B). The two operands are logged; their difference is
+# not, so every gain value has to live here. Logging it would be better and is
+# the obvious next change to lib/train.py.
+0.835   # gain, exp1
+0.840   # gain, exp6
+0.834   # gain, exp1 (first run, before the deterministic re-run; kept in prose comparisons)
+0.800   # gain, exp15
+0.730   # gain, exp16
+0.646   # gain, exp17
+0.622   # gain, exp4
+0.134   # gain, exp3
+0.004   # gain, exp5 and exp13
+0.006   # gain, exp7
+0.010   # gain, exp12
+0.963   # gain, exp8
+
+# --- hardware ---
+4090    # the GPU model number
+
+# --- values that live in `history`, which the numeric lint does not read ---
+# The check walks each row's `final` block (655 values); the per-evaluation
+# curves are not in that pool, so "best over training" numbers and any curve
+# value quoted at a particular step land here. `lib/train.py` now also logs
+# `gain` and `best_nmse` per row, so runs from this point on will match
+# directly and these entries can be retired as the old rows are superseded.
+0.635   # exp1 best D, and its D at step 500
+0.380   # exp1 A at step 500
+0.803   # exp1 D at step 2000
+0.777   # exp6 best D
+0.535   # exp4 best D
+0.443   # exp5 best D
+0.458   # exp2 and exp12 best D
+0.459   # exp3 best D
+0.450   # exp7 best D

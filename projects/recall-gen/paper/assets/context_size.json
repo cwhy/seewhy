@@ -1,0 +1,32 @@
+{
+ "M": [
+  4,
+  16,
+  64,
+  256,
+  4,
+  16,
+  64,
+  256
+ ],
+ "nmse": [
+  0.8541229060855101,
+  0.8521497664984631,
+  0.6584498238839748,
+  0.5606136296493265,
+  1.2370216236602878,
+  1.0021226367789156,
+  0.8858688946980233,
+  0.7863327355235866
+ ],
+ "what": [
+  "recall-trained model",
+  "recall-trained model",
+  "recall-trained model",
+  "recall-trained model",
+  "best soft look-up from context",
+  "best soft look-up from context",
+  "best soft look-up from context",
+  "best soft look-up from context"
+ ]
+}

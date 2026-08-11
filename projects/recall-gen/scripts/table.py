@@ -23,6 +23,18 @@ def conds_of(r):
     return list(r.get("final", r.get("baselines", {})).keys())
 
 
+def gain(final):
+    """How much having the answer in the context is worth, on NOVEL images.
+
+    nMSE(D) - nMSE(B): both conditions use context images the model has never
+    seen, and differ only in whether the query's true image is among them. This
+    is the one number that says whether a model retrieves, and unlike
+    identification accuracy it cannot be inflated by a model whose completions
+    happen to be good enough to pick the right neighbour.
+    """
+    return final["D_novel_absent"]["nmse"] - final["B_novel_present"]["nmse"]
+
+
 def rows():
     seen, out = set(), []
     for line in JSONL.read_text().strip().splitlines():
@@ -58,7 +70,7 @@ def main():
     allc = sorted({c for r in exps for c in conds_of(r)})
     hdr = (f"{'exp':<7} {'mode':<7} {'M':>4} {'sd':>3} "
            + " ".join(f"{c.split('_')[0]:>6}" for c in allc)
-           + f" {'idA':>5} {'idB':>5} {'bestD':>6}  name")
+           + f" {'gain':>6} {'idB':>5} {'bestD':>6}  name")
     print(hdr)
     print("-" * len(hdr))
     for r in sorted(exps, key=lambda r: (r.get("M", 0), r.get("train_mode", ""),
@@ -69,7 +81,7 @@ def main():
               f"{r.get('seed',0):>3} "
               + " ".join((f"{f[c]['nmse']:>6.3f}" if c in f else f"{'—':>6}")
                           for c in allc)
-              + f" {f['A_seen_present']['id_acc']:>5.2f}"
+              + f" {gain(f):>6.3f}"
                 f" {f['B_novel_present']['id_acc']:>5.2f}"
                 f" {bd:>6.3f}  {r.get('name','')}")
 

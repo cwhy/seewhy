@@ -24,7 +24,9 @@ sees a sequence of words, our models see a sequence of pictures.
 
 Each training example is a self-contained *episode*:
 
-$ underbrace(x_1\, x_2\, ..., x_M, "context") quad underbrace(tilde(x)_(t_1)\, ...\, tilde(x)_(t_Q), "queries") $
+$ underbrace(x_1 space.quad x_2 space.quad dots.h space.quad x_M, "context")
+  quad quad
+  underbrace(tilde(x)_(t_1) space.quad dots.h space.quad tilde(x)_(t_Q), "queries") $
 
 The first $M$ items are complete images drawn at random from a pool. The last
 $Q$ items are *masked*: the bottom $R$ rows of the image have been set to zero.
@@ -100,7 +102,7 @@ images is correct.
 
 == What makes it hard, and the shortcut we had to rule out
 
-Retrieval here is not free. The context is $M times 784 = 12 space 544$ numbers,
+Retrieval here is not free. The context is $M times 784 = 12 thin 544$ numbers,
 and the model's memory of it (§4) is fixed at 16 384 numbers regardless of $M$ —
 so at $M = 64$ and $M = 256$ the context cannot be stored at all, only
 summarised.

@@ -55,3 +55,20 @@ date-foldered, so republishing mints new URLs; this row points at the latest run
 | [The paper in plain terms](https://media.tanh.xyz/seewhy/26-08-07/sparse_attn_emergence_paper.html) | Explainer for readers who haven't read the paper: what emergence is, why sparse attention would explain it |
 | [Findings](https://media.tanh.xyz/seewhy/26-08-07/sparse_attn_emergence_findings.html) | All seven experiments in one place, with diagrams. H1–H4 hold; H5 in direction only; a degenerate column found in the task design |
 | [Mistakes](https://media.tanh.xyz/seewhy/26-08-07/sparse_attn_emergence_mistakes.html) | Every error made, what it cost, and how each surfaced — including one wrong claim caught only by reader pushback |
+
+---
+
+## recall-gen — Does In-Context Recall Generalise?
+
+Each MNIST image is one token. A KDA linear RNN holds M context images in a fixed
+16 384-number state; the model completes a query image whose bottom half is masked.
+Training uses only episodes where the answer is already in the context, so the task
+is pure look-up — then we withhold the answer and see what is left. Retrieval and
+generalisation are mutually exclusive by construction, which they are not in language.
+
+| Report | Description |
+|--------|-------------|
+| [**Paper** — Recall-Gen](https://media.tanh.xyz/seewhy/paper/recall-gen_paper.html) | **Start here.** The full write-up for a reader new to the project. Stable URL |
+| [1 — Recall generalises, completion does not](https://media.tanh.xyz/seewhy/26-08-12/recall-gen_report_01-recall-only.html) | Retrieval transfers to unseen images at id. acc. 1.000; completion ends worse than ridge regression and *decays* through training |
+| [2 — Generalisation appears when retrieval fails](https://media.tanh.xyz/seewhy/26-08-12/recall-gen_report_02-context-size.html) | Context-size sweep. At M=256 the recall-trained model gains nothing from the answer being present and lands on the completion-trained ceiling |
+| [3 — Perfect retrieval, chance-level completion](https://media.tanh.xyz/seewhy/26-08-12/recall-gen_report_03-digit-split.html) | Digit split (train 0–4, test 5–9): id. acc. 1.000 and nMSE 1.006 on the same unseen digits. Plus the state-size control and the fine-tuning probe |

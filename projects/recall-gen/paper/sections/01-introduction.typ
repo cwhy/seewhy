@@ -52,8 +52,21 @@ and into whatever else it can do.
   equally well — identification accuracy 1.000 on both, with no measurable
   penalty. The mechanism is content-addressed, not a memorised table (§6).
 
-+ *Retrieval training does not produce completion ability; it consumes it.*
-  #todo[headline numbers once exp10/exp11 land]
++ *Retrieval training does not produce completion ability; it consumes it.* On
+  queries whose answer is absent, a recall-trained model ends at 0.852 — worse
+  than a plain linear regression fitted on the same data and ignoring the context
+  entirely (0.645) — and it gets *worse* through training, from 0.635 at step 500
+  as its retrieval improves. Training on a half-and-half mixture instead reaches
+  the full completion ceiling at no cost to it, so the two abilities are not
+  competing for the same capacity: the recall objective simply supplies no
+  gradient toward completion (§6).
+
++ *The two abilities are not two grades of one thing.* Under a digit split
+  (train on 0–4, test on 5–9), the recall-trained model retrieves digits it has
+  never seen with identification accuracy 1.000 while completing those same
+  digits at 1.006 — the level of predicting the average image. The retrieval
+  machinery transfers completely across the split and the generalisation
+  machinery does not transfer at all (§6, §7).
 
 + *Generalisation appears exactly when retrieval fails.* Sweeping the context
   size across the point where the memory can no longer hold the context, the

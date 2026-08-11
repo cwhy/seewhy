@@ -1,0 +1,32 @@
+{
+ "state": [
+  16384,
+  8192,
+  4096,
+  2048,
+  16384,
+  8192,
+  4096,
+  2048
+ ],
+ "nmse": [
+  0.015304827083009958,
+  0.017241459316026,
+  0.021759539748308136,
+  0.031295751145087015,
+  0.8521497664984631,
+  0.8187918463126982,
+  0.7545053015253651,
+  0.6812186785977539
+ ],
+ "condition": [
+  "A  retrieval (target present)",
+  "A  retrieval (target present)",
+  "A  retrieval (target present)",
+  "A  retrieval (target present)",
+  "D  completion (target absent)",
+  "D  completion (target absent)",
+  "D  completion (target absent)",
+  "D  completion (target absent)"
+ ]
+}

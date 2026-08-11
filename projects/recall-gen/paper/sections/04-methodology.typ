@@ -67,7 +67,7 @@ attention. *Context tokens write; query tokens do not* ($beta_t = 0$ and
 $alpha_t = 1$ for queries). And every token reads the *completed* state $S_N$,
 not a running prefix. Together these mean the only path by which a query can
 learn anything about the context is through $S_N$ — a hard bottleneck of
-$H d_k^2 = 4 times 64 times 64 = 16 space 384$ numbers, fixed no matter how
+$H d_k^2 = 4 times 64 times 64 = 16 thin 384$ numbers, fixed no matter how
 large $M$ is. There is no attention over the context images and no pooling; the
 state *is* the aggregate.
 
@@ -114,13 +114,13 @@ Everything else — architecture, optimiser, data, evaluation — is shared.
 == Training setup
 
 #kv(
-  ("optimiser", [AdamW — gradient descent with per-parameter step sizes and decoupled weight decay 0.01]),
-  ("learning rate", [$3 times 10^(-4)$, linear warm-up over 300 steps then cosine decay to 10%]),
-  ("gradient clipping", [global norm 1.0]),
-  ("steps", [12 000]),
-  ("batch", [256 episodes ($M <= 64$); 64 for $M = 256$]),
-  ("parameters", [4.03 M]),
-  ("evaluation", [512 fixed episodes per condition, drawn once from a fixed seed and shared by every run]),
+  ("optimiser", "AdamW (per-parameter step sizes, decoupled weight decay 0.01)"),
+  ("learning rate", "3e-4, warm-up over 300 steps then cosine decay to 10%"),
+  ("gradient clipping", "global norm 1.0"),
+  ("steps", "12000"),
+  ("batch", "256 episodes (M <= 64); 64 for M = 256"),
+  ("parameters", "4.03M"),
+  ("evaluation", "512 fixed episodes per condition, one fixed seed, shared by every run"),
 )
 
 Evaluation episodes are constructed once with a fixed seed and reused across
@@ -128,15 +128,17 @@ every experiment, so two runs are always compared on literally the same
 episodes. Metrics are recorded every 500 steps; the reported number is the final
 step unless explicitly labelled as the best over training.
 
-*Seeds.* Every configuration is a single run unless stated otherwise. The two
-headline configurations (recall training and completion training at $M = 16$)
-are replicated at three seeds; §6 reports the spread.
+*Seeds.* Every configuration is a single run unless stated otherwise. Recall
+training at $M = 16$ is replicated at three seeds and completion training at
+$M = 16$ at two; §6 reports the spread. Every other row in this paper is one
+run, and the reader should treat differences smaller than the seed spread
+reported there as noise.
 
 *Hardware and wall-clock.* One NVIDIA RTX 4090. Sequence length is short, so the
 per-token scan is dominated by kernel-launch overhead rather than arithmetic:
 step time is nearly flat in batch size, and quadrupling the batch costs about
 20% more per step. A 12 000-step run at $M = 16$ takes about 5 minutes; $M = 64$
-takes about 20; $M = 256$ takes about #todo[fill in from exp5].
+takes about 20; $M = 256$ takes about 22.
 
 == Reference points
 

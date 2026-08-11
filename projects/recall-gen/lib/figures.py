@@ -94,8 +94,10 @@ def condition_bars(rows: dict[str, dict], name: str = "condition_bars") -> Figur
     return bar_chart(
         name,
         {"condition": bars_cond, "nmse": bars_val, "trained on": bars_run},
-        x="condition", y="nmse", fill="trained on", position="dodge",
+        x="condition", y="nmse", fill="trained on",
+        x_order=["A", "B", "C", "D"],
         x_label="condition", y_label="final normalised MSE",
+        fill_label="trained on",
         hlines=[(1.0, "predict the mean image")],
         width=cm(13), height=cm(7),
         alt="Final normalised MSE for each evaluation condition, grouped by "
