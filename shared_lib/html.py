@@ -17,11 +17,17 @@ _UNSET = object()  # sentinel for "auto-generate detail page"
 _GRID_CLASSES = "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 2xl:grid-cols-8 gap-4"
 
 
-def save_html(name: str, html_str: str) -> str:
-    """Upload an HTML string to R2 (or local fallback). Returns URL."""
+def save_html(name: str, html_str: str, key_dir: str | None = None,
+              cache_control: str | None = None) -> str:
+    """Upload an HTML string to R2 (or local fallback). Returns URL.
+
+    `key_dir` / `cache_control` are passed through to `save_media` — set them
+    for a page that is republished at a fixed URL rather than written once.
+    """
     if not name.lower().endswith(".html"):
         name = f"{name}.html"
-    return save_media(name, io.BytesIO(html_str.encode("utf-8")), "text/html; charset=utf-8")
+    return save_media(name, io.BytesIO(html_str.encode("utf-8")), "text/html; charset=utf-8",
+                      key_dir=key_dir, cache_control=cache_control)
 
 
 def save_html_file(name: str, path: str | Path) -> str:

@@ -6,25 +6,33 @@ import mimetypes
 from .r2 import upload_media
 
 
-def save_media(filename: str, media: Union[str, BinaryIO, bytes], content_type: Optional[str] = None) -> str:
+def save_media(filename: str, media: Union[str, BinaryIO, bytes], content_type: Optional[str] = None,
+               key_dir: Optional[str] = None, cache_control: Optional[str] = None) -> str:
     """
     Save media (images/videos) to R2 with fallback to local storage.
-    
+
     Args:
         filename (str): The filename for the media
         media (Union[str, BinaryIO, bytes]): The media content - can be a file path, file-like object, or bytes
         content_type (Optional[str]): MIME type of the media. If not provided, will be guessed from filename.
-    
+        key_dir (Optional[str]): Directory segment to use instead of today's date.
+            The default `yy-mm-dd` scheme is right for write-once artefacts —
+            each upload is a new immutable URL. Pass a fixed segment (e.g.
+            "paper") for a document that is republished and whose link must
+            keep pointing at the current version.
+        cache_control (Optional[str]): Cache-Control stored with the object.
+            Required in practice whenever `key_dir` is set, since overwriting a
+            key the edge has already cached otherwise serves the old version.
+
     Returns:
         str: URL if saved to R2, or local file path if saved locally
     """
-    # Generate date-based directory structure (yy-mm-dd)
-    today = datetime.now()
-    date_dir = today.strftime("%y-%m-%d")
-    
-    # Create R2 key with the specified format: seewhy/yy-mm-dd/filename
-    r2_key = f"seewhy/{date_dir}/{filename}"
-    
+    # Date-based directory (yy-mm-dd) unless the caller pinned one
+    sub_dir = key_dir or datetime.now().strftime("%y-%m-%d")
+
+    # Create R2 key with the specified format: seewhy/<sub_dir>/filename
+    r2_key = f"seewhy/{sub_dir}/{filename}"
+
     # Try to upload to R2 first
     try:
         # Convert bytes to BytesIO if needed for R2 upload
@@ -32,8 +40,8 @@ def save_media(filename: str, media: Union[str, BinaryIO, bytes], content_type: 
             media_for_upload = io.BytesIO(media)
         else:
             media_for_upload = media
-            
-        result = upload_media(r2_key, media_for_upload, content_type)
+
+        result = upload_media(r2_key, media_for_upload, content_type, cache_control)
         
         if result['success']:
             print(f"Successfully uploaded to R2: {result['url']}")
@@ -48,7 +56,7 @@ def save_media(filename: str, media: Union[str, BinaryIO, bytes], content_type: 
     # Fallback: Save to local outputs directory
     try:
         # Create outputs directory structure
-        local_dir = os.path.join("outputs", date_dir)
+        local_dir = os.path.join("outputs", sub_dir)
         os.makedirs(local_dir, exist_ok=True)
         
         local_path = os.path.join(local_dir, filename)

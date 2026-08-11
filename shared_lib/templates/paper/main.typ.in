@@ -1,0 +1,30 @@
+// Paper entry point. The #include list below IS the structure — add, remove or
+// reorder; each section is an independent file under sections/.
+//
+//   preview:  uv run python -m shared_lib.publish {paper_dir} --preview
+//   one part: uv run python -m shared_lib.publish {paper_dir} --section 04-methodology
+//   check:    uv run python -m shared_lib.publish {paper_dir} --check
+//   publish:  uv run python -m shared_lib.publish {paper_dir}
+//
+// Flip `status` to "final" when the paper is done: every remaining #todo then
+// becomes a compile error instead of a red box.
+
+#import "/template.typ": *
+
+#show: paper.with(
+  title: {title},
+  subtitle: {subtitle},
+  date: {date},
+  status: "draft",
+  web: sys.inputs.at("web", default: "0") == "1",
+  abstract: [
+    #todo[
+      Write this last. Four sentences: the question, what was done, the
+      headline number with its baseline beside it, and the conclusion.
+    ]
+  ],
+)
+
+{includes}
+
+#bibliography("/refs.bib", title: "References", style: "ieee")

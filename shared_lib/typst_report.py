@@ -36,12 +36,22 @@ Publishing stores **only the PDF**. The HTML page that gets shared is ~3 KB and
 renders that PDF client-side with pdf.js from a CDN, so a report does not also
 cost a few hundred KB of SVG showing the same content. Pass `with_svg=True` if
 somewhere needs a script-free rendering.
+
+`stable=True` publishes to an undated key that is overwritten in place, so a
+link shared once keeps resolving to the current version. That is what a living
+document needs; one-shot reports should keep the default date-prefixed key.
+
+`save_figure()` renders a single `typst_plot.Figure` on its own — no report
+tree, data inlined — and uploads it as an image. That is what lets a markdown
+report and the paper draw from one set of figure definitions.
 """
 
 from __future__ import annotations
 
 import hashlib
 import json
+import re
+import tempfile
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -52,6 +62,12 @@ from .media import save_media
 
 BUILD_FILE = ".build.json"
 ENTRY = "main.typ"
+
+# Where stable (republished-in-place) documents live, and how long the edge may
+# hold one. Five minutes is long enough to absorb a burst of readers and short
+# enough that a republish is visible while you are still at the keyboard.
+STABLE_DIR = "paper"
+STABLE_CACHE_CONTROL = "public, max-age=300, must-revalidate"
 
 # Files that make up the report's content, for change tracking. Everything else
 # in the directory (build state, rendered output) is derived and ignored.
@@ -134,13 +150,84 @@ def preview(
     return out
 
 
+# A section previewed alone still refers to labels defined in its siblings, and
+# Typst fails the whole compile on an unresolved one. These find what to stub.
+#
+# Both reference spellings have to be handled. `@key` is the common one, but
+# `#link(<key>)[7.4]` is what you write to point at a specific subsection with
+# your own text, and real papers here use it far more than `@`.
+_REF_RE = re.compile(r"(?<![\w@])@([A-Za-z][\w:.-]*[\w]|[A-Za-z])")
+_LINK_REF_RE = re.compile(r"#(?:link|ref)\(\s*<([A-Za-z][\w:.-]*)>")
+_LABEL_RE = re.compile(r"<([A-Za-z][\w:.-]*)>")
+_BIB_KEY_RE = re.compile(r"^\s*@\w+\s*\{\s*([^,\s]+)\s*,", re.M)
+
+
+def label_uses(text: str) -> tuple[set[str], set[str]]:
+    """Split label mentions into (defined here, referenced from here).
+
+    `<key>` is the same token in both roles, so a mention inside `#link(...)`
+    or `#ref(...)` is a reference and every other one is a definition.
+    """
+    linked = set(_LINK_REF_RE.findall(text))
+    defined = set(_LABEL_RE.findall(text)) - linked
+    referenced = linked | set(_REF_RE.findall(text))
+    return defined, referenced
+
+
+def _cross_section_stubs(report_dir: Path, section_text: str) -> str:
+    """Hidden placeholders for labels this section references but does not own.
+
+    Without them, previewing a section that says "see @sec:analysis" fails with
+    `label <sec:analysis> does not exist` — which is every real paper, since
+    cross-references are what sections are for.
+
+    Stubs are zero-height hidden headings. They carry their own `set heading`
+    numbering because Typst refuses to reference an unnumbered heading and the
+    short-report template does not number at all; scoping it to the block keeps
+    the previewed section's own headings looking as they should. A reference to
+    a figure or table in another section resolves to a section-style reference
+    this way rather than a figure-style one — wrong supplement, right preview.
+    """
+    defined, referenced = label_uses(section_text)
+    referenced -= defined
+    if not referenced:
+        return ""
+    bib = report_dir / "refs.bib"
+    if bib.exists():
+        referenced -= set(_BIB_KEY_RE.findall(bib.read_text(encoding="utf-8")))
+    if not referenced:
+        return ""
+    stubs = "\n".join(f"  hide[= Elsewhere <{key}>]" for key in sorted(referenced))
+    return (
+        "// Stubs for labels defined in sections not part of this preview.\n"
+        "#block(height: 0pt, {\n"
+        '  set heading(numbering: "1.1")\n'
+        f"{stubs}\n"
+        "})\n"
+    )
+
+
+def show_rule_fn(report_dir: str | Path, *, entry: str = ENTRY, default: str = "report") -> str:
+    """The show-rule function `main.typ` applies — `report`, `paper`, whatever.
+
+    Detected rather than configured: passing the wrong name is a silent
+    mismatch between a tree and the script that previews it, and the entry file
+    already states the answer on its `#show:` line.
+    """
+    path = Path(report_dir) / entry
+    if not path.exists():
+        return default
+    m = re.search(r"^\s*#show:\s*([A-Za-z][\w-]*)", path.read_text(encoding="utf-8"), re.M)
+    return m.group(1) if m else default
+
+
 def preview_section(
     report_dir: str | Path,
     section: str,
     out_path: str | Path,
     *,
     fmt: str = "svg",
-    template_fn: str = "report",
+    template_fn: str | None = None,
 ) -> Path:
     """Render one section on its own, through the tree's template.
 
@@ -148,8 +235,11 @@ def preview_section(
     is the fast iteration loop: no other section is compiled, no figure outside
     it is read, nothing is uploaded.
 
-    `template_fn` is the show-rule function the template exports — `report` for
-    a scaffolded tree, but a paper-style template may name it something else.
+    `template_fn` is the show-rule function the template exports; it is read off
+    `main.typ` when not given. Two things are injected so a section compiles
+    outside its document: a `refs.bib` bibliography when one exists, since Typst
+    resolves `@key` against the bibliography rather than the citation, and
+    hidden stubs for labels owned by sibling sections.
     """
     report_dir = Path(report_dir)
     target = report_dir / "sections" / f"{section}.typ"
@@ -160,13 +250,20 @@ def preview_section(
             f"(have: {', '.join(available) or 'none'})"
         )
 
+    fn = template_fn or show_rule_fn(report_dir)
+    stubs = _cross_section_stubs(report_dir, target.read_text(encoding="utf-8"))
+    # Untitled so a section with no citations does not sprout an empty heading.
+    bib = ""
+    if (report_dir / "refs.bib").exists():
+        bib = '#bibliography("/refs.bib", title: none, style: "ieee")\n'
+
     entry = report_dir / ".preview.typ"
     entry.write_text(
         "// Temporary single-section preview — regenerated on every call.\n"
         '#import "/template.typ": *\n'
-        f"#show: {template_fn}.with(title: "
-        f"{_typ_str(f'preview — {section}')}, web: true)\n"
-        f'#include "/sections/{section}.typ"\n',
+        f"#show: {fn}.with(title: {_typ_str(f'preview — {section}')}, web: true)\n"
+        f'#include "/sections/{section}.typ"\n'
+        f"{stubs}{bib}",
         encoding="utf-8",
     )
     try:
@@ -178,6 +275,86 @@ def preview_section(
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_bytes(data)
     return out
+
+
+# ───────────────────────────── standalone figures ───────────────────────────
+
+# A figure rendered on its own gets a page shrink-wrapped around it. The small
+# margin keeps axis labels from touching the edge of the image box.
+_FIGURE_ENTRY = (
+    "// Generated by shared_lib.typst_report.render_figure — not written to disk.\n"
+    "#import {package}: *\n"
+    "#set page(width: auto, height: auto, margin: {margin}, fill: {fill})\n"
+    "#{call}\n"
+)
+
+
+def render_figure(
+    figure,
+    *,
+    fmt: str = "svg",
+    margin: str = "4pt",
+    fill: str = "white",
+) -> bytes:
+    """Compile one `typst_plot.Figure` on its own and return the image bytes.
+
+    The data is inlined into the generated source, so this needs no report tree
+    and no `assets/` file — `Figure.typst()` takes the data expression as an
+    argument precisely so it can come from somewhere other than `json(...)`.
+
+    SVG carries text as outlines, so the result renders identically inside an
+    `<img>` with no font available. It also grows with the number of points,
+    while PNG does not: past a few hundred points per series, prefer `png`.
+    """
+    from .typst_plot import GRIBOUILLE, typ  # local: keeps typst_plot import-light
+
+    src = _FIGURE_ENTRY.format(
+        package=typ(GRIBOUILLE),
+        margin=margin,
+        fill=fill,
+        call=figure.typst(typ(figure.data)),
+    )
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        entry = root / "figure.typ"
+        entry.write_text(src, encoding="utf-8")
+        return compile_report(root, entry="figure.typ", fmt=fmt)
+
+
+def save_figure(
+    figure,
+    *,
+    name: str | None = None,
+    fmt: str = "svg",
+    margin: str = "4pt",
+    fill: str = "white",
+    stable: bool = False,
+) -> str:
+    """Render a `Figure` standalone and upload it. Returns the URL.
+
+    The markdown-report counterpart to `write_figures()`, which aims the same
+    `Figure` at a Typst tree instead. One figure definition can therefore feed
+    an intermediate report and the paper without being written twice.
+
+        from shared_lib.typst_plot import line_chart
+        from shared_lib.typst_report import save_figure
+
+        url = save_figure(line_chart("acc", data, x="step", y="acc"))
+        md = f"![Accuracy over training]({url})"
+
+    `stable` behaves as it does for `publish_report`: an undated key that is
+    overwritten, carrying the short cache lifetime that makes overwriting
+    visible. Default off — a figure in a one-shot report should keep the
+    immutable URL it was published under.
+    """
+    stem = name or getattr(figure, "name", None) or "figure"
+    data = render_figure(figure, fmt=fmt, margin=margin, fill=fill)
+    content_type = "image/svg+xml" if fmt == "svg" else f"image/{fmt}"
+    return save_media(
+        f"{stem}.{fmt}", data, content_type,
+        key_dir=STABLE_DIR if stable else None,
+        cache_control=STABLE_CACHE_CONTROL if stable else None,
+    )
 
 
 # ───────────────────────────── change tracking ──────────────────────────────
@@ -193,6 +370,20 @@ def _typ_str(s: str) -> str:
 
 def _sha(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()[:16]
+
+
+def _fill(text: str, **values: str) -> str:
+    """Substitute `{name}` placeholders, leaving every other brace alone.
+
+    Not `str.format`: the templates being filled are Typst source, where `{`
+    opens a code block. `str.format` would raise on the first one somebody adds
+    to a scaffold file, which is a trap for whoever edits the template next.
+    """
+    return re.sub(
+        r"\{(" + "|".join(map(re.escape, values)) + r")\}",
+        lambda m: values[m.group(1)],
+        text,
+    )
 
 
 def content_hashes(report_dir: str | Path) -> dict[str, str]:
@@ -366,6 +557,7 @@ def publish_report(
     entry: str = ENTRY,
     with_svg: bool = False,
     record: bool = True,
+    stable: bool = False,
 ) -> ReportURLs:
     """Compile a report and upload the PDF plus a small pdf.js viewer page.
 
@@ -373,6 +565,14 @@ def publish_report(
     a CDN, so a report costs ~1 PDF instead of a PDF *and* a multi-hundred-KB
     SVG of the same content. `with_svg=True` restores the old SVG upload for
     somewhere that cannot run scripts.
+
+    `stable=True` writes to an undated key, overwritten on every publish, with
+    a short cache lifetime. Use it for a document that is republished as work
+    proceeds and whose link is shared before it is finished — a date-prefixed
+    key would leave every previously shared link pointing at a stale version,
+    which is worse than a dead one because it still renders. Leave it off for
+    one-shot reports, where an immutable URL per publish is the better
+    property.
 
     Returns the URLs; the viewer page is the one to share. On success the build
     state is recorded in `.build.json`, so the next `changed_since_publish()` is
@@ -382,15 +582,21 @@ def publish_report(
     stem = name[:-4] if name.lower().endswith(".pdf") else name
     built_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
+    key_dir = STABLE_DIR if stable else None
+    cache = STABLE_CACHE_CONTROL if stable else None
+
     pdf = compile_report(report_dir, entry=entry, fmt="pdf", web=False)
-    pdf_url = save_media(f"{stem}.pdf", pdf, "application/pdf")
+    pdf_url = save_media(f"{stem}.pdf", pdf, "application/pdf",
+                         key_dir=key_dir, cache_control=cache)
 
     svg_url = None
     if with_svg:
         svg = compile_report(report_dir, entry=entry, fmt="svg", web=True)
-        svg_url = save_media(f"{stem}.svg", svg, "image/svg+xml")
+        svg_url = save_media(f"{stem}.svg", svg, "image/svg+xml",
+                             key_dir=key_dir, cache_control=cache)
 
-    page_url = save_html(stem, _viewer_html(title or stem, pdf_url, built_at))
+    page_url = save_html(stem, _viewer_html(title or stem, pdf_url, built_at),
+                         key_dir=key_dir, cache_control=cache)
 
     urls = ReportURLs(page=page_url, pdf=pdf_url, svg=svg_url)
     if record:
@@ -402,6 +608,7 @@ def publish_report(
                 {
                     "name": stem,
                     "published_at": built_at,
+                    "stable": stable,
                     "urls": recorded,
                     "files": content_hashes(report_dir),
                 },
@@ -505,6 +712,90 @@ _SECTION_TYP = '''#import "/template.typ": *
 
 TODO: write this section.
 '''
+
+
+# The paper scaffold ships as real .typ files rather than Python strings, so it
+# stays editable and previewable as Typst. `main.typ.in` and `gitignore.in` are
+# format templates; everything else is copied verbatim.
+_PAPER_TEMPLATE_DIR = Path(__file__).parent / "templates" / "paper"
+
+PAPER_SECTIONS = (
+    "01-introduction",
+    "02-background",
+    "03-task",
+    "04-methodology",
+    "05-experiments",
+    "06-results",
+    "07-analysis",
+    "08-limitations",
+    "09-conclusion",
+)
+
+
+def scaffold_paper(
+    paper_dir: str | Path,
+    *,
+    title: str,
+    subtitle: str | None = None,
+    date: str | None = None,
+    sections: Sequence[str] = PAPER_SECTIONS,
+    overwrite: bool = False,
+) -> list[Path]:
+    """Create a paper tree — the long-form, self-contained kind.
+
+    Unlike `scaffold_report`, this is meant to be created at the *start* of a
+    project and republished as work proceeds: the sections carry their
+    obligations as comments and their unwritten passages as `#todo`, so the
+    tree doubles as the checklist. `check_paper()` reports what is still open;
+    building with `status: "final"` turns every remaining `#todo` into a
+    compile error.
+
+    Existing files are left alone unless `overwrite=True`, so this is safe to
+    re-run to add a section to a paper already being written.
+    """
+    root = Path(paper_dir)
+    (root / "sections").mkdir(parents=True, exist_ok=True)
+    (root / "figures").mkdir(parents=True, exist_ok=True)
+    (root / "assets").mkdir(parents=True, exist_ok=True)
+
+    written: list[Path] = []
+
+    def write(path: Path, text: str) -> None:
+        if path.exists() and not overwrite:
+            return
+        path.write_text(text, encoding="utf-8")
+        written.append(path)
+
+    def source(name: str) -> str:
+        return (_PAPER_TEMPLATE_DIR / name).read_text(encoding="utf-8")
+
+    write(root / "template.typ", source("template.typ"))
+    write(root / "refs.bib", source("refs.bib"))
+    write(root / ".gitignore", source("gitignore.in"))
+    write(
+        root / ENTRY,
+        _fill(
+            source("main.typ.in"),
+            title=_typ_str(title),
+            subtitle=_typ_str(subtitle) if subtitle else "none",
+            date=_typ_str(date) if date else "none",
+            paper_dir=root.as_posix(),
+            includes="\n".join(f'#include "/sections/{s}.typ"' for s in sections),
+        ),
+    )
+
+    for s in sections:
+        stub = _PAPER_TEMPLATE_DIR / "sections" / f"{s}.typ"
+        if stub.exists():
+            write(root / "sections" / f"{s}.typ", stub.read_text(encoding="utf-8"))
+        else:
+            # A section the caller invented; give it the generic body.
+            heading = s.split("-", 1)[-1].replace("-", " ").capitalize()
+            write(
+                root / "sections" / f"{s}.typ",
+                f'#import "/template.typ": *\n\n= {heading}\n\n#todo[write this section]\n',
+            )
+    return written
 
 
 def scaffold_report(

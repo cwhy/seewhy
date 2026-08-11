@@ -86,15 +86,21 @@ def _get_aws_signature_v4(method: str, uri: str, headers: dict, payload: bytes =
         'X-Amz-Content-Sha256': payload_hash
     }
 
-def upload_media(r2_key: str, file_path: Union[str, BinaryIO], content_type: Optional[str] = None) -> dict:
+def upload_media(r2_key: str, file_path: Union[str, BinaryIO], content_type: Optional[str] = None,
+                 cache_control: Optional[str] = None) -> dict:
     """
     Upload a file to Cloudflare R2 storage.
-    
+
     Args:
         r2_key (str): The key/path where the file will be stored in R2
         file_path (Union[str, BinaryIO]): Path to the file or file-like object
         content_type (Optional[str]): MIME type of the file. If not provided, will be guessed from file extension.
-    
+        cache_control (Optional[str]): Cache-Control header to store with the object.
+            Only needed for keys that get overwritten in place — a date-prefixed
+            key is written once, so the CDN can cache it forever. A stable key
+            (see media.save_media's key_dir) is republished, and without this
+            the edge would keep serving the previous version.
+
     Returns:
         dict: Response containing upload status and URL
     """
@@ -126,13 +132,17 @@ def upload_media(r2_key: str, file_path: Union[str, BinaryIO], content_type: Opt
             elif content_type is None:
                 content_type = 'application/octet-stream'
         
-        # Prepare headers
+        # Prepare headers. Cache-Control goes in before signing — SigV4 signs
+        # every header in this dict, so adding it afterwards would invalidate
+        # the signature.
         headers = {
             'Content-Type': content_type,
             'Content-Length': str(len(file_data)),
             'Host': R2_ENDPOINT_URL.replace('https://', ''),
         }
-        
+        if cache_control:
+            headers['Cache-Control'] = cache_control
+
         # Generate AWS Signature V4
         signature_headers = _get_aws_signature_v4('PUT', f'/{R2_BUCKET_NAME}/{r2_key}', headers, file_data)
         headers.update(signature_headers)
