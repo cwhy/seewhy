@@ -1,0 +1,8 @@
+logs/
+scripts/tmp/
+*.pkl
+*.npy
+*.json
+!results.jsonl
+!report/assets/*.json
+!report/.build.json
