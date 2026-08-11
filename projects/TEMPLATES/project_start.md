@@ -182,7 +182,11 @@ Experiments run on the remote 2× RTX 4090 host, not the Mac — the Mac has no
 | checkout | `/home/newuser/Projects/seewhy` |
 | env | JAX 0.8.1, both CUDA devices visible; `.env` with R2 creds present |
 
-Two gotchas that cost time if you don't know them:
+**The box has no `.git`.** It is an execution environment, not a checkout — the
+Mac is the single source of truth for code. Never run git there. Code goes up
+by rsync; `results.jsonl` only ever comes down.
+
+Three gotchas that cost time if you don't know them:
 
 - **`uv` is not on the non-interactive-ssh `PATH`** — call `~/.local/bin/uv`.
   A bare `uv` inside `ssh host 'cmd'` fails with `command not found`.

@@ -62,6 +62,29 @@ This is a machine learning visualization project focused on understanding traini
 4. Save results to R2 (cloud) or local outputs/ directory
 5. Generate plots and animations showing training dynamics
 
+## The GPU box is not a git checkout
+
+The Mac is the single source of truth for code. The remote box
+(`195.133.135.186:Projects/seewhy`) is an execution environment with **no
+`.git`** — do not run git commands there, and do not try to `git pull` or
+`git clone` into it.
+
+Code moves Mac → box by rsync. Results move box → Mac, and only that way:
+
+```bash
+scripts/sync.sh push    # code up   (never results.jsonl)
+scripts/sync.sh pull    # results down
+```
+
+**`results.jsonl` still flows one way, box → Mac**, because experiments append
+to it on the box. Pushing a stale local copy overwrites rows a running
+experiment has already written — silently, since rsync just sees a differing
+file. That is how 10 sweep cells were lost in `sparse-attn-emergence`.
+
+Removing git from the box fixed a second instance of the same class of bug:
+`universal-ar` had untracked its `results.jsonl` in `089131c` because merges on
+the box kept discarding server rows. With no git there, that cannot recur.
+
 ## GPU / Environment Warning
 
 **NEVER run `uv run` or `uv sync` casually** — this project's `.venv` can be in a working state that diverges from `uv.lock`. Running `uv run` will silently upgrade packages and can break GPU.
