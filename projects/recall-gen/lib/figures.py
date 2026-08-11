@@ -101,3 +101,75 @@ def condition_bars(rows: dict[str, dict], name: str = "condition_bars") -> Figur
         alt="Final normalised MSE for each evaluation condition, grouped by "
             "what the model was trained on.",
     )
+
+
+def _recall_runs(rows: dict) -> list[dict]:
+    """Recall-trained runs at the default state size, one per context size."""
+    return sorted((r for r in rows.values()
+                   if r.get("train_mode") == "recall" and r.get("seed") == 0
+                   and r.get("cfg", {}).get("dk") == 64
+                   and r.get("train_digits") is None),
+                  key=lambda r: r["M"])
+
+
+def _state_runs(rows: dict) -> list[dict]:
+    """Recall-trained runs at M=16, one per state size."""
+    rs = [r for r in rows.values()
+          if r.get("train_mode") == "recall" and r.get("M") == 16
+          and r.get("seed") == 0 and r.get("train_digits") is None]
+    return sorted(rs, key=lambda r: -r["state_floats"])
+
+
+def state_size(rows: list[dict], name: str = "state_size") -> Figure:
+    """The control for the M-sweep: shrink the memory, hold the context fixed.
+
+    Retrieval quality (condition A) and completion quality (condition D) against
+    the size of the recurrent state, at M=16 throughout. If the two move in
+    opposite directions here — where the context never changes — then what the
+    M-sweep measured was capacity, not information.
+    """
+    xs = [r["state_floats"] for r in rows]
+    series = {
+        "A  retrieval (target present)": [r["final"]["A_seen_present"]["nmse"] for r in rows],
+        "D  completion (target absent)": [r["final"]["D_novel_absent"]["nmse"] for r in rows],
+    }
+    data = long_form(xs, series, x_name="state", y_name="nmse", series_name="condition")
+    return line_chart(
+        name, data,
+        x="state", y="nmse", colour="condition", points=True,
+        x_label="numbers in the recurrent state", y_label="normalised MSE",
+        colour_label="", hlines=[(1.0, "predict the mean image")],
+        width=cm(13), height=cm(7.5),
+        alt="Normalised MSE on the retrieval and completion conditions against "
+            "the size of the recurrent state, with the context size held at 16.",
+    )
+
+
+def build_figures(rows: dict[str, dict]) -> list[Figure]:
+    """Every figure the paper uses, from the results rows."""
+    figs = []
+    base = {k: v for k, v in rows.items() if k.startswith("baselines")}
+
+    if "exp1" in rows:
+        figs.append(divergence(rows["exp1"]))
+
+    sweep = _recall_runs(rows)
+    knn = {}
+    for r in sweep:
+        b = base.get(f"baselines_M{r['M']}_r{r['mask_rows']}")
+        if b:
+            knn[r["M"]] = b["baselines"]["D_novel_absent"]["n_knn"]
+    if len(sweep) > 1 and all(r["M"] in knn for r in sweep):
+        figs.append(context_size(sweep, knn))
+
+    st = _state_runs(rows)
+    if len(st) > 1:
+        figs.append(state_size(st))
+
+    modes = {lbl: rows[e] for lbl, e in
+             (("recall only", "exp1"), ("completion only", "exp2"), ("mixed", "exp3"))
+             if e in rows}
+    if len(modes) > 1:
+        figs.append(condition_bars(modes))
+
+    return figs

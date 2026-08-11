@@ -23,7 +23,7 @@ from pathlib import Path
 
 PROJECT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT))
-sys.path.insert(0, str(PROJECT.parents[1]))          # repo root, for shared_lib
+sys.path.append(str(PROJECT.parents[1]))             # repo root LAST — see workflow.md
 
 from lib.figures import build_figures                          # noqa: E402
 from shared_lib.results import load_results                    # noqa: E402
