@@ -42,7 +42,7 @@ transition sits, and whether it is sharp, is unmeasured.
 = Appendix: reproduction <appendix-repro>
 
 #kv(
-  ("commit", "b2303c6"),
+  ("commit", "122bb8c"),
   ("hardware", "one NVIDIA RTX 4090; every run under 25 minutes"),
   ("environment", "uv run --no-sync python  (on the GPU box)"),
   ("launch", "python projects/recall-gen/scripts/run_experiments.py --bg exp1"),
