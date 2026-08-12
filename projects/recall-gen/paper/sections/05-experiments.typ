@@ -91,11 +91,13 @@ memorised its training images scores far better on C than on D. This is not a
 hypothetical: it is what both completion-trained runs do, and it is why "the
 ceiling" in this paper is quoted from D and not from C.
 
-*A metric immune to the obvious confound.* Identification accuracy is inflated
-by models that never retrieve — a good completion picks the right neighbour by
-itself — and its chance level is $1 slash M$, which moves 64-fold across the
-context sizes used here. Every claim about *whether a model retrieves* is made
-with #m[gain] instead, which has neither problem.
+*Paired conditions rather than a summary of them.* Identification accuracy is
+inflated by models that never retrieve — a good completion picks the right
+neighbour by itself — and its chance level is $1 slash M$, which moves 64-fold
+across the context sizes used here. Rather than substitute a derived statistic,
+§6 reports conditions B and D adjacent as measured. They differ in one respect
+only, so the comparison the paper rests on is one the reader performs on raw
+numbers.
 
 *Shared evaluation episodes.* All runs are scored on the same 512 episodes per
 condition, drawn once from a fixed seed. Differences between runs therefore

@@ -100,6 +100,16 @@ carried through several drafts before being tested, which is worth recording: it
 was the kind of claim that sounds like a deduction from the architecture and is
 in fact an empirical question.
 
+== What the transfer measurements are not
+
+The four pools of §6 are not four difficulty levels of one benchmark, and
+averaging them or reporting a mean across them would be meaningless. Two are
+natural data (MNIST, Fashion-MNIST) and two are constructions that violate
+properties natural images have (a fixed pixel permutation; low-frequency noise).
+Only the natural pair measures anything one would want to improve. The other two
+are instruments for identifying which regularities the model learned to use, and
+their numbers should never be read as scores to be raised.
+
 == Where this does not generalise
 
 The claim is about a model whose memory of the context is a fixed-size state

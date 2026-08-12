@@ -27,8 +27,9 @@ contain, scores exactly as well as ignoring them.
 
 The apparent counter-example dissolves twice over. Enlarging the context does
 improve completion — and it does so by destroying the retrieval: at 256 context
-images the model gains 0.004 from having the answer present, against 0.835 at 16,
-scores four times better on images from its training pool than on novel ones, and
+images the model scores 0.556 with the answer present and 0.561 without — the same
+number, where at 16 the two read 0.017 and 0.852 — scores four times better on
+images from its training pool than on novel ones, and
 lands on exactly the ceiling a completion-trained model reaches. Shrinking the
 memory at fixed context reproduces the same trade, which rules out the reading in
 which a larger context is simply more informative. And the effect does not exist
@@ -40,19 +41,26 @@ solutions are separate attractors, chosen at training time.
 Three directions follow specifically. The digit-split result — perfect retrieval
 and chance-level completion on the same unseen digits — is the cleanest
 separation here and deserves a harder dataset where retrieval is not nearly free.
-The transfer numbers give a broader-training programme its targets: 0.651 is the
-soft one, and 0.116 the hard one, since moving it requires a similarity metric
-not tied to spatial layout — which may not even be desirable, spatial structure
-being real information. And the sharpest untested question is whether the recall
-objective can be made to yield knowledge at all: give the context pool unlimited
-fresh images so that memorising individual ones is impossible, and at $M = 256$
-the model must either learn a transferable prior or fail outright. Which of those
-happens is the number this paper most conspicuously lacks.
+The transfer numbers give a broader-training programme one target and one
+instrument, and they should not be confused. Fashion-MNIST at 0.651 is the
+target: natural data sharing the spatial-structure assumption, where a metric
+fitted on a wider pool ought to do better. The permutation result at 0.116 is the
+instrument — it says which assumption the model came to rely on, and a model that
+scored well there would have discarded layout information that is genuinely
+present in images. Assumption-free retrieval is not a goal worth having; the goal
+is a metric whose assumptions are the ones natural data actually satisfies, and
+arbitrary data is how one finds out which those are.
+
+The sharpest untested question is whether the recall objective can be made to
+yield knowledge at all. Give the context pool unlimited fresh images, so that
+memorising individual ones is impossible, and at $M = 256$ the model must either
+learn a transferable prior or fail outright. Which of those happens is the number
+this paper most conspicuously lacks.
 
 = Appendix: reproduction <appendix-repro>
 
 #kv(
-  ("commit", "122bb8c"),
+  ("commit", "6485bbd"),
   ("hardware", "one NVIDIA RTX 4090; every run under 25 minutes"),
   ("environment", "uv run --no-sync python  (on the GPU box)"),
   ("launch", "python projects/recall-gen/scripts/run_experiments.py --bg exp1"),
@@ -78,6 +86,8 @@ can be redrawn without rerunning anything.
   [state-size control (state-size figure)], [`exp1`, `exp15`, `exp16`, `exp17`],
   [digit split], [`exp8`, `exp9`],
   [fine-tuning probe], [`exp13`, `exp14`],
+  [train short, test long (test-context figure)], [`transfer_length`],
+  [how far the mechanism travels (pool figure)], [`transfer_dataset`],
   [all model-free reference points],
   [`baselines_M{4,16,64,256}_r14`, `baselines_M16_r14_split`],
   table.hline(stroke: rule),

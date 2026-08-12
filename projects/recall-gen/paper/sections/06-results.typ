@@ -9,24 +9,25 @@
 
 Throughout, *nMSE* is the model's mean squared error on hidden pixels divided by
 that of predicting the average training image, so 1.0 is "no better than
-ignoring the input". A fifth column, *gain*, appears in most tables:
+ignoring the input".
 
-$ "gain" = "nMSE"(D) - "nMSE"(B) $
+Tables in this section report conditions *B and D side by side* rather than any
+summary of them. The two use context images the model has never seen and differ
+in one respect only — whether the query's true image is among them — so placing
+them adjacent asks the reader to make the comparison the paper is about, on
+measured numbers, rather than to trust a derived one. When B and D are the same
+number, the model gains nothing from the answer being present: it is not reading
+its context. When B is near zero and D is near one, it is retrieving and nothing
+else.
 
-Conditions B and D both use context images the model has never seen and differ
-only in whether the query's true image is among them, so gain is exactly what
-having the answer in the context is worth. A model that retrieves scores high; a
-model that ignores its context scores zero.
-
-Gain exists because the obvious metric does not work. Identification accuracy —
-does the output land on the *correct* one of the $M$ context images, measured on
-hidden pixels — is inflated by models that never retrieve at all: a good
-completion resembles the true image, so it picks the right neighbour on its own.
-The completion-trained model scores 0.951 identification at $M = 4$ while its
-gain is $-0.015$. Identification accuracy also has a chance level of $1 slash M$,
-which moves by a factor of 64 across the context sizes used here, so it cannot be
-compared down a column. Gain has neither problem, and every claim in this section
-about *whether a model retrieves* rests on it.
+One measure is reported but never load-bearing. *Identification accuracy* — does
+the output land on the correct one of the $M$ context images, on hidden pixels —
+is inflated by models that never retrieve, because a good completion resembles
+the true image and so picks the right neighbour by itself: the
+completion-trained model scores 0.951 at $M = 4$ while its B and D are 0.455 and
+0.440, i.e. identical. Its chance level is also $1 slash M$, which moves 64-fold
+across the context sizes used here. It is quoted where the answer is present and
+the context size fixed, and nowhere else.
 
 == Reference points
 
@@ -120,16 +121,18 @@ exp3 trains on a 50/50 mixture of the two objectives:
 #align(center, table(
   columns: 4, stroke: none, align: (left, right, right, right),
   table.hline(stroke: rule),
-  [*trained on*], [*gain*], [*best D*], [*final B*],
+  [*trained on*], [*B, answer present*], [*D, answer absent*], [*best D*],
   table.hline(stroke: rule),
-  [recall only (exp1)],     [0.835], [0.635], [0.017],
-  [mixed (exp3)],           [0.134], [0.459], [0.484],
-  [completion only (exp2)], [-0.002],[0.458], [0.672],
+  [recall only (exp1)],     [0.017], [0.852], [0.635],
+  [mixed (exp3)],           [0.484], [0.618], [0.459],
+  [completion only (exp2)], [0.672], [0.671], [0.458],
   table.hline(stroke: rule),
 ))
 
-The mixture reaches the completion ceiling exactly (0.459 against 0.458) while
-retaining a gain an order of magnitude above the completion-trained models.
+The mixture reaches the completion ceiling exactly (0.459 against 0.458) and
+still answers better when the target is present than when it is absent (0.484
+against 0.618), which the completion-trained model does not (0.672 against
+0.671).
 
 == Generalisation appears exactly when retrieval fails
 
@@ -139,21 +142,23 @@ row is the mean of three; spread is given in the retrieval table above):
 #align(center, table(
   columns: 6, stroke: none, align: (right, right, right, right, right, right),
   table.hline(stroke: rule),
-  [$M$], [context content], [*gain*], [final D], [best D], [look-up ceiling],
+  [$M$], [context content], [*B, present*], [*D, absent*], [best D], [look-up ceiling],
   table.hline(stroke: rule),
-  [4],   [3 136],   [0.840], [0.854], [0.777], [1.237],
-  [16],  [12 544],  [0.835], [0.852], [0.635], [1.002],
-  [64],  [50 176],  [0.622], [0.658], [0.535], [0.886],
-  [256], [200 704], [0.004], [0.561], [0.443], [0.786],
+  [4],   [3 136],   [0.014], [0.854], [0.777], [1.237],
+  [16],  [12 544],  [0.017], [0.852], [0.635], [1.002],
+  [64],  [50 176],  [0.036], [0.658], [0.535], [0.886],
+  [256], [200 704], [*0.556*], [*0.561*], [0.443], [0.786],
   table.hline(stroke: rule),
 ))
 
-At $M = 256$ the gain is 0.004. For comparison, the completion-trained runs —
-which never retrieve, by construction — score −0.002 (exp2), 0.006 (exp7) and
-0.010 (exp12). The recall-trained model at $M = 256$ is indistinguishable from
-them. Its best D of 0.443 sits on their ceiling (0.458, 0.450, 0.458), its
-condition A equals its condition C (0.128 against 0.134), and its B equals its D
-(0.556 against 0.561).
+Read the last row against the first three. Up to $M = 64$, having the answer in
+the context is worth almost everything — 0.017 with it against 0.852 without. At
+$M = 256$ the two numbers are 0.556 and 0.561: the same number. The
+completion-trained runs, which never retrieve by construction, post the same
+coincidence (exp2: 0.672 and 0.671; exp7: 0.671 and 0.677; exp12: 0.670 and
+0.681). The recall-trained model at $M = 256$ is indistinguishable from them, its
+best D of 0.443 sits on their ceiling (0.458, 0.450, 0.458), and its condition A
+equals its condition C (0.128 against 0.134).
 
 #fig(include "/figures/context_size.typ", caption: [
   Completion quality on novel images with the target absent, against context
@@ -172,19 +177,20 @@ across these four runs.
 #align(center, table(
   columns: 6, stroke: none, align: (right, right, right, right, right, right),
   table.hline(stroke: rule),
-  [state], [content \/ state], [A], [id. acc. A], [*gain*], [D],
+  [state], [content \/ state], [A], [*B, present*], [*D, absent*], [id. acc.],
   table.hline(stroke: rule),
-  [16 384 (exp1)], [0.8], [0.015], [1.000], [0.835], [0.852],
-  [8 192 (exp15)], [1.5], [0.017], [1.000], [0.800], [0.819],
-  [4 096 (exp16)], [3.1], [0.022], [1.000], [0.730], [0.755],
-  [2 048 (exp17)], [6.1], [0.031], [1.000], [0.646], [0.681],
+  [16 384 (exp1)], [0.8], [0.015], [0.017], [0.852], [1.000],
+  [8 192 (exp15)], [1.5], [0.017], [0.019], [0.819], [1.000],
+  [4 096 (exp16)], [3.1], [0.022], [0.024], [0.755], [1.000],
+  [2 048 (exp17)], [6.1], [0.031], [0.035], [0.681], [1.000],
   table.hline(stroke: rule),
 ))
 
-Shrinking the memory eightfold, with the context held fixed, moves retrieval and
-completion in opposite directions monotonically: gain falls 0.835 #sym.arrow
-0.646 and D improves 0.852 #sym.arrow 0.681. The context never changed, so the
-improvement cannot be information the context supplied.
+Shrinking the memory eightfold, with the context held fixed, moves the two
+conditions towards each other monotonically: the answer-present error doubles
+(0.017 #sym.arrow 0.035) while the answer-absent error improves (0.852
+#sym.arrow 0.681). The context never changed, so the improvement cannot be
+information the context supplied.
 
 Two honest qualifications. The effect is smaller than in the $M$-sweep — at the
 smallest state, retrieval is still excellent (identification accuracy 1.000) and
@@ -215,24 +221,28 @@ something *training at large context* selects? Evaluation only, no retraining.
   table.hline(stroke: rule),
   [*evaluated at*], [$M=4$], [$M=16$], [$M=64$], [$M=256$], [],
   table.hline(stroke: rule),
-  [trained at $M=16$ — completion error], [0.700], [0.851], [0.996], [0.942], [],
-  [trained at $M=16$ — gain],             [0.676], [0.835], [0.715], [0.175], [],
-  [trained at $M=256$ — completion error],[0.541], [0.545], [0.558], [0.545], [],
-  [trained at $M=256$ — gain],            [-0.011], [-0.002], [-0.002], [-0.014], [],
+  [trained at $M=16$ — B, answer present], [0.024], [0.018], [0.281], [0.767], [],
+  [trained at $M=16$ — D, answer absent],  [0.700], [0.851], [0.996], [0.942], [],
+  [trained at $M=256$ — B, answer present],[0.552], [0.546], [0.560], [0.559], [],
+  [trained at $M=256$ — D, answer absent], [0.541], [0.545], [0.558], [0.545], [],
   table.hline(stroke: rule),
 ))
 
 The short-trained model does not improve at long context; it *degrades*, to 0.942
-against the 0.561 a model trained there reaches. The long-trained model's gain is
-zero at every length, including $M = 4$ where sixteen-fold spare capacity is
-available, and its completion error is flat to within 0.02 across a 64-fold
-change in context size. The completion-trained model behaves identically to it
-(gain $-0.015$ to $-0.003$, error 0.440–0.457).
+against the 0.561 a model trained there reaches. Its answer-present error rises
+over the same range (0.018 #sym.arrow 0.767) as the memory is asked to hold more
+than it ever had to, but the two never converge — it is still retrieving
+something at $M = 256$.
+
+The long-trained model's two rows are the same number at every length, including
+$M = 4$ where sixteen-fold spare capacity is available, and both are flat to
+within 0.02 across a 64-fold change in context size. The completion-trained model
+behaves identically to it (0.455/0.440 at $M=4$, 0.463/0.450 at $M=256$).
 
 #fig(include "/figures/length_transfer.typ", caption: [
-  Gain against test-time context size for three trained models. Only gain is
-  plotted: identification accuracy's chance level is $1 slash M$, which falls
-  64-fold across this axis, so the two cannot share a panel honestly.
+  Completion error with the answer absent, against test-time context size, for
+  three trained models. The answer-present numbers are in the table above rather
+  than on the same axes, since only one of the three models separates them.
 ])
 
 == How far the learned mechanism travels
@@ -281,7 +291,8 @@ against random initialisation (exp14). Same budget, schedule, data and seed:
 ))
 
 The head start is worth 0.015 nMSE, about 3% relative — and the fine-tuned model
-has lost its retrieval in the process (gain 0.004, against 0.834 before).
+has lost its retrieval in the process: its answer-present and answer-absent
+errors are now 0.435 and 0.439, against 0.017 and 0.852 before.
 
 == Nothing generalises across digit classes
 

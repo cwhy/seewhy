@@ -51,6 +51,35 @@ the distribution it was fitted to. That is a real and useful property — it is
 what lets the mechanism work on unseen classes — but it is not freedom from the
 training data, and it cannot be assumed to survive a change of domain.
 
+=== The permutation result is a diagnostic, not a deficiency
+
+It would be easy to read 0.116 as a failure to be fixed, and to treat
+permutation-robustness as a target. That reading is wrong, and it is worth being
+explicit about why.
+
+There is no free lunch: a retriever that makes *no* assumption about its inputs
+cannot outperform one that makes a correct one, on any distribution where a
+correct assumption exists. Spatial structure in images is such an assumption, and
+it is *true* — natural images are not pixel-permuted, and a model that discarded
+layout in order to score well on permuted inputs would have thrown away real
+information in exchange for robustness against a distribution that does not
+occur.
+
+So the permutation test should be read as a probe of *which* assumption the
+training data taught the model to rely on, not as a benchmark. The answer it
+returns — that spatial layout is load-bearing for the learned keys — is evidence
+that the mechanism found and exploited a genuine regularity of its data. The
+score of 0.116 is informative precisely because it is low.
+
+The same distinction sorts the other two pools. Fashion-MNIST is natural data
+that shares the spatial-structure assumption, so 0.651 is a meaningful measure of
+transfer and a meaningful thing to try to improve. Random fields are neither
+natural nor structured, so 0.222 bounds what the encoder does with inputs that
+violate its assumptions and is not a target at all. The general point: arbitrary
+or adversarial data is a good instrument for *discovering which assumptions a
+model has made*, and a bad objective to optimise against, because the world it
+describes is not the world the model will see.
+
 == Why completion decays as retrieval sharpens
 
 Early in training the read from the state is diffuse: keys are near-random, so
@@ -91,14 +120,16 @@ predictions.
 
 The results select the second, on three independent grounds. The model is *below*
 the soft-look-up ceiling at every $M$ and further below it as $M$ grows, so its
-answers are not extraction from the context. Its gain is 0.004 at $M = 256$, so
-removing the answer from the context costs it nothing. And its condition C beats
-its condition D fourfold, so its advantage tracks whether an image was in the
-*training pool*, not what is in the context.
+answers are not extraction from the context. At $M = 256$ it scores 0.556 with
+the answer present and 0.561 without, so removing the answer from the context
+costs it nothing. And its condition C beats its condition D fourfold, so its
+advantage tracks whether an image was in the *training pool*, not what is in the
+context.
 
 The convergence is the strongest evidence: at $M = 256$ a model trained purely on
 retrieval and a model trained purely on completion arrive at the same place — the
-same ceiling, the same zero gain, the same C/D asymmetry. They are running the
+same ceiling, the same coincidence of their answer-present and answer-absent
+numbers, the same C/D asymmetry. They are running the
 same algorithm. One of them was asked to retrieve and could not.
 
 *What would falsify this.* If the effect is capacity, it must reproduce when the
@@ -108,16 +139,17 @@ shrinking the state should not produce it. That is exp15–exp17, and it is the
 reason the paper contains a state-size sweep at all.
 
 *The verdict.* It reproduces. Holding the context at 16 images and shrinking the
-memory from 16 384 numbers to 2 048, gain falls monotonically 0.835 #sym.arrow
-0.800 #sym.arrow 0.730 #sym.arrow 0.646 and completion improves 0.852
-#sym.arrow 0.819 #sym.arrow 0.755 #sym.arrow 0.681, on evaluation episodes that
-are identical across all four runs. The information account predicts no
+memory from 16 384 numbers to 2 048, the answer-present error rises 0.017
+#sym.arrow 0.019 #sym.arrow 0.024 #sym.arrow 0.035 while the answer-absent error
+improves 0.852 #sym.arrow 0.819 #sym.arrow 0.755 #sym.arrow 0.681, on evaluation
+episodes that are identical across all four runs. The information account predicts no
 movement here and gets the sign of the effect wrong; the capacity account
 predicts exactly this.
 
 It reproduces in direction rather than in magnitude. Even at the smallest state,
-retrieval has not collapsed — identification accuracy is still 1.000 and gain is
-still 0.646, against 0.004 at $M = 256$. Compression ratio alone is not
+retrieval has not collapsed — identification accuracy is still 1.000, and the two
+conditions are still 0.035 and 0.681 rather than the 0.556 and 0.561 seen at
+$M = 256$. Compression ratio alone is not
 sufficient either: at a ratio near 3, the small-state run reaches D = 0.755 and
 the large-context run 0.658, so how many items must be told apart matters
 alongside how many numbers are available to tell them apart with. Both are
@@ -129,8 +161,9 @@ needs, but the two knobs are not interchangeable and we do not claim they are.
 If large contexts carried usable signal, a model trained at $M = 16$ should
 extract some of it when handed 256 images. It extracts none: its completion error
 *rises* to 0.942 while a model trained at 256 reaches 0.561 on the same task. And
-the reverse fails too — the model trained at 256 does not recover retrieval when
-handed a context of 4, where the state has sixteen-fold spare capacity.
+the reverse fails too — the model trained at 256 scores 0.552 and 0.541 on the
+two conditions when handed a context of 4, where the state has sixteen-fold spare
+capacity: still the same number, still not reading anything.
 
 Both follow from the two-route account. The short-trained model took route A and
 never built route B, so a larger context has nothing to unlock; all it does is

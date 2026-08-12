@@ -183,30 +183,33 @@ def build_figures(rows: dict[str, dict]) -> list[Figure]:
 
 
 def length_transfer(row: dict, name: str = "length_transfer") -> Figure:
-    """Gain against TEST-time context size, for models trained at different sizes.
+    """Raw completion error against TEST-time context size.
 
-    Only gain is plotted, not identification accuracy: accuracy's chance level is
-    1/M, which falls 64-fold across this axis, so the two cannot share a panel
-    honestly. Gain needs no chance level. The markdown report carries the fuller
-    three-panel version.
+    Condition D as measured, not a difference of conditions: the paired
+    answer-present numbers sit in the table beside this figure, where the reader
+    can compare them directly rather than being handed a subtraction. Note that
+    identification accuracy is deliberately NOT plotted here — its chance level
+    is 1/M, which falls 64-fold across this axis.
     """
     Ms = [int(m) for m in row["lengths"]]
     label = {"recall_M16": "trained on recall, 16 in context",
              "recall_M256": "trained on recall, 256 in context",
              "complete_best": "trained to complete"}
-    series = {label[mk]: [row["transfer"][mk][str(m)]["gain"] for m in Ms]
+    series = {label[mk]: [row["transfer"][mk][str(m)]["metrics"]
+                          ["D_novel_absent"]["nmse"] for m in Ms]
               for mk in label if mk in row["transfer"]}
-    data = long_form(Ms, series, x_name="M", y_name="gain", series_name="model")
+    data = long_form(Ms, series, x_name="M", y_name="nmse", series_name="model")
     return line_chart(
         name, data,
-        x="M", y="gain", colour="model", points=True, log_x=True,
-        x_label="context images at test time (log scale)", y_label="gain",
+        x="M", y="nmse", colour="model", points=True, log_x=True,
+        x_label="context images at test time (log scale)",
+        y_label="completion error, answer absent",
         colour_label="",
-        hlines=[(0.0, "the context is not being read")],
+        hlines=[(1.0, "predict the average digit")],
         width=cm(13), height=cm(7.5),
-        alt="Gain against test-time context size for three trained models. The "
-            "model trained at 16 stays well above zero until 256; the models "
-            "trained at 256 and on completion sit on zero throughout.",
+        alt="Completion error on the answer-absent condition against test-time "
+            "context size for three trained models. The model trained at 16 "
+            "rises towards the mean-image line; the other two are flat.",
     )
 
 

@@ -76,6 +76,23 @@ statement is that retrieval degrades substantially rather than fails.
 contexts do not unlock anything at inference; they change which solution gradient
 descent finds.
 
+### What that looks like
+
+The same model, the same five query images, four context sizes. Only the number
+of context images changes between rows; the answer is in none of them. Per-image
+errors under each panel.
+
+![one model, one set of queries, four context sizes](https://media.tanh.xyz/seewhy/26-08-12/recallgen_completion_lengths.png)
+
+At 4 the completions are coherent digits that are often close to right. By 256
+they have acquired debris — extra strokes, speckle, fragments — while the strong
+part of the stroke stays roughly where the query implies. The output does not
+degrade towards a blur; it degrades towards a *confident mess*. That is why the
+number climbs towards 1.0 without the model's output ever getting closer to the
+average digit: measured against the mean image, its distance barely moves
+(0.048 → 0.047 → 0.050 → 0.052 across the four sizes) while its error against the
+truth runs 0.700 → 0.851 → 0.996 → 0.942.
+
 ### And the reverse: the retrieval circuit does not come back
 
 Trained at M=256, evaluated at short contexts:
@@ -124,6 +141,21 @@ constant 0.063 in every column.
 
 Chance is 0.063.
 
+### What the four numbers look like
+
+Condition B throughout — the query's true image *is* one of the 16 in the
+context, so a working retriever should reproduce it exactly.
+
+![retrieval quality across four image pools](https://media.tanh.xyz/seewhy/26-08-12/recallgen_retrieval_pools.png)
+
+The quality is not comparable across pools, and the way it fails is informative.
+On MNIST the reconstruction is essentially exact. On Fashion-MNIST the model
+recovers the rough silhouette and then fills the hole with **digit-like
+strokes** — look at the trousers and the shirt, where the bottom half becomes a
+tangle of pen-strokes rather than fabric. It is retrieving into a vocabulary it
+learned from handwriting. On permuted pixels and random fields there is nothing
+recognisable at all.
+
 ### Result: the mechanism is substantially MNIST-shaped
 
 This is your point, quantified.
@@ -148,6 +180,35 @@ MNIST — a nearest-neighbour matcher on raw pixels would score identically on
 both. The model scores 1.000 and 0.116. The gap is entirely the learned encoder's
 dependence on the training distribution.
 
+### But 0.116 is a diagnostic, not a deficiency
+
+It would be easy to read that number as something to fix, and to treat
+permutation-robustness as a target. That reading is wrong.
+
+There is no free lunch: a retriever that assumes *nothing* about its inputs
+cannot beat one that assumes something true. Spatial structure in images is such
+an assumption, and it is correct — natural images are not pixel-permuted. A model
+that scored well on the permuted pool would have discarded layout information
+that genuinely exists, buying robustness against a distribution that does not
+occur.
+
+So the permutation test measures **which assumption the training data taught the
+model to rely on**, and the answer — spatial layout is load-bearing for the
+learned keys — is evidence the mechanism found a real regularity. The score is
+informative precisely because it is low.
+
+That sorts the four pools into two kinds, which should not be averaged or read
+as one scale:
+
+| pool | kind | what its number is for |
+|---|---|---|
+| held-out MNIST, Fashion-MNIST | natural data sharing the assumption | a **target** — worth improving |
+| permuted pixels, random fields | constructions that violate it | an **instrument** — worth measuring, not raising |
+
+Arbitrary and adversarial data are good tools for discovering which assumptions a
+model has made, and bad objectives to optimise against, because the world they
+describe is not the world the model will see.
+
 ---
 
 ## What this changes
@@ -167,14 +228,19 @@ Nothing in Reports 1–4 depends on the stronger version. The digit-split result
 images) is unaffected — 0–4 and 5–9 are the same distribution in every sense that
 matters to a pixel encoder, which is now demonstrated rather than assumed.
 
-**The synthetic-data direction is the right response**, and these numbers say
-what it has to beat. A model trained on a broader pool should push the
-Fashion-MNIST number up from 0.651; the permuted number is the harder target,
-because moving it requires an encoder whose notion of similarity is not tied to
-spatial layout at all. Whether that is achievable — or even desirable, since
-spatial structure is real information — is the open question. The floor is 0.063
-and MNIST-only training reaches 0.116; anything above that is progress that can
-be measured.
+**The synthetic-data direction is the right response**, with one target and one
+instrument that should not be confused. **Fashion-MNIST at 0.651 is the target**:
+natural data sharing the spatial-structure assumption, where a metric fitted on a
+wider pool ought to do better, and where an improvement means something. **The
+permuted number is the instrument**, not a second target — it reports which
+regularity the model came to depend on, and driving it up would mean discarding a
+true property of images.
+
+The goal is not assumption-free retrieval, which no-free-lunch says buys nothing.
+It is a similarity metric whose assumptions are the ones natural data actually
+satisfies — broader than "MNIST spatial statistics", but not empty. Synthetic
+data widens the set of natural-ish regularities the metric is fitted to; the
+permutation probe is how you check what it ended up assuming.
 
 ---
 

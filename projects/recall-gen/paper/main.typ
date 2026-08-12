@@ -34,8 +34,9 @@
     sharpens, while the same architecture trained on a 50/50 mixture reaches the
     full completion ceiling. Enlarging the context past what the fixed memory can
     hold does improve completion, but only by destroying retrieval — at 256
-    context images the model gains 0.004 from the answer being present against
-    0.835 at 16, and converges on the same weight-memorised solution a
+    context images the model scores 0.556 with the answer present and 0.561
+    without, the same number, where at 16 the two read 0.017 and 0.852; it has
+    converged on the same weight-memorised solution a
     completion-trained model finds. That trade reproduces when the memory is
     shrunk with the context held fixed, and it does not exist at inference: a
     model trained at 16 and evaluated at 256 degrades to 0.942 rather than

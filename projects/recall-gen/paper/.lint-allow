@@ -29,22 +29,9 @@
 300     # learning-rate warm-up steps
 80      # "80% more per step", a wall-clock observation not stored in results
 
-# --- derived quantities, computed from results.jsonl rather than stored in it ---
-# `gain` is nMSE(D) - nMSE(B). The two operands are logged; their difference is
-# not, so every gain value has to live here. Logging it would be better and is
-# the obvious next change to lib/train.py.
-0.835   # gain, exp1
-0.840   # gain, exp6
-0.834   # gain, exp1 (first run, before the deterministic re-run; kept in prose comparisons)
-0.800   # gain, exp15
-0.730   # gain, exp16
-0.646   # gain, exp17
-0.622   # gain, exp4
-0.134   # gain, exp3
-0.004   # gain, exp5 and exp13
-0.006   # gain, exp7
-0.010   # gain, exp12
-0.963   # gain, exp8
+# (The block of `gain` values that used to sit here is gone: the paper now quotes
+# conditions B and D as measured rather than their difference, so every number in
+# it is a stored one. A shrinking allow-list is the point of the mechanism.)
 
 # --- hardware ---
 4090    # the GPU model number
@@ -65,3 +52,4 @@
 0.459   # exp3 best D
 0.450   # exp7 best D
 b2303c6 # superseded commit hash from an earlier appendix revision
+122bb8c # ditto

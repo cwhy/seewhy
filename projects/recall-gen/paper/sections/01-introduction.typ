@@ -67,8 +67,9 @@ is *granularity*: individual images, which transfer nowhere, or a similarity
 metric over the distribution, which transfers within it.
 
 *"Stopped retrieving" is not a figure of speech.* At a context of 256 images the
-recall-trained model gains 0.004 from having the answer present, against 0.835 at
-16 — the same 0.00 that models trained never to retrieve post.
+recall-trained model scores 0.556 when the answer is present and 0.561 when it is
+absent — the same number. At a context of 16 the same two conditions read 0.017
+and 0.852.
 
 == Contributions
 
@@ -77,15 +78,18 @@ recall-trained model gains 0.004 from having the answer present, against 0.835 a
   best possible soft look-up from the context, which bounds what any mechanism
   can extract from the context alone (§3, §4).
 
-+ *A metric that survives the confound.* Identification accuracy, the obvious
-  measure, is inflated by models that never retrieve: a good completion picks the
-  right neighbour on its own. We use #m[gain], the difference in error between
-  otherwise-identical episodes whose answer is present or absent, and show it
-  separates the two mechanisms where accuracy does not (§4, §6).
++ *A reporting discipline that survives the obvious confound.* Identification
+  accuracy, the natural measure, is inflated by models that never retrieve — a
+  good completion picks the right neighbour by itself — and its chance level
+  moves with the context size. Rather than replace it with a summary statistic,
+  we report the two conditions it conflates side by side as measured, so that
+  "this model does not read its context" is something the reader sees in two
+  numbers rather than takes on trust (§4, §6).
 
 + *Retrieval training does not produce completion ability; it consumes it.* A
-  recall-trained model ends at 0.852 on queries whose answer is absent — worse
-  than a linear regression that ignores the context entirely (0.645) — and gets
+  recall-trained model ends at 0.852 on queries whose answer is absent, against
+  0.017 when it is present — and 0.852 is worse than a linear regression that
+  ignores the context entirely (0.645). It gets
   worse through training, from 0.635 at step 500, as its retrieval sharpens.
   Training on a half-and-half mixture reaches the full completion ceiling at no
   cost, so the two are not competing for capacity: the recall objective supplies
