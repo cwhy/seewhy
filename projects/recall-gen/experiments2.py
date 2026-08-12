@@ -33,7 +33,7 @@ RN = Run(
     name="generalisation-trained ceiling (target never in context)",
     M=16, Q=4, mask_rows=14,
     batch=256, steps=200 if SMOKE else 12000, lr=3e-4, seed=0,
-    train_mode="gen",
+    train_mode="gen", snapshot_best="D_novel_absent",
     cfg=Cfg(d_model=256, n_layers=4, dk=64, n_heads=4, n_tokens=20),
     n_eval=64 if SMOKE else 512,
     eval_every=100 if SMOKE else 500,

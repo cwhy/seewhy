@@ -44,6 +44,7 @@ class Run:
     train_mode: str = "recall"   # "recall" | "gen" | "mix"
     p_gen: float = 0.5           # only for train_mode="mix"
     init_from: str | None = None  # exp_name whose params_*.pkl to start from
+    snapshot_best: str | None = None  # condition to track; saves params_<exp>_best.pkl
     # data
     train_digits: tuple | None = None   # None = all ten
     held_digits: tuple | None = None    # pool for the "novel" conditions
@@ -240,6 +241,7 @@ def run(rn: Run, make_figs: bool = True) -> dict:
 
     hist = {"step": [], "loss": [],
             "nmse": {c: [] for c in ev}, "id_acc": {c: [] for c in ev}}
+    best_seen = (float("inf"), -1)
     n_blocks = rn.steps // rn.eval_every
     for b in range(n_blocks):
         k_train, kb = jax.random.split(k_train)
@@ -253,6 +255,14 @@ def run(rn: Run, make_figs: bool = True) -> dict:
         for c in ev:
             hist["nmse"][c].append(m[c]["nmse"])
             hist["id_acc"][c].append(m[c]["id_acc"])
+        # The completion arm overfits, so its quoted ceiling is the best value over
+        # training rather than the last one. Without a checkpoint at that step the
+        # number can be reported but never looked at — no figure, no samples.
+        if rn.snapshot_best and m[rn.snapshot_best]["nmse"] < best_seen[0]:
+            best_seen = (m[rn.snapshot_best]["nmse"], step)
+            with open(PROJECT / f"params_{rn.exp_name}_best.pkl", "wb") as f:
+                pickle.dump(jax.tree_util.tree_map(np.asarray, p), f)
+
         parts = "  ".join(f"{c.split('_')[0]}:{m[c]['nmse']:.3f}"
                           + (f"/{m[c]['id_acc']:.2f}" if ev[c].present else "")
                           for c in ev)
@@ -295,6 +305,7 @@ def run(rn: Run, make_figs: bool = True) -> dict:
         # numeric lint reads `final`, not the curves, so anything quoted in prose
         # that lives only in `history` has to be allow-listed by hand.
         gain=final["D_novel_absent"]["nmse"] - final["B_novel_present"]["nmse"],
+        best_step=best_seen[1] if rn.snapshot_best else None,
         best_nmse={c: min(hist["nmse"][c]) for c in ev},
         history={"step": hist["step"], "loss": hist["loss"],
                  "nmse": hist["nmse"], "id_acc": hist["id_acc"]},

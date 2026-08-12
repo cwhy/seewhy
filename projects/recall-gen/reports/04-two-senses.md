@@ -82,6 +82,66 @@ And it moves the wrong way with training: 0.635 at step 500 → 0.852 at step
 completion ability it has early is an accident of the read being diffuse before
 the keys sharpen, and recall training spends it.
 
+## What "trained to complete" is, and what it actually learned
+
+The 0.458 bar deserves unpacking, because it is the reference everything else is
+measured against and it is not quite what its name suggests.
+
+It is **the same model, the same data, the same loss**. One thing changes: which
+image the query asks about.
+
+| arm | the query's true image is… | so the task is… |
+|---|---|---|
+| recall (exp1) | always one of the 16 context images | find it and copy it |
+| completion (exp2) | drawn fresh from the pool, essentially never in the context | there is nothing to find — fill the hole from what you know about digits |
+
+Here is that run over training:
+
+![the completion arm's training curve](https://media.tanh.xyz/seewhy/26-08-12/recallgen_completion_curve.png)
+
+Colour is the image pool; line style is whether the answer was in the context.
+Two things to read off it.
+
+**The pairs coincide.** A lies exactly on C, and B exactly on D, for the whole of
+training. Having the answer sitting in the context is worth *nothing* to this
+model — target presence is not a variable it responds to. It never learned to use
+the context at all.
+
+**The two pairs separate, and the novel one turns around.** The training-pool
+pair keeps falling to 0.041. The unseen-image pair bottoms out at **0.458 at step
+1000** and then climbs to 0.672. That is memorisation: the model is not learning
+what digits look like, it is learning what these 60 000 specific digits look
+like, and the better it gets at that the worse it does on anything else.
+
+So 0.458 is an early-stopped number, and it measures *what a good digit prior in
+the weights buys you* — not what using the context buys you. It is the right
+ceiling for the comparison, and it comes with that caveat attached.
+
+## What each arm actually draws
+
+Three trained models, the same five query images, none of which is in any of
+their contexts:
+
+![what each arm draws on the same queries](https://media.tanh.xyz/seewhy/26-08-12/recallgen_arms_compare.png)
+
+The failure modes are visibly different:
+
+* **recall-trained, 16 in context** (aggregate 0.852) — fragmented and noisy. The
+  read is selective, nothing in the state matches, and what comes back is
+  incoherent. Look at the last column: the truth is a 0 and the output is a
+  broken ring with debris in it.
+* **recall-trained, 256 in context** (aggregate 0.561) — clean, confident,
+  plausible digits that are the *wrong* digit. Truth 9, drawn 4. This is a model
+  with a prior, drawing from it.
+* **trained to complete, best step** (aggregate 0.458) — smooth and slightly
+  blurry. It hedges, which is what MSE rewards; the last column is a soft blob
+  rather than a committed ring.
+
+Per-column numbers are for those columns only. They are chosen at percentiles of
+the *average* difficulty across the three arms so the selection cannot favour
+one of them, but they are five images, not the aggregate — the aggregates over
+512 episodes are 0.852, 0.561 and 0.458.
+
 ## "But it gets better with a big context" — it stopped retrieving
 
 This is the result that looks like a counterexample, and it is the reason the
@@ -115,6 +175,93 @@ Shrinking the **memory** at fixed context (16 images, identical episodes, same
 parameter count) reproduces the same trade — gain 0.835 → 0.646, completion
 0.852 → 0.681 — which is what rules out "a bigger context is simply more
 informative".
+
+## Why does a longer context produce memorisation? — a hypothesis
+
+This is an explanation, not a measurement. It fits everything observed, it makes
+predictions that have not been tested yet, and it is stated here so those
+predictions can be checked rather than quietly abandoned.
+
+**There are two routes to a lower recall loss, and they are always both open.**
+
+/ Route A — in-context retrieval. Write the target into the state, read it back.
+/ Route B — in-weights prediction. Predict the target's hidden half from its
+  visible half, using knowledge stored in the weights.
+
+Gradient descent takes whichever is cheaper to improve locally. Nothing in the
+objective expresses a preference between them.
+
+**Route B, on this task, is a memorisation route — not a knowledge route.** The
+recall target is always one of the context images, and the context is always
+drawn from the training pool, so *the target is always a training image*. "Learn
+to predict this specific image's bottom half from its top half" is a 60 000-entry
+lookup table, and at 12 million query samples it is very learnable. A general
+prior about digits would be strictly worse at the training objective than the
+lookup table, so it is not what gets selected. This is why route B shows up as
+memorisation rather than as understanding — and it is measured, not assumed: the
+M = 256 model scores 0.134 on training-pool images against 0.561 on novel ones. A
+general prior would give the same number twice.
+
+**Route A's floor rises with context size; route B's does not.** Retrieval
+requires the state to keep M items apart. The keys that address the memory are
+$d_k = 64$ numbers per head, and the delta rule's write of one item partially
+overwrites another exactly to the extent their keys overlap. Sixteen items in a
+64-dimensional key space can be made near-orthogonal easily; 256 cannot, at any
+setting of the weights. So route A's achievable error is a rising function of M,
+while memorising 60 000 images is the same job whatever M is — route B's floor is
+flat.
+
+**The switch is therefore a crossover, and it should be sharp.** Below it,
+retrieval is far better than any prior could be (0.015 against a best-possible
+0.458), so route A wins outright and route B is never developed. Above it, route
+B wins and route A stops receiving gradient — and because both routes drive the
+same output head, the retrieval circuit is not merely unused but actively
+degraded. That is the M = 256 model: gain 0.004, indistinguishable from a model
+that was never asked to retrieve.
+
+### What this does *not* yet explain
+
+If key dimensionality were the whole story, the crossover would sit near
+$M approx d_k$. It does not straightforwardly: exp17 runs at $d_k = 8$ with 32
+heads and M = 16 — twice the per-head key dimension — and retrieval does not
+collapse there at all (identification accuracy 1.000, gain 0.646). Multiple heads
+evidently distribute items across several small key spaces, so the effective
+capacity is well above $d_k$. The hypothesis survives in its qualitative form
+(capacity, not information) but the constant is not pinned down.
+
+### Two tests that would settle it
+
+1. **Move the crossover.** Sweep M at a small $d_k$. If capacity sets the switch,
+   the collapse should arrive at a proportionally smaller M. If it arrives at the
+   same M regardless, something else is doing the work.
+2. **Block memorisation.** Give the context pool unlimited fresh images (random
+   shifts and elastic warps, so no image ever repeats). Route B can then no
+   longer be taken by memorising. At M = 256 the model must either learn a
+   genuine, transferable prior — or fail outright. **Which of those happens is
+   the most informative number missing from this project**, because it asks
+   whether the recall objective can be made to produce knowledge when the
+   memorisation shortcut is closed off.
+
+## Next: train short, test long
+
+A prediction worth recording before it is run, because it separates two readings
+of the whole result and it costs nothing — the architecture has no
+length-dependent parameters, so a model trained at one context size can simply be
+evaluated at another with no retraining at all.
+
+The question: **is the improvement at M = 256 a property of large contexts at
+inference time, or an artefact of what training selects for?**
+
+| | what happens | what it would mean |
+|---|---|---|
+| **Predicted** | Train at M = 16, test at M = 256: retrieval degrades (the state is overloaded) and completion stays bad, near 0.85 — it has no prior to fall back on. Train at M = 256, test at M = 16: gain stays near 0, retrieval does not come back. | The M = 256 result is a *training-time* selection effect. The two solutions are separate attractors, and a big context at inference buys nothing on its own. |
+| **The alternative** | Train at M = 16, test at M = 256: completion improves toward 0.56 anyway. | Large contexts do carry usable signal at inference and the model can exploit it — which would substantially soften the paper's conclusion. |
+
+The predicted outcome follows directly from the hypothesis above: the model
+trained at M = 16 took route A and never built route B, so there is nothing for
+a larger context to unlock. The alternative is what you would expect if the
+context were genuinely informative and the M-sweep had merely been teaching the
+model to read it.
 
 ## The sharpest version: novel digit classes
 

@@ -286,9 +286,145 @@ def digit_split(R):
     return url
 
 
+# ── figure 5: the completion arm's training curve ─────────────────────────────
+
+def completion_curve(R, name="recallgen_completion_curve"):
+    """exp2 over training. Two things at once, and they are the same thing.
+
+    Colour is the image pool, line style is whether the answer was in the
+    context. The pairs coincide — A on top of C, B on top of D — which is the
+    memorisation signature: target presence is not a variable this model
+    responds to. Meanwhile the novel-image pair is U-shaped, which is why the
+    ceiling quoted elsewhere is the minimum and not the last point.
+    """
+    h = R["exp2"]["history"]
+    step = h["step"]
+    series = [
+        ("A  training-pool images, answer present", "A_seen_present", ORANGE, "-"),
+        ("C  training-pool images, answer absent", "C_seen_absent", ORANGE, (0, (5, 3))),
+        ("B  unseen images, answer present", "B_novel_present", BLUE, "-"),
+        ("D  unseen images, answer absent", "D_novel_absent", BLUE, (0, (5, 3))),
+    ]
+    fig, ax = plt.subplots(figsize=(7.4, 4.1))
+    for label, key, colour, ls in series:
+        ax.plot(step, h["nmse"][key], color=colour, ls=ls, lw=2, label=label, zorder=3)
+
+    d = h["nmse"]["D_novel_absent"]
+    i = int(np.argmin(d))
+    ax.plot([step[i]], [d[i]], marker="o", ms=9, color=BLUE, zorder=4,
+            markeredgecolor=SURFACE, markeredgewidth=2)
+    ax.annotate(f"best on unseen images: {d[i]:.3f}\nat step {step[i]}",
+                xy=(step[i], d[i]), xytext=(18, -30), textcoords="offset points",
+                fontsize=8.5, color=INK,
+                arrowprops=dict(arrowstyle="-", color=MUTED, lw=0.8))
+    ax.annotate(f"…and {d[-1]:.3f} by the end", xy=(step[-1], d[-1]),
+                xytext=(-6, 10), textcoords="offset points", ha="right",
+                fontsize=8.5, color=INK)
+    ax.axhline(1.0, color=MUTED, lw=1.0, ls=(0, (4, 3)), zorder=2)
+    ax.annotate("no better than ignoring the input", xy=(0.985, 1.0),
+                xycoords=("axes fraction", "data"), xytext=(0, 4),
+                textcoords="offset points", fontsize=8, color=MUTED, ha="right")
+    ax.set_xlabel("training step")
+    ax.set_ylabel("normalised MSE")
+    ax.set_ylim(0, 1.08)
+    ax.yaxis.grid(True, zorder=0); ax.set_axisbelow(True)
+    ax.legend(loc="center right", bbox_to_anchor=(1.0, 0.42))
+    fig.tight_layout()
+    url = save_matplotlib_figure(name, fig, format="png", dpi=170)
+    plt.close(fig)
+    return url
+
+
+# ── figure 6: what each arm actually draws, on the SAME queries ──────────────
+
+def what_each_arm_draws(n=5, seed=7, name="recallgen_arms_compare"):
+    """Three trained models, one set of query images.
+
+    The project's eval sets are drawn per context size, so the M=16 and M=256
+    episodes do not share queries and cannot be compared image by image. Here the
+    five targets are fixed first and each model is then given a context of its
+    own size drawn from the same pool with those targets excluded — so the
+    columns really are the same question asked three times.
+    """
+    rn16 = Run(exp_name="", name="", M=16, Q=n, mask_rows=14,
+               cfg=Cfg(d_model=256, n_layers=4, dk=64, n_heads=4, n_tokens=20))
+    pools, _ = build_pools(rn16)
+    held, train_pool = pools["held"], pools["train"]
+    mask_np = row_mask(14)
+    mask = jnp.array(mask_np)
+    mean_img = train_pool.mean(0)
+    hid = mask_np > 0.5
+
+    rng = np.random.default_rng(seed)
+    pick = rng.choice(len(held), 64 + 256, replace=False)
+    targets = held[pick[:64]]                      # candidate queries
+    ctx_pool = held[pick[64:]]                     # disjoint context material
+
+    arms = [
+        ("recall-trained, 16 in context", "params_exp1.pkl", 16),
+        ("recall-trained, 256 in context", "params_exp5.pkl", 256),
+        ("trained to complete, best step", "params_exp2_best.pkl", 16),
+    ]
+    outs, errs = [], []
+    for label, fname, M in arms:
+        with open(PROJECT / fname, "rb") as f:
+            p = jnp_tree(pickle.load(f))
+        ctx = jnp.array(np.broadcast_to(ctx_pool[:M], (64, M, PIX)))
+        # one query per episode keeps the activation memory flat at M=256
+        pred = np.concatenate([
+            np.asarray(predict(p, ctx[i:i + 8], jnp.array(targets[i:i + 8])[:, None, :],
+                               mask, rn16.cfg))[:, 0]
+            for i in range(0, 64, 8)])
+        e = ((pred - targets) ** 2)[:, hid].mean(1) / \
+            ((mean_img[None] - targets) ** 2)[:, hid].mean(1)
+        outs.append((label, pred)); errs.append(e)
+
+    # Columns at percentiles of the AVERAGE difficulty across the three arms, so
+    # the selection cannot favour any one of them.
+    avg = np.mean(errs, axis=0)
+    order = np.argsort(avg)
+    idx = [order[int(round(q / 100 * (len(order) - 1)))] for q in (10, 30, 50, 70, 90)]
+
+    rows_spec = ([("input", None), ("truth", None)]
+                 + [(lab, k) for k, (lab, _) in enumerate(outs)]
+                 + [("average\ndigit", None)])
+    fig, axes = plt.subplots(len(rows_spec), n,
+                             figsize=(n * 1.18, len(rows_spec) * 1.26))
+    for j, t in enumerate(idx):
+        truth = targets[t]
+        for r, (lab, k) in enumerate(rows_spec):
+            if lab == "input":
+                img = truth * (1 - mask_np) + 0.55 * mask_np
+            elif lab == "truth":
+                img = truth
+            elif lab.startswith("average"):
+                img = truth * (1 - mask_np) + mean_img * mask_np
+            else:
+                img = truth * (1 - mask_np) + outs[k][1][t] * mask_np
+            ax = axes[r, j]
+            ax.imshow(img.reshape(SIDE, SIDE), cmap="gray", vmin=0, vmax=1)
+            ax.set_xticks([]); ax.set_yticks([])
+            for sp in ax.spines.values():
+                sp.set_visible(False)
+            if k is not None:
+                ax.set_xlabel(f"{errs[k][t]:.2f}", fontsize=7.5, color=MUTED, labelpad=1)
+            if j == 0:
+                ax.set_ylabel(lab, fontsize=8, color=INK2, rotation=0,
+                              ha="right", va="center", labelpad=8)
+    fig.suptitle("the answer is in none of these contexts", fontsize=10.5,
+                 color=INK, fontweight="bold", x=0.155, ha="left", y=0.985)
+    fig.subplots_adjust(hspace=0.30, wspace=0.06, top=0.955, bottom=0.01,
+                        left=0.30, right=0.99)
+    url = save_matplotlib_figure(name, fig, format="png", dpi=170)
+    plt.close(fig)
+    return url
+
+
 if __name__ == "__main__":
     R = rows()
     print("two_senses    ", two_senses())
     print("where_it_sits ", where_it_sits(R))
     print("sweep         ", sweep(R))
     print("digit_split   ", digit_split(R))
+    print("completion_curve", completion_curve(R))
+    print("arms_compare  ", what_each_arm_draws())
