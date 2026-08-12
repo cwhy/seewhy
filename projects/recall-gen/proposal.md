@@ -161,17 +161,26 @@ explicitly says it lacks.
 
 ## Phase B — make the context informative (the main event)
 
-The task must be one where the context actually constrains the answer. Two
-designs, cheapest first. **Both are gated on the Step-0 measurement.**
+The task must be one where the context actually constrains the answer. **Both
+designs below are gated on the Step-0 measurement.**
 
 ### B1. Structured context: the context is *about* the query
 
-Instead of 16 unrelated digits, draw the context so it carries information about
-the target — for example, all context images of the same digit class as the
-query, or a set of transformations of a small number of underlying images.
+Two ways to build it, and we will run both because they fail differently.
 
-The soft-look-up ceiling should drop well below 1.0 by construction, because a
-weighted average of sixteen 7s *is* a good prediction of the bottom of another 7.
+/ same class: the M context images are all of the query's digit class. Cheapest,
+  and the ceiling should fall a long way — a weighted average of sixteen 7s *is*
+  a decent prediction of the bottom of another 7.
+/ nearest neighbours: the M context images are the query's nearest neighbours in
+  the pool, by distance on the visible half. Label-free, so it does not depend on
+  a class annotation that a real setting would not have, and it dials
+  informativeness continuously — take the k nearest, or the k nearest beyond some
+  rank, and the ceiling moves with it.
+
+The second is the more honest instrument. "Same class" uses a label MNIST happens
+to provide; nearest-neighbour structure is a property of the data itself, and it
+is the same quantity the soft-look-up ceiling is built from — so we can *set* the
+ceiling rather than discover it.
 
 *Measure first.* If the ceiling at M=16 does not fall below about 0.8, the design
 is not doing its job and should be iterated before any training.
@@ -187,18 +196,48 @@ If that holds, the paper's conclusion needs its scope narrowed from "retrieval
 training buys no generalisation" to "…when the context contains nothing to
 generalise from", which is a much more interesting and more defensible claim.
 
-### B2. A rule to infer rather than a picture to finish
+### B2. Continual prediction: every target becomes context
 
-The stronger version, and more work: an episode presents (input, output) pairs
-under some transformation — rotate, reflect, recolour, shift — and the query is a
-new input under the same transformation. Completion cannot be done from a prior
-at all; the rule is only available in the context.
+The present/absent split is an artefact of how the task was built, and it forces
+a binary where the real situation is a gradient. A streaming formulation removes
+it: **the thing the model is asked to predict now is written into its memory
+afterwards, and is therefore available to every later prediction.**
 
-This is the cleanest possible form of the original question, and it is where a
-negative result would be most damaging to the "in-context learning is retrieval"
-position. It is also a genuinely new task, so it is sequenced after B1.
+An episode is a stream $x_1 dots x_N$. At each position the model sees the masked
+image, predicts its hidden half from the state built out of everything *before*
+it, and the complete image is then written into the state. Concretely two tokens
+per item — a masked query token that reads and is scored, followed by a full
+write token that is not — which reuses the existing gating unchanged. The one
+real code change is that reads become **causal**: a token reads the running
+prefix state rather than the completed state. That is the standard linear-attention
+form and is a simplification of what `lib/core.py` does now.
 
----
+What this buys, and why it is better than the rule-inference task it replaces:
+
+* **Retrieval and generalisation stop being two conditions and become one axis.**
+  Score each prediction against the distance from its target to the nearest
+  earlier item in the stream. Early items have no near predecessor and must be
+  generalised; later ones may have a very close one and can be retrieved. The
+  result is a *curve* — error against how much help the past actually offers —
+  rather than two points.
+* **It matches how the setting is actually used.** In a continual model, today's
+  target is tomorrow's context. Nothing is ever permanently absent; it is only
+  absent *yet*. The absent-target condition of the current paper is the $t = 1$
+  end of this curve, and the present-target condition is the far end.
+* **It removes the normaliser problem entirely.** There are no longer two
+  separately drawn condition sets to compare, so the ~0.02 floor from A1 does not
+  arise: every prediction is scored on the same stream.
+* **The stream's structure is the experiment.** An i.i.d. stream gives a past
+  that rarely helps; a stream with recurring classes, or ordered by
+  nearest-neighbour distance, gives one that increasingly does. That is the same
+  knob as B1, applied along time instead of across a context set.
+
+*Prediction:* the recall-trained model's advantage will be entirely concentrated
+at small nearest-neighbour distance, and will decay to nothing as that distance
+grows — reproducing the paper's finding as one end of a continuum rather than as
+a separate condition. If instead the advantage persists at large distance, the
+model is generalising from the past rather than retrieving from it, which is the
+positive result the project has been unable to produce so far.
 
 ## Phase C — broaden the metric (natural data, per the no-free-lunch argument)
 
@@ -273,24 +312,25 @@ evaluation-only and rest on a model-free control (ridge).
 | 3 | B1 ceiling measurement | ~2 min | **decides whether 4 runs** |
 | 4 | B1 triad in the new regime | ~1 h | ceiling < 0.8 |
 | 5 | C1 wider natural pool | ~2 h | — |
-| 6 | B2 rule-inference task | ~half a day incl. task code | — |
+| 6 | B2 continual stream (causal read + task code) | ~half a day | — |
 | 7 | D1, D2 | ~2 h | — |
 
 Steps 1–4 are the ones that would change what the project says. 5–7 deepen it.
 
 ---
 
-## Decisions I would like your call on
+## Decisions taken
 
-1. **Order.** I would do A1 → A2 → B1-gate → B1, because B1 is the one that can
-   change the paper's claim and A2 is the one the paper admits it is missing.
-   Your stated direction is the breadth programme (C), which shares no
-   infrastructure with B and could equally run first — but if B1 succeeds it
-   changes what C's numbers *mean*, so I would rather know first.
-2. **B1's context design.** Same-class contexts are the cheapest way to make the
-   context informative, but "same class" is a label-derived shortcut that MNIST
-   happens to provide and a real setting would not. Transformations of a few base
-   images are more principled and need a generator. Which do you want?
-3. **Whether to hold the paper.** It is published at a stable URL and would need
-   rewriting if B1 lands. The alternative is to mark §8 with a note that the
-   scope correction is pending. I lean towards the note.
+1. **Order:** A1 → A2 → B1 gate → B1 → B2 → C. B1 is the step that can change the
+   published claim and A2 is the number the paper admits it lacks, so both come
+   before the breadth programme, which would otherwise be measured against a
+   claim that is about to move.
+2. **B1's context:** both same-class and nearest-neighbour, with the
+   nearest-neighbour construction treated as the primary instrument since it uses
+   no labels and lets the ceiling be set rather than discovered.
+3. **The paper stays published**, with a note in §8 that a scope correction is
+   pending on B1. Rewriting it now would mean rewriting it again afterwards.
+4. **The rule-inference task is dropped** in favour of the continual formulation
+   in B2. A one-shot transformation task treats the target as permanently
+   unavailable, which is the wrong idealisation: in a continual setting a target
+   is only unavailable *yet*, and becomes context for everything after it.

@@ -100,6 +100,25 @@ carried through several drafts before being tested, which is worth recording: it
 was the kind of claim that sounds like a deduction from the architecture and is
 in fact an empirical question.
 
+== A scope correction is pending
+
+The most consequential number in this paper is a baseline, not a model result:
+at $M = 16$ the best achievable soft look-up from the context scores 1.002 on an
+absent-target query, which is to say the context contains nothing usable. Every
+result here about a model failing to use its context is therefore, in part, a
+statement about the task.
+
+Work is under way on a variant in which the context is informative by
+construction — built from the query's nearest neighbours rather than from
+unrelated images — and on a continual formulation in which each target is
+subsequently written into the state and so becomes context for everything after
+it. If a recall objective learns to exploit a context that is worth exploiting,
+the conclusion here narrows from "retrieval training buys no generalisation" to
+"...when the context contains nothing to generalise from". Every measured number
+in this paper stands either way; what would change is the scope of the claim
+drawn from them. This note is here so that a reader meeting the paper before that
+work lands is not misled about how general the conclusion is.
+
 == What the transfer measurements are not
 
 The four pools of §6 are not four difficulty levels of one benchmark, and
