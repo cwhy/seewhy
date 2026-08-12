@@ -10,6 +10,7 @@
 70      # first half of "70 000", the MNIST total
 60      # first half of "60 000", the MNIST training split size
 0.0625  # 1/16, the derived chance level for identification at M=16
+0.0039  # 1/256, the same at M=256
 
 # --- digit-grouped numerals the checker splits on the thin space ---
 # Typst renders these with a space inside the numeral ("16 384"), so the linter

@@ -92,13 +92,47 @@ the denominator is 0.0711–0.0743 depending on condition; because it is compute
 per condition, nMSE is comparable across conditions even though the underlying
 images differ.
 
-We also report *identification accuracy* on conditions A and B. Take the model's
-output, and ask which of the $M$ context images it most resembles — measuring
-the distance on the *hidden* pixels only, so a model that merely copies the
-visible half of the query cannot score. Identification accuracy is the fraction
-of queries where the answer is the correct context image. Chance is
-$1 slash M = 1 slash 16 = 0.0625$, since one of $M$ equally plausible context
-images is correct.
+We also report *identification accuracy*, which is not a second task: the model
+does exactly one thing in every condition, namely output the pixels of the hole.
+Identification accuracy scores that same output differently. Take the $28 R$
+numbers the model produced, compare them against the corresponding pixels of
+each of the $M$ context images, and count the query correct when the closest one
+is the image the query was cut from. Distances are taken on hidden pixels only,
+so a model that merely copies the visible half of the query cannot score. Chance
+is $1 slash M = 1 slash 16 = 0.0625$, one of $M$ equally plausible context images
+being correct. It is defined only where the query's image is in the context;
+elsewhere there is no correct answer.
+
+Two things it does *not* measure, both of which matter later. It is not evidence
+of retrieval on its own — a model that never consults its context can score well,
+because a good completion resembles the true image and the true image is one of
+the candidates. And its chance level moves with $M$, so accuracies at different
+context sizes are not comparable: 0.322 at $M = 256$ (chance 0.0039) is a better
+score than 0.951 at $M = 4$ (chance 0.25). We therefore quote it only where the
+context size is fixed, and rest every claim about retrieval on the paired errors
+instead.
+
+== How small a difference is meaningful
+
+Conditions B and D draw their query images with different random seeds, so they
+are different images and their normalisers — the mean-image error on each set —
+differ by up to about 2%. The same raw error divided by a 2% larger denominator
+gives a 2% smaller normalised score, and the effect is visible: on some context
+sizes the answer-*absent* condition scores slightly better than the
+answer-*present* one for models that provably ignore their context, and ridge
+regression, which never sees the context at all, shows the same wobble in the
+same direction. In raw terms those models score identically on the two
+conditions, to the fourth decimal.
+
+**Normalised differences below roughly 0.02 are therefore not interpretable.**
+Every comparison this paper relies on is far larger than that; the one place it
+matters is in licensing the claim that two numbers are *the same*, which §6 makes
+about differences of 0.005 and smaller.
+
+A cleaner design would have the two conditions share their query images — draw
+the queries first, then build one context containing them and one without — so
+that the denominators are equal by construction. The runs here predate that
+observation.
 
 == What makes it hard, and the shortcut we had to rule out
 

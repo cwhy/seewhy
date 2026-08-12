@@ -8,6 +8,33 @@ Rows: `transfer_length`, `transfer_dataset`.
 
 ---
 
+## What "identification accuracy" is
+
+It comes up throughout, so: it is **not a second task**. The model does exactly
+one thing in every condition — output the 392 pixels of the hole. Identification
+accuracy scores that same output differently:
+
+> Take the 392 pixels the model produced. Compare them against the corresponding
+> 392 pixels of each of the M context images. If the closest one is the image the
+> query was cut from, that query counts as correct.
+
+So "finding an image that is in the context" *is* the completion — scored by
+asking which context image it most resembles, rather than how close it is to the
+truth. It is only defined when the query's image is actually in the context;
+there is no correct answer otherwise. Chance is 1/M.
+
+**Two things it does not mean.** It does not measure retrieval on its own: a
+model that never looks at its context can score high, because a decent completion
+resembles the true image and the true image is one of the candidates. And its
+chance level moves with M, so a column of accuracies at different context sizes
+is not a like-for-like comparison — 0.322 at M=256 (chance 0.004) is a better
+score than 0.951 at M=4 (chance 0.25).
+
+That is why this report leads with raw errors and quotes accuracy only where the
+context size is held fixed.
+
+---
+
 ## First, a correction to how Reports 1–4 talk about this
 
 Those reports say the retrieval mechanism "generalises perfectly and for free"
@@ -25,8 +52,8 @@ That gives a better frame than the binary one:
 
 | what gets stored in the weights | granularity | how far it travels |
 |---|---|---|
-| **route B** — individual images | one entry per training image | nowhere. 0.134 on training-pool images vs 0.561 on novel ones |
-| **route A** — a similarity metric over the distribution | one function for the whole dataset | across digit classes, yes (1.000). Across datasets, only partly — measured below |
+| individual images | one entry per training image | nowhere: error 0.134 on training-pool images against 0.561 on novel ones |
+| a similarity metric over the distribution | one function for the whole dataset | across digit classes, yes. Across datasets, only partly — measured below |
 
 Neither route is free of the training data. The question is only how coarse the
 dependence is, and the honest goal is to *minimise* the memorisation, not to
@@ -67,10 +94,11 @@ version of the figure above did. Identification accuracy runs 1.000 → 1.000 �
 0.876 → 0.322, and **chance runs 0.250 → 0.063 → 0.016 → 0.004 alongside it**,
 because chance is 1/M. At M=256, 0.322 is 82× chance, not a collapse.
 
-`gain` is the metric without that problem — it needs no chance level — and it
-runs +0.676 → +0.834 → +0.715 → +0.175. So the model is still retrieving
-something at a context sixteen times larger than it trained on, and the honest
-statement is that retrieval degrades substantially rather than fails.
+The raw pair says it without a chance level. Error when the answer is present
+runs 0.024 → 0.018 → 0.281 → 0.767; error when it is absent runs 0.700 → 0.851 →
+0.996 → 0.942. At M=256 the two are 0.767 and 0.942 — still clearly apart, so the
+model is still retrieving something at a context sixteen times larger than it
+trained on. Retrieval degrades substantially; it does not fail.
 
 **So the M=256 result is entirely a training-time selection effect.** Long
 contexts do not unlock anything at inference; they change which solution gradient
@@ -99,21 +127,87 @@ Trained at M=256, evaluated at short contexts:
 
 | test-time context | 4 | 16 | 64 | 256 |
 |---|---|---|---|---|
-| gain (what the answer being present is worth) | −0.011 | −0.002 | −0.002 | −0.014 |
-| completion error | 0.541 | 0.545 | 0.558 | 0.545 |
+| error, answer **present** | 0.552 | 0.546 | 0.560 | 0.559 |
+| error, answer **absent** | 0.541 | 0.545 | 0.558 | 0.545 |
 
-Gain stays at zero at every length, including at M=4 where sixteen-fold spare
-capacity is available. Completion error is flat to within 0.02 across a 64×
-change in context size. **This model does not read its context at all**, and
-shrinking the context back to a size it could easily hold does not make it start.
+The two rows are the same number at every length, including at M=4 where
+sixteen-fold spare capacity is available, and both are flat across a 64× change
+in context size. **This model does not read its context at all**, and shrinking
+the context back to a size it could easily hold does not make it start.
 
-The completion-trained model behaves identically (gain −0.015 to −0.003, error
-0.440–0.457, flat). Two models that took the in-weights route are
+The completion-trained model behaves identically (0.455/0.440 at M=4,
+0.463/0.450 at M=256). Two models that took the in-weights route are
 indistinguishable from each other at every context length.
 
 **The two solutions are separate attractors, not two points on a continuum.**
 Once training has selected one, inference-time context size does not move you
 between them.
+
+---
+
+## An oddity worth chasing: answer-absent sometimes scores *better*
+
+In the table just above, every single row has the answer-**absent** error
+slightly *below* the answer-**present** one: 0.541 against 0.552, 0.545 against
+0.546, and so on. Taken at face value that says having the answer available made
+the model worse, which is absurd. It is worth chasing rather than waving at,
+because if it were real it would mean the harness is broken.
+
+Two candidate explanations, and one of them is testable with no model at all:
+
+/ It is the model: something about an episode containing the answer hurts it.
+/ It is the evaluation sets: conditions B and D draw their query images with
+  different random seeds, so they are *different images*, and one set happens to
+  be marginally easier.
+
+**Ridge decides it.** A single linear map from the visible half to the hidden
+half, fitted once on the MNIST training pool, cannot possibly care whether the
+answer is in the context — it never looks at the context. If it shows the same
+asymmetry, the asymmetry is in the data, not the model.
+
+Raw mean squared error on hidden pixels, no normalisation anywhere:
+
+| M | condition | mean-image | ridge | model trained at M=256 | trained to complete |
+|---|---|---|---|---|---|
+| 4 | present | 0.07029 | 0.04508 | 0.03881 | 0.03201 |
+| 4 | absent | **0.07182** | 0.04500 | 0.03883 | 0.03163 |
+| 16 | present | 0.07137 | 0.04589 | 0.03898 | 0.03219 |
+| 16 | absent | **0.07243** | 0.04556 | 0.03945 | 0.03229 |
+| 64 | present | **0.07219** | 0.04592 | 0.04043 | 0.03327 |
+| 64 | absent | 0.07097 | 0.04576 | 0.03961 | 0.03247 |
+| 256 | present | 0.07063 | 0.04481 | 0.03949 | 0.03271 |
+| 256 | absent | **0.07184** | 0.04522 | 0.03914 | 0.03233 |
+
+### The answer: it is not real
+
+In raw terms the models score **the same on both conditions** — 0.03881 against
+0.03883 at M=4, differences in the fourth decimal. What differs is the
+*mean-image* column, which is the denominator every normalised number in this
+project is divided by: 0.07029 against 0.07182, a 2% gap. Dividing the same raw
+error by a 2% larger denominator produces a 2% smaller normalised score. That is
+the whole effect.
+
+Ridge confirms it, since ridge cannot see the context: normalised, it reads 0.641
+present against 0.627 absent at M=4 — the same direction and roughly the same
+size as the models. And at M=64 the sign *flips* for every column at once,
+because there the answer-present query set happens to be the one farther from the
+average digit. It is sampling noise in which set of 1024 query images landed
+farther from the mean, nothing else.
+
+### What follows from it
+
+**A resolution limit, which is useful to have.** Conditions B and D are
+normalised by separate constants that differ by up to 2%, so normalised
+differences below roughly **0.02 are not interpretable**. That is not a
+disclaimer — it is what licenses the central claim of Report 4: when the M=256
+model scores 0.556 with the answer present and 0.561 without, "these are the same
+number" is now a measured statement rather than an eyeballed one.
+
+**A design fix for future runs.** The two conditions should share their query
+images: draw Q queries, then build one context that contains them and one that
+does not. The queries would then be identical and the denominators equal, and the
+comparison would be exact instead of merely much larger than the noise. The runs
+in this project were not built that way, which costs the 0.02 floor above.
 
 ---
 
@@ -248,7 +342,7 @@ permutation probe is how you check what it ended up assuming.
 
 * Evaluation-only, so no seed variance is available here: these are single
   forward passes of single trained models. The models themselves come from runs
-  whose seed spread is ±0.014 on gain.
+  whose seed spread is ±0.02 on the answer-absent error.
 * 256 evaluation episodes per cell rather than the 512 used elsewhere.
 * Conditions A/C always use the MNIST training pool, in every dataset variant —
   only the novel pool changes. So the numbers quoted here are all from B/D.
