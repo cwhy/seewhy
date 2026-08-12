@@ -24,7 +24,8 @@
 
 == The model
 
-#fig(image("/diagrams/architecture.svg", width: 100%), caption: [
+#v(3pt)
+#fig(include "/diagrams/architecture.typ", caption: [
   The architecture. *(a)* An episode. The $M$ context images write into the
   recurrent state; the $Q$ masked queries only read from it, and the state is
   fixed at 16 384 numbers however large $M$ is — so it is both the only route
