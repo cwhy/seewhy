@@ -3,6 +3,19 @@
 Built once with numpy from a fixed seed so every experiment in the project is
 scored on the same episodes. Indices within an episode are drawn WITHOUT
 replacement, so "target not in context" is exact rather than approximately so.
+
+The present and absent conditions drawn from the same pool SHARE their queries.
+Every number here is normalised by `mse_mean`, which depends only on the query
+images; drawing the two conditions separately made the two denominators differ by
+up to ~2%, which put a ~0.02 noise floor under every present-vs-absent
+comparison. Sharing the queries makes the denominators equal by construction, so
+"these two numbers are the same" is exact rather than merely within the floor.
+
+The two contexts then differ in exactly Q of their M slots: the absent context is
+the shared filler, and the present context overwrites Q randomly chosen slots
+with the query images. Positions are random rather than at the end because the
+state decays along the sequence, so a fixed slot would confound target presence
+with recency.
 """
 
 from typing import NamedTuple
@@ -31,26 +44,40 @@ class EvalSet(NamedTuple):
     nn_idx: jnp.ndarray     # (E, Q) which context item the look-up baseline picks
 
 
+def _draw(pool: np.ndarray, M: int, Q: int, n_ep: int, rng):
+    """One shared draw for a pool: filler context, the queries, and their slots."""
+    n = pool.shape[0]
+    idx = np.stack([rng.choice(n, M + Q, replace=False) for _ in range(n_ep)])
+    filler = pool[idx[:, :M]]                                    # (E,M,784)
+    qry = pool[idx[:, M:]]                                       # (E,Q,784)
+    slots = np.stack([rng.choice(M, Q, replace=False) for _ in range(n_ep)]).astype(np.int32)
+    return filler, qry, slots
+
+
 def build(pools: dict, mask: np.ndarray, M: int, Q: int, n_ep: int,
           mean_img: np.ndarray, seed: int = 12345,
           conditions: dict | None = None) -> dict[str, EvalSet]:
     conditions = conditions or DEFAULT_CONDITIONS
-    out = {}
-    for ci, (name, (pool_name, present)) in enumerate(conditions.items()):
-        rng = np.random.default_rng(seed + 1000 * ci)
-        pool = pools[pool_name]
-        n = pool.shape[0]
-        draw = 0 if present else Q
-        idx = np.stack([rng.choice(n, M + draw, replace=False) for _ in range(n_ep)])
-        ctx = pool[idx[:, :M]]                                   # (E,M,784)
-        if present:
-            tgt_idx = rng.integers(0, M, size=(n_ep, Q)).astype(np.int32)
-            qry = np.take_along_axis(ctx, tgt_idx[..., None], axis=1)
-        else:
-            tgt_idx = -np.ones((n_ep, Q), np.int32)
-            qry = pool[idx[:, M:]]                               # (E,Q,784)
+    assert Q <= M, f"need Q ({Q}) <= M ({M}) to place the targets in distinct slots"
 
-        ctx_j, qry_j, mask_j = jnp.array(ctx), jnp.array(qry), jnp.array(mask)
+    # One draw per pool, shared by that pool's present and absent conditions.
+    pool_names = list(dict.fromkeys(p for p, _ in conditions.values()))
+    draws = {name: _draw(pools[name], M, Q, n_ep, np.random.default_rng(seed + 1000 * i))
+             for i, name in enumerate(pool_names)}
+
+    mask_j = jnp.array(mask)
+    out = {}
+    for name, (pool_name, present) in conditions.items():
+        filler, qry, slots = draws[pool_name]
+        if present:
+            ctx = filler.copy()
+            np.put_along_axis(ctx, slots[..., None], qry, axis=1)
+            tgt_idx = slots
+        else:
+            ctx = filler
+            tgt_idx = -np.ones((n_ep, Q), np.int32)
+
+        ctx_j, qry_j = jnp.array(ctx), jnp.array(qry)
         mean_pred = jnp.broadcast_to(jnp.array(mean_img), qry_j.shape)
         m_nn, nn_idx = nn_baseline(ctx_j, qry_j, mask_j)
         out[name] = EvalSet(
