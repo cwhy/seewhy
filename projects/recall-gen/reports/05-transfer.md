@@ -72,6 +72,10 @@ fall back on.
 
 ![the same three models at context sizes they never trained at](https://media.tanh.xyz/seewhy/26-08-12/recallgen_length_transfer.png)
 
+One panel per model, both conditions as measured. Where the two lines separate
+the model is retrieving; where they lie on top of each other it is not. The
+absolute heights matter too, and the next section is about why.
+
 ### Result: the prediction holds, and more strongly than stated
 
 Trained at M=16, evaluated on longer contexts (completion error on unseen
@@ -145,11 +149,62 @@ between them.
 
 ---
 
+## The drastic thing at 256: identification accuracy inverts
+
+There is a second oddity on this grid, and it is much larger than the one below.
+It is about identification accuracy, and it is not the same phenomenon.
+
+![identification accuracy across test-time context sizes](https://media.tanh.xyz/seewhy/26-08-12/recallgen_length_ident.png)
+
+At a test context of 256:
+
+| model | identification accuracy | error, answer present | error, answer absent |
+|---|---|---|---|
+| trained on recall at 16 | **0.322** | 0.767 | 0.942 |
+| trained on recall at 256 | **0.462** | 0.559 | 0.545 |
+| trained to complete | **0.454** | 0.463 | 0.450 |
+
+**The only model that is still retrieving scores the lowest.** The first row's
+two errors are 0.767 and 0.942 — far apart, so having the answer in the context
+is worth a great deal to it. The other two rows have their errors equal to
+within 0.014, so they are not reading the context at all. And yet on
+identification accuracy the two non-retrievers beat the retriever by 40%.
+
+### Why
+
+Identification accuracy asks: *is your output closer to the correct one of the
+256 context images than to any of the other 255?* It rewards a good output, and
+it does not care how the output was arrived at.
+
+The recall-trained model at a context of 256 is in trouble. Its memory holds
+sixteen items comfortably and is being handed 256, so what comes back from a read
+is a mixture. Its outputs are correspondingly poor — 0.767 even when the answer
+is present, against 0.463 for the completion-trained model. A worse output lands
+near the right neighbour less often, whether or not it got there by retrieving.
+
+So the ranking on this metric tracks **output quality**, not retrieval, and at
+256 the two come apart hard enough to invert the order completely.
+
+### Why it matters
+
+This is the strongest argument in the project for reading the two error
+conditions rather than any single summary. Identification accuracy is intuitive,
+it is what one naturally reaches for, and on this grid it gives the **exact
+opposite** of the right answer to "which of these models retrieves". A reader
+given only the accuracy panel would conclude that training at 256 improves
+retrieval. The paired errors say it destroys it.
+
+The paper now quotes identification accuracy only where the context size is fixed
+and the answer is present, and rests every retrieval claim on the two errors.
+
+---
+
 ## An oddity worth chasing: answer-absent sometimes scores *better*
 
-In the table just above, every single row has the answer-**absent** error
-slightly *below* the answer-**present** one: 0.541 against 0.552, 0.545 against
-0.546, and so on. Taken at face value that says having the answer available made
+A separate and much smaller effect, not to be confused with the inversion above.
+In the table for the model trained at 256, every row has the answer-**absent**
+error slightly *below* the answer-**present** one: 0.541 against 0.552, 0.545
+against 0.546, and so on — differences of 0.01, not the 0.14 seen above. Taken at face value that says having the answer available made
 the model worse, which is absurd. It is worth chasing rather than waving at,
 because if it were real it would mean the harness is broken.
 

@@ -239,6 +239,16 @@ $M = 4$ where sixteen-fold spare capacity is available, and both are flat to
 within 0.02 across a 64-fold change in context size. The completion-trained model
 behaves identically to it (0.455/0.440 at $M=4$, 0.463/0.450 at $M=256$).
 
+A caution the same table supplies. At $M = 256$ identification accuracy reads
+0.322 for the recall-trained model, 0.462 for the one trained at 256 and 0.454
+for the completion-trained one — it ranks the only model that is still
+retrieving *last*. The reason is that it rewards a good output and does not ask
+how the output was reached: the recall-trained model's memory is being handed
+sixteen times what it was tuned for, so its outputs are poor (0.767 even with
+the answer present, against 0.463) and land near the right neighbour less often.
+On this grid the intuitive metric gives the exact opposite of the right answer,
+which is why §5 rests every retrieval claim on the paired errors instead.
+
 #fig(include "/figures/length_transfer.typ", caption: [
   Completion error with the answer absent, against test-time context size, for
   three trained models. The answer-present numbers are in the table above rather

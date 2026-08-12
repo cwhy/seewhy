@@ -64,67 +64,87 @@ def rows():
 
 
 def length_transfer(R, name="recallgen_length_transfer"):
-    """Three panels, because the first one on its own is misleading.
+    """One panel per model, each showing both conditions as measured.
 
-    Identification accuracy has a chance level of 1/M, which moves by a factor
-    of 64 across this axis: 0.25 at M=4 and 0.0039 at M=256. An earlier version
-    of this figure drew a single chance line and made the fall from 1.000 to
-    0.322 look like a collapse, when 0.322 against a chance of 0.0039 is 82x
-    chance. The chance curve is now plotted as its own series on a log axis, and
-    `gain` — which needs no chance level — sits beside it as the metric that
-    actually says how much retrieval is left.
+    Earlier versions plotted `gain`, the difference of the two. That put a
+    subtraction between the reader and the measurement, and it hid the thing that
+    actually happens at M=256. Here the two conditions are two lines: where they
+    separate the model is retrieving, where they lie on top of each other it is
+    not, and the absolute heights say how good the output is either way — which
+    turns out to matter.
     """
     t = R["transfer_length"]
     Ms = [int(m) for m in t["lengths"]]
     x = np.arange(len(Ms))
+    titles = {"recall_M16": "trained on recall, 16 in context",
+              "recall_M256": "trained on recall, 256 in context",
+              "complete_best": "trained to complete"}
 
-    fig, axes = plt.subplots(1, 3, figsize=(12.4, 3.9))
-    for mk, (label, colour) in MODEL_STYLE.items():
-        met = lambda M, c, k: t["transfer"][mk][str(M)]["metrics"][c][k]
-        idb = [met(M, "B_novel_present", "id_acc") for M in Ms]
-        gain = [t["transfer"][mk][str(M)]["gain"] for M in Ms]
-        d = [met(M, "D_novel_absent", "nmse") for M in Ms]
+    fig, axes = plt.subplots(1, 3, figsize=(11.6, 3.8), sharey=True)
+    for ax, (mk, title) in zip(axes, titles.items()):
+        met = lambda M, c: t["transfer"][mk][str(M)]["metrics"][c]["nmse"]
+        b = [met(M, "B_novel_present") for M in Ms]
+        d = [met(M, "D_novel_absent") for M in Ms]
+        ax.plot(x, b, color=BLUE, lw=2, marker="o", ms=7, zorder=3,
+                label="answer IS in the context")
+        ax.plot(x, d, color=ORANGE, lw=2, marker="o", ms=7, zorder=3,
+                label="answer is NOT")
         j = Ms.index(t["trained_at"][mk])
-        for ax, ys in zip(axes, (idb, gain, d)):
-            ax.plot(x, ys, color=colour, lw=2, marker="o", ms=7, zorder=3,
-                    label=label)
-            ax.plot([x[j]], [ys[j]], marker="o", ms=13, mfc="none", mec=colour,
-                    mew=2, zorder=4)
-
-    ax = axes[0]
-    ax.plot(x, [1 / m for m in Ms], color=MUTED, lw=1.4, ls=(0, (4, 3)),
-            marker="o", ms=5, zorder=2, label="chance (1/M)")
-    ax.set_yscale("log"); ax.set_ylim(2e-3, 2.0)
-    ax.set_ylabel("identification accuracy (log scale)")
-    ax.set_title("does the output land on the right\nspecific context image?",
-                 fontsize=9.5, color=INK, loc="left")
-    ax.legend(loc="lower left", bbox_to_anchor=(0.0, 0.0), fontsize=7.8)
-
-    ax = axes[1]
-    ax.axhline(0.0, color=MUTED, lw=1.0, ls=(0, (4, 3)), zorder=2)
-    ax.annotate("zero = the context is not being read", xy=(0.98, 0.0),
-                xycoords=("axes fraction", "data"), xytext=(0, 5),
-                textcoords="offset points", fontsize=8, color=MUTED, ha="right")
-    ax.set_ylim(-0.12, 0.95)
-    ax.set_ylabel("gain — what the answer\nbeing present is worth")
-    ax.set_title("is it retrieving at all?", fontsize=9.5, color=INK, loc="left")
-
-    ax = axes[2]
-    ax.axhline(1.0, color=MUTED, lw=1.0, ls=(0, (4, 3)), zorder=2)
-    ax.annotate("predict the average digit", xy=(0.98, 1.0),
-                xycoords=("axes fraction", "data"), xytext=(0, 5),
-                textcoords="offset points", fontsize=8, color=MUTED, ha="right")
-    ax.set_ylim(0.3, 1.12)
-    ax.set_ylabel("completion error, answer absent")
-    ax.set_title("and how well does it complete?", fontsize=9.5, color=INK,
-                 loc="left")
-    ax.annotate("ring = the size each\nmodel trained at", xy=(0.03, 0.05),
-                xycoords="axes fraction", fontsize=8, color=MUTED)
-
-    for ax in axes:
+        for ys in (b, d):
+            ax.plot([x[j]], [ys[j]], marker="o", ms=13, mfc="none",
+                    mec=MUTED, mew=1.6, zorder=4)
+        ax.axhline(1.0, color=MUTED, lw=1.0, ls=(0, (4, 3)), zorder=2)
+        ax.set_title(title, fontsize=9.5, color=INK, loc="left")
         ax.set_xticks(x); ax.set_xticklabels([str(m) for m in Ms])
         ax.set_xlabel("context images at TEST time")
         ax.yaxis.grid(True, zorder=0); ax.set_axisbelow(True)
+        for xi, v, dy in ((x[-1], b[-1], -14), (x[-1], d[-1], 8),
+                          (x[0], b[0], -14), (x[0], d[0], 8)):
+            ax.annotate(f"{v:.2f}", (xi, v), xytext=(0, dy),
+                        textcoords="offset points", ha="center", fontsize=8,
+                        color=INK)
+    axes[0].set_ylim(0, 1.14)
+    axes[0].set_ylabel("error on the hidden pixels\n(1.0 = predict the average digit)")
+    axes[0].legend(loc="center left", bbox_to_anchor=(0.02, 0.30), fontsize=8.2)
+    axes[2].annotate("rings mark the size\neach model trained at",
+                     xy=(0.03, 0.06), xycoords="axes fraction", fontsize=8,
+                     color=MUTED)
+    fig.tight_layout()
+    url = save_matplotlib_figure(name, fig, format="png", dpi=170)
+    plt.close(fig)
+    return url
+
+
+def length_identification(R, name="recallgen_length_ident"):
+    """Identification accuracy across the same grid, and why it must not be used.
+
+    At M=256 it ranks the two models that never retrieve ABOVE the one that does.
+    That is not a subtle confound; it is a straight inversion, and it is the best
+    argument in the project for reading the two error conditions instead.
+    """
+    t = R["transfer_length"]
+    Ms = [int(m) for m in t["lengths"]]
+    x = np.arange(len(Ms))
+    fig, ax = plt.subplots(figsize=(7.4, 4.2))
+    for i, (mk, (label, colour)) in enumerate(MODEL_STYLE.items()):
+        ys = [t["transfer"][mk][str(M)]["metrics"]["B_novel_present"]["id_acc"]
+              for M in Ms]
+        ax.plot(x, ys, color=colour, lw=2, marker="o", ms=7, zorder=3, label=label)
+
+    ax.plot(x, [1 / m for m in Ms], color=MUTED, lw=1.4, ls=(0, (4, 3)),
+            marker="o", ms=5, zorder=2, label="chance (1/M)")
+    ax.set_yscale("log"); ax.set_ylim(2e-3, 4.5)
+    ax.set_xticks(x); ax.set_xticklabels([str(m) for m in Ms])
+    ax.set_xlabel("context images at TEST time")
+    ax.set_ylabel("identification accuracy (log scale)")
+    ax.yaxis.grid(True, zorder=0); ax.set_axisbelow(True)
+    ax.annotate("at 256 the ONLY model that is retrieving scores\n"
+                "the LOWEST here — 0.322, against 0.462 and 0.454",
+                xy=(x[-1] - 0.04, 0.322), xytext=(-24, 62),
+                textcoords="offset points", ha="right", fontsize=8.5,
+                color="#c1121f",
+                arrowprops=dict(arrowstyle="->", color="#c1121f", lw=1.2))
+    ax.legend(loc="lower left", bbox_to_anchor=(0.0, 0.02), fontsize=8.2)
     fig.tight_layout()
     url = save_matplotlib_figure(name, fig, format="png", dpi=170)
     plt.close(fig)
@@ -322,6 +342,7 @@ def completion_across_lengths(n=5, seed=11, name="recallgen_completion_lengths")
 if __name__ == "__main__":
     R = rows()
     print("length_transfer  ", length_transfer(R))
+    print("length_ident     ", length_identification(R))
     print("dataset_transfer ", dataset_transfer(R))
     print("retrieval_pools  ", retrieval_across_pools())
     print("completion_lens  ", completion_across_lengths())
