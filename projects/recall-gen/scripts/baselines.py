@@ -82,9 +82,18 @@ def main():
     ap.add_argument("--n_eval", type=int, default=512)
     ap.add_argument("--split", action="store_true",
                     help="digit split 0-4 / 5-9 with exp8's six conditions")
+    ap.add_argument("--ctx_mode", default="iid", choices=list(evalsets.DRAWS),
+                    help="what the context is made of — the B1 gate measurement")
+    ap.add_argument("--knn_offset", type=int, default=0,
+                    help="ranks to skip in knn mode; dials how informative the context is")
     a = ap.parse_args()
 
-    exp = f"baselines_M{a.M}_r{a.rows}" + ("_split" if a.split else "")
+    # Q is part of the name because a knn context gives each query M/Q neighbours,
+    # so Q changes what the context IS, not merely how many queries score on it.
+    tag = "" if a.ctx_mode == "iid" else f"_{a.ctx_mode}" + (
+        f"{a.knn_offset}" if a.ctx_mode == "knn" and a.knn_offset else "")
+    exp = (f"baselines_M{a.M}_r{a.rows}" + ("_split" if a.split else "") + tag
+           + (f"_Q{a.Q}" if a.Q != 4 else ""))
     if already_done(exp):
         logging.info(f"{exp} already done — skipping")
         return
@@ -95,10 +104,11 @@ def main():
         sys.path.insert(0, str(Path(__file__).parent.parent))
         from experiments8 import SPLIT_CONDITIONS as conds
     rn = Run(exp_name=exp, name="baselines", M=a.M, Q=a.Q, mask_rows=a.rows, **split)
-    pools, _ = build_pools(rn)
+    pools, labels = build_pools(rn)
     mask = row_mask(a.rows)
     mean_img = pools["train"].mean(0)
-    ev = evalsets.build(pools, mask, a.M, a.Q, a.n_eval, mean_img, conditions=conds)
+    ev = evalsets.build(pools, mask, a.M, a.Q, a.n_eval, mean_img, conditions=conds,
+                        ctx_mode=a.ctx_mode, labels=labels, knn_offset=a.knn_offset)
     mask_j = jnp.array(mask)
 
     # ridge: fit on 50k, pick lambda on the remaining 10k of the train pool
@@ -140,8 +150,11 @@ def main():
             f" ({row['n_ridge']:.3f})  nn1={row['mse_nn1']:.4f} ({row['n_nn1']:.3f})"
             f"  knn={row['mse_knn']:.4f} ({row['n_knn']:.3f}, tau={t_star})")
 
-    append_result(dict(experiment=exp, name=f"baselines M={a.M} mask_rows={a.rows}",
+    append_result(dict(experiment=exp,
+                       name=f"baselines M={a.M} mask_rows={a.rows} ctx={a.ctx_mode}"
+                            + (f" offset={a.knn_offset}" if a.ctx_mode == "knn" else ""),
                        M=a.M, Q=a.Q, mask_rows=a.rows, n_eval=a.n_eval,
+                       ctx_mode=a.ctx_mode, knn_offset=a.knn_offset,
                        ridge_lambda=lam_star, time_s=0.0, baselines=out))
     logging.info(f"wrote {exp}")
 

@@ -20,7 +20,8 @@ import optax
 
 from shared_lib.datasets import load_supervised_image
 
-from .core import Cfg, PIX, init_params, n_params, predict, masked_mse, row_mask
+from .core import (Cfg, PIX, init_params, n_params, predict, masked_mse, row_mask,
+                   augment as warp)
 from . import evalsets
 from . import viz
 
@@ -42,6 +43,9 @@ class Run:
     lr: float = 3e-4
     seed: int = 0
     train_mode: str = "recall"   # "recall" | "gen" | "mix"
+    augment_train: bool = False  # warp every training image → the pool never repeats
+    ctx_mode: str = "iid"        # "iid" | "class" | "knn" — what the context is made of
+    knn_offset: int = 0          # ranks skipped in knn mode; dials informativeness
     p_gen: float = 0.5           # only for train_mode="mix"
     init_from: str | None = None  # exp_name whose params_*.pkl to start from
     snapshot_best: str | None = None  # condition to track; saves params_<exp>_best.pkl
@@ -79,30 +83,95 @@ def build_pools(rn: Run):
         Xtr, ytr = Xtr[keep], ytr[keep]
     same = np.isin(yte, rn.train_digits) if rn.train_digits is not None \
         else np.ones(len(yte), bool)
-    Xsame = Xte[same]
+    Xsame, ysame = Xte[same], yte[same]
     if rn.held_digits is not None:
         keep = np.isin(yte, rn.held_digits)
         Xte, yte = Xte[keep], yte[keep]
     return ({"train": Xtr, "held": Xte, "held_same": Xsame},
-            {"train": ytr, "held": yte})
+            {"train": ytr, "held": yte, "held_same": ysame})
 
 
 # ── training ──────────────────────────────────────────────────────────────────
 
-def make_block(rn: Run, opt, mask):
+def class_table(labels: np.ndarray) -> np.ndarray:
+    """(n_classes, n_min) index table, every class truncated to the smallest.
+
+    Equal-sized rows so a class can be picked and sampled from with two uniform
+    draws inside the jit, with no per-class control flow.
+    """
+    members = [np.flatnonzero(labels == c) for c in np.unique(labels)]
+    n_min = min(len(m) for m in members)
+    return np.stack([m[:n_min] for m in members])
+
+
+def make_block(rn: Run, opt, mask, class_tab: np.ndarray | None = None):
     """One jitted block of `eval_every` optimiser steps, scanned."""
     cfg, M, Q, B = rn.cfg, rn.M, rn.Q, rn.batch
     gen_frac = {"recall": 0.0, "gen": 1.0, "mix": rn.p_gen}[rn.train_mode]
+    vis_idx = np.flatnonzero(row_mask(rn.mask_rows) < 0.5)     # static
+    if rn.ctx_mode == "class":
+        assert class_tab is not None, "ctx_mode='class' needs a class table"
+        ctab = jnp.array(class_tab)
 
     def block(p, st, pool, key):
         n = pool.shape[0]
+        # Hoisted out of the step scan: the visible-half view of the pool is what
+        # a knn context is built from, and it costs a gather over the whole pool.
+        if rn.ctx_mode == "knn":
+            pool_vis = pool[:, vis_idx]
+            pool_sq = (pool_vis ** 2).sum(-1)[None, :]
+
+        def structured_sample(k):
+            """B1's constructions: a context that is ABOUT the query.
+
+            Built exactly as `evalsets` builds it, so training and evaluation
+            agree: a filler context that excludes the queries, then — for the
+            target-present case — Q randomly chosen slots overwritten with them.
+            """
+            kq, ks, kg = jax.random.split(k, 3)
+            if rn.ctx_mode == "knn":
+                qidx = jax.random.randint(kq, (B * Q,), 0, n)
+                qry = pool[qidx]
+                qv = qry[:, vis_idx]
+                d = (qv ** 2).sum(-1)[:, None] + pool_sq - 2.0 * (qv @ pool_vis.T)
+                # Rank 0 is the query itself (distance exactly 0), so drop it and
+                # the target is exactly absent from the filler context.
+                nb = jax.lax.top_k(-d, M // Q + 1 + rn.knn_offset)[1][:, 1 + rn.knn_offset:]
+                filler = pool[nb].reshape(B, M, PIX)
+                qry = qry.reshape(B, Q, PIX)
+            else:   # "class" — the whole episode is one digit class
+                kc, kp = jax.random.split(kq)
+                c = jax.random.randint(kc, (B, 1), 0, ctab.shape[0])
+                pos = jax.random.randint(kp, (B, M + Q), 0, ctab.shape[1])
+                idx = jnp.take_along_axis(ctab[c[:, 0]], pos, axis=1)
+                # Sampled with replacement, so a query lands in the filler about
+                # M/n_min ~ 0.3% of the time. Same order as the iid path's
+                # collision rate and left alone for the same reason.
+                filler, qry = pool[idx[:, :M]], pool[idx[:, M:]]
+
+            slots = jnp.argsort(jax.random.uniform(ks, (B, M)), axis=1)[:, :Q]
+            bi = jnp.arange(B)[:, None]
+            present = filler.at[bi, slots].set(qry)
+            if gen_frac == 0.0:
+                return present, qry
+            if gen_frac == 1.0:
+                return filler, qry
+            use = (jax.random.uniform(kg, (B, 1, 1)) < gen_frac)
+            return jnp.where(use, filler, present), qry
 
         def sample(k):
-            kc, kq, kf, kg = jax.random.split(k, 4)
+            kc, kq, kf, kg, ka, kb = jax.random.split(k, 6)
             ctx = pool[jax.random.randint(kc, (B, M), 0, n)]              # (B,M,784)
+            if rn.augment_train:
+                # Warp before the target is selected, so the target-present query
+                # is the augmented context image exactly — recall stays exact and
+                # only the pool's finiteness is removed.
+                ctx = warp(ka, ctx.reshape(B * M, PIX)).reshape(B, M, PIX)
             sel = jax.random.randint(kq, (B, Q), 0, M)
             from_ctx = jnp.take_along_axis(ctx, sel[..., None], axis=1)   # target present
             fresh = pool[jax.random.randint(kf, (B, Q), 0, n)]            # target absent
+            if rn.augment_train:
+                fresh = warp(kb, fresh.reshape(B * Q, PIX)).reshape(B, Q, PIX)
             if gen_frac == 0.0:
                 return ctx, from_ctx
             if gen_frac == 1.0:
@@ -110,9 +179,11 @@ def make_block(rn: Run, opt, mask):
             use = (jax.random.uniform(kg, (B, 1, 1)) < gen_frac)
             return ctx, jnp.where(use, fresh, from_ctx)
 
+        draw = sample if rn.ctx_mode == "iid" else structured_sample
+
         def step(carry, k):
             p, st = carry
-            ctx, qry = sample(k)
+            ctx, qry = draw(k)
             loss, g = jax.value_and_grad(
                 lambda pp: masked_mse(predict(pp, ctx, qry, mask, cfg), qry, mask))(p)
             up, st = opt.update(g, st, p)
@@ -199,13 +270,17 @@ def run(rn: Run, make_figs: bool = True) -> dict:
         return {}
 
     t0 = time.perf_counter()
-    pools_np, _ = build_pools(rn)
+    assert not (rn.augment_train and rn.ctx_mode != "iid"), \
+        "augmentation and structured contexts have not been combined — the warp " \
+        "would move an image away from the neighbours it was chosen for"
+    pools_np, labels_np = build_pools(rn)
     mask = jnp.array(row_mask(rn.mask_rows))
     mean_img = pools_np["train"].mean(0)
     logging.info(f"pools: train={pools_np['train'].shape} held={pools_np['held'].shape}")
 
     ev = evalsets.build(pools_np, np.asarray(mask), rn.M, rn.Q, rn.n_eval,
-                        mean_img, conditions=rn.conditions)
+                        mean_img, conditions=rn.conditions, ctx_mode=rn.ctx_mode,
+                        labels=labels_np, knn_offset=rn.knn_offset)
     for c, es in ev.items():
         logging.info(f"  {c:<16} mse_mean={es.mse_mean:.4f}  mse_lookup={es.mse_nn:.4f}"
                      f"  (ratio {es.mse_nn / es.mse_mean:.3f})")
@@ -236,7 +311,8 @@ def run(rn: Run, make_figs: bool = True) -> dict:
     opt = optax.chain(optax.clip_by_global_norm(1.0), optax.adamw(sched, weight_decay=0.01))
     st = opt.init(p)
 
-    block = make_block(rn, opt, mask)
+    block = make_block(rn, opt, mask,
+                       class_table(labels_np["train"]) if rn.ctx_mode == "class" else None)
     eval_fn = make_eval(rn, mask)
 
     hist = {"step": [], "loss": [],

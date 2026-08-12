@@ -1,5 +1,13 @@
 # Recall-Gen — what to do next
 
+> **Status.** Steps 1–4 of the sequencing table below are done — A1, A2, the B1
+> gate and the B1 triad. Results and what they decided are in
+> [reports/06](reports/06-plan-phase-a-b1.md); the short version is that A1's
+> floor was hiding a real result, A2 came out on a branch the table did not list,
+> and B1's prediction held, so the paper's scope correction is now owed rather
+> than merely pending. What remains below is C1, B2 and Phase D — and the
+> §"Decisions taken" order needs rereading in light of B1 having landed.
+
 Written after the first phase (18 training runs, 2 transfer evaluations, paper
 published). This is a plan, not a report: the numbers below are either already
 measured — in which case they are cited — or predictions, in which case they are

@@ -165,6 +165,49 @@ def build_tokens(ctx, qry_full, mask):
     return pix, msk, is_ctx
 
 
+def augment(key, x, max_shift=2.0, max_rot=15.0, scale=(0.9, 1.1),
+            elastic=1.5, grid=4):
+    """Independent random warp of each image in (N, 784) — the A2 instrument.
+
+    A random affine (rotation, isotropic scale, translation) plus a
+    low-frequency elastic displacement, sampled per image and resampled
+    bilinearly. Applied to the training pool it makes the pool effectively
+    infinite: no image is ever presented twice, so a model cannot reach a low
+    recall loss by memorising the pool and must key on the episode's context.
+
+    Coordinates are clipped rather than zero-padded at the border; MNIST margins
+    are black, so the two agree, and clipping keeps the gather in bounds.
+    """
+    N = x.shape[0]
+    im = x.reshape(N, SIDE, SIDE)
+    k_rot, k_scale, k_shift, k_el = jax.random.split(key, 4)
+    c = (SIDE - 1) / 2.0
+
+    th = jax.random.uniform(k_rot, (N, 1, 1), minval=-max_rot, maxval=max_rot) * jnp.pi / 180.0
+    s = jax.random.uniform(k_scale, (N, 1, 1), minval=scale[0], maxval=scale[1])
+    sh = jax.random.uniform(k_shift, (N, 2, 1, 1), minval=-max_shift, maxval=max_shift)
+
+    yy, xx = jnp.meshgrid(jnp.arange(SIDE) - c, jnp.arange(SIDE) - c, indexing="ij")
+    cos, sin = jnp.cos(th), jnp.sin(th)
+    xs = (cos * xx + sin * yy) / s + c + sh[:, 0]
+    ys = (-sin * xx + cos * yy) / s + c + sh[:, 1]
+
+    d = jax.random.normal(k_el, (N, 2, grid, grid))
+    d = jax.image.resize(d, (N, 2, SIDE, SIDE), "bilinear") * elastic
+    xs, ys = xs + d[:, 0], ys + d[:, 1]
+
+    x0 = jnp.floor(xs)
+    y0 = jnp.floor(ys)
+    wx, wy = xs - x0, ys - y0
+    ix = lambda t: jnp.clip(t.astype(jnp.int32), 0, SIDE - 1)
+    x0i, x1i, y0i, y1i = ix(x0), ix(x0 + 1), ix(y0), ix(y0 + 1)
+    n = jnp.arange(N)[:, None, None]
+    g = lambda yi, xi: im[n, yi, xi]
+    out = ((1 - wy) * ((1 - wx) * g(y0i, x0i) + wx * g(y0i, x1i))
+           + wy * ((1 - wx) * g(y1i, x0i) + wx * g(y1i, x1i)))
+    return out.reshape(N, PIX)
+
+
 def predict(p, ctx, qry_full, mask, cfg: Cfg):
     """Model prediction for the Q query tokens only: (B,Q,784)."""
     M = ctx.shape[1]
