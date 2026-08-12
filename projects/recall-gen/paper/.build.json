@@ -1,6 +1,6 @@
 {
   "name": "recall-gen_paper",
-  "published_at": "2026-08-12 03:33 UTC",
+  "published_at": "2026-08-12 03:39 UTC",
   "stable": true,
   "urls": {
     "page": "https://media.tanh.xyz/seewhy/paper/recall-gen_paper.html",
@@ -13,6 +13,7 @@
     "assets/divergence.json": "dbdc89299212fbc9",
     "assets/length_transfer.json": "dc882d8f13073712",
     "assets/state_size.json": "d004d5d12c37be8c",
+    "diagrams/architecture.svg": "b26821e833990ec5",
     "figures/condition_bars.typ": "a51ab1675897b261",
     "figures/context_size.typ": "d0533cd70cca91d0",
     "figures/dataset_transfer.typ": "d5a2fc456ca74783",
@@ -23,7 +24,7 @@
     "sections/01-introduction.typ": "82c2741858c6d1f7",
     "sections/02-background.typ": "44a4fda1da5c891f",
     "sections/03-task.typ": "d4d614b568d35a5e",
-    "sections/04-methodology.typ": "7579209c2139cac5",
+    "sections/04-methodology.typ": "2b95f1fc7e6d921d",
     "sections/05-experiments.typ": "907c3b6fe24d32c7",
     "sections/06-results.typ": "e44102fae6a26b3b",
     "sections/07-analysis.typ": "a1890f67414048e9",

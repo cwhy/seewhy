@@ -24,6 +24,15 @@
 
 == The model
 
+#fig(image("/diagrams/architecture.svg", width: 100%), caption: [
+  The architecture. *(a)* An episode. The $M$ context images write into the
+  recurrent state; the $Q$ masked queries only read from it, and the state is
+  fixed at 16 384 numbers however large $M$ is — so it is both the only route
+  from context to query and a bottleneck that tightens as the context grows.
+  *(b)* The stack every token passes through, and one layer expanded. The state
+  is written and read once per layer, and the four layers do not share one.
+])
+
 Each token — a context image or a masked query — is first turned into a vector
 of width $d$ by two learned linear maps, one applied to the 784 pixel values and
 one to the 784-entry binary mask, plus a learned vector marking whether the
