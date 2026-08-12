@@ -64,39 +64,62 @@ def rows():
 
 
 def length_transfer(R, name="recallgen_length_transfer"):
+    """Three panels, because the first one on its own is misleading.
+
+    Identification accuracy has a chance level of 1/M, which moves by a factor
+    of 64 across this axis: 0.25 at M=4 and 0.0039 at M=256. An earlier version
+    of this figure drew a single chance line and made the fall from 1.000 to
+    0.322 look like a collapse, when 0.322 against a chance of 0.0039 is 82x
+    chance. The chance curve is now plotted as its own series on a log axis, and
+    `gain` — which needs no chance level — sits beside it as the metric that
+    actually says how much retrieval is left.
+    """
     t = R["transfer_length"]
     Ms = [int(m) for m in t["lengths"]]
     x = np.arange(len(Ms))
 
-    fig, axes = plt.subplots(1, 2, figsize=(9.2, 3.9))
+    fig, axes = plt.subplots(1, 3, figsize=(12.4, 3.9))
     for mk, (label, colour) in MODEL_STYLE.items():
-        idb = [t["transfer"][mk][str(m)]["metrics"]["B_novel_present"]["id_acc"]
-               for m in Ms]
-        d = [t["transfer"][mk][str(m)]["metrics"]["D_novel_absent"]["nmse"] for m in Ms]
-        trained_at = t["trained_at"][mk]
-        for ax, ys in ((axes[0], idb), (axes[1], d)):
-            ax.plot(x, ys, color=colour, lw=2, marker="o", ms=7, zorder=3)
-            # a ring on the size the model was actually trained at
-            j = Ms.index(trained_at)
-            ax.plot([x[j]], [ys[j]], marker="o", ms=13, mfc="none",
-                    mec=colour, mew=2, zorder=4)
-        axes[0].plot([], [], color=colour, lw=2, marker="o", ms=7, label=label)
+        met = lambda M, c, k: t["transfer"][mk][str(M)]["metrics"][c][k]
+        idb = [met(M, "B_novel_present", "id_acc") for M in Ms]
+        gain = [t["transfer"][mk][str(M)]["gain"] for M in Ms]
+        d = [met(M, "D_novel_absent", "nmse") for M in Ms]
+        j = Ms.index(t["trained_at"][mk])
+        for ax, ys in zip(axes, (idb, gain, d)):
+            ax.plot(x, ys, color=colour, lw=2, marker="o", ms=7, zorder=3,
+                    label=label)
+            ax.plot([x[j]], [ys[j]], marker="o", ms=13, mfc="none", mec=colour,
+                    mew=2, zorder=4)
 
     ax = axes[0]
-    ax.axhline(1 / 16, color=MUTED, lw=1.0, ls=(0, (4, 3)), zorder=2)
-    ax.set_ylim(0, 1.1)
-    ax.set_ylabel("identification accuracy\n(dashed line = chance at M=16)")
-    ax.set_title("finding an image that IS in the context", fontsize=9.5,
-                 color=INK, loc="left")
-    ax.legend(loc="lower left", bbox_to_anchor=(0.02, 0.03))
+    ax.plot(x, [1 / m for m in Ms], color=MUTED, lw=1.4, ls=(0, (4, 3)),
+            marker="o", ms=5, zorder=2, label="chance (1/M)")
+    ax.set_yscale("log"); ax.set_ylim(2e-3, 2.0)
+    ax.set_ylabel("identification accuracy (log scale)")
+    ax.set_title("does the output land on the right\nspecific context image?",
+                 fontsize=9.5, color=INK, loc="left")
+    ax.legend(loc="lower left", bbox_to_anchor=(0.0, 0.0), fontsize=7.8)
 
     ax = axes[1]
+    ax.axhline(0.0, color=MUTED, lw=1.0, ls=(0, (4, 3)), zorder=2)
+    ax.annotate("zero = the context is not being read", xy=(0.98, 0.0),
+                xycoords=("axes fraction", "data"), xytext=(0, 5),
+                textcoords="offset points", fontsize=8, color=MUTED, ha="right")
+    ax.set_ylim(-0.12, 0.95)
+    ax.set_ylabel("gain — what the answer\nbeing present is worth")
+    ax.set_title("is it retrieving at all?", fontsize=9.5, color=INK, loc="left")
+
+    ax = axes[2]
     ax.axhline(1.0, color=MUTED, lw=1.0, ls=(0, (4, 3)), zorder=2)
+    ax.annotate("predict the average digit", xy=(0.98, 1.0),
+                xycoords=("axes fraction", "data"), xytext=(0, 5),
+                textcoords="offset points", fontsize=8, color=MUTED, ha="right")
     ax.set_ylim(0.3, 1.12)
-    ax.set_ylabel("completion error\n(dashed line = predict the average digit)")
-    ax.set_title("completing one that is NOT", fontsize=9.5, color=INK, loc="left")
-    ax.annotate("the ring marks the size\neach model trained at",
-                xy=(0.03, 0.06), xycoords="axes fraction", fontsize=8, color=MUTED)
+    ax.set_ylabel("completion error, answer absent")
+    ax.set_title("and how well does it complete?", fontsize=9.5, color=INK,
+                 loc="left")
+    ax.annotate("ring = the size each\nmodel trained at", xy=(0.03, 0.05),
+                xycoords="axes fraction", fontsize=8, color=MUTED)
 
     for ax in axes:
         ax.set_xticks(x); ax.set_xticklabels([str(m) for m in Ms])

@@ -7,37 +7,47 @@
 
 = Conclusion
 
-Trained on retrieval alone, a model with a fixed-size memory learns a retrieval
-mechanism that is genuinely general — it works on images it has never seen, and
-on digit classes it has never seen, at perfect identification accuracy. That is
-the whole of what it learns. Asked to complete an image that is not in its
-context, the same model does worse than a linear regression fitted on its own
-training data, and it gets worse at it as its retrieval improves. Training on a
-mixture instead reaches the full completion ceiling while keeping most of the
-retrieval, so this is not two abilities competing for one memory. A retrieval
-objective simply never asks for the other one, and at the context sizes where
-retrieval is possible there is nothing in the context to ask for: the best
-achievable use of sixteen context images, on a query they do not contain, scores
-exactly as well as ignoring them.
+Trained on retrieval alone, a model with a fixed-size memory learns a similarity
+metric and nothing else. The metric is genuinely general in one direction — it
+retrieves images it has never seen, and digit classes it has never seen, at
+perfect identification — and it is not general in another: it drops to 0.651 on
+Fashion-MNIST and to 0.116, near chance, on MNIST images whose pixels have been
+permuted, which are the same pixels with the same statistics and the same
+pairwise distances. Nothing the model learns is free of its training data. What
+distinguishes the two things it *could* learn is granularity: individual images,
+which transfer nowhere, or a metric over the distribution, which transfers within
+it. Asked to complete an image that is not in its context, the model does worse
+than a linear regression fitted on its own training data, and gets worse at it as
+its retrieval improves. Training on a mixture reaches the full completion ceiling
+while keeping most of the retrieval, so this is not two abilities competing for
+one memory — a retrieval objective simply never asks for the other one, and at the
+context sizes where retrieval is possible there is nothing in the context to ask
+for: the best achievable use of sixteen context images, on a query they do not
+contain, scores exactly as well as ignoring them.
 
-The apparent counter-example dissolves on inspection. Enlarging the context does
-improve the model's completions — and it improves them by destroying the
-retrieval. At 256 context images the recall-trained model gains nothing from
-having the answer in front of it (0.004, against 0.835 at 16), scores four times
-better on images from its training pool than on novel ones, and lands on exactly
-the ceiling that a completion-trained model reaches. Two opposite objectives
-converge on one solution: memorise the distribution in the weights and ignore
-the context. Shrinking the memory while holding the context fixed reproduces the
-same trade, which is what rules out the alternative explanation that a larger
-context was simply more informative. Generalisation did not emerge from
-retrieval here; it appeared in the place retrieval vacated.
+The apparent counter-example dissolves twice over. Enlarging the context does
+improve completion — and it does so by destroying the retrieval: at 256 context
+images the model gains 0.004 from having the answer present, against 0.835 at 16,
+scores four times better on images from its training pool than on novel ones, and
+lands on exactly the ceiling a completion-trained model reaches. Shrinking the
+memory at fixed context reproduces the same trade, which rules out the reading in
+which a larger context is simply more informative. And the effect does not exist
+at inference at all: handed 256 images, the model trained at 16 gets *worse*
+(0.942, against 0.561 for a model trained there), while the model trained at 256
+does not recover retrieval when handed a context small enough to fit. The two
+solutions are separate attractors, chosen at training time.
 
-Two directions follow specifically. The digit-split result — perfect retrieval
+Three directions follow specifically. The digit-split result — perfect retrieval
 and chance-level completion on the same unseen digits — is the cleanest
-separation in the paper and deserves a harder dataset, where retrieval is not
-nearly free. And the state-size sweep stops short of the collapse: it changes
-the trade in direction but never breaks retrieval, so where exactly the
-transition sits, and whether it is sharp, is unmeasured.
+separation here and deserves a harder dataset where retrieval is not nearly free.
+The transfer numbers give a broader-training programme its targets: 0.651 is the
+soft one, and 0.116 the hard one, since moving it requires a similarity metric
+not tied to spatial layout — which may not even be desirable, spatial structure
+being real information. And the sharpest untested question is whether the recall
+objective can be made to yield knowledge at all: give the context pool unlimited
+fresh images so that memorising individual ones is impossible, and at $M = 256$
+the model must either learn a transferable prior or fail outright. Which of those
+happens is the number this paper most conspicuously lacks.
 
 = Appendix: reproduction <appendix-repro>
 

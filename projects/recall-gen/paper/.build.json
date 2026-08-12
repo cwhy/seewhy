@@ -1,30 +1,34 @@
 {
   "name": "recall-gen_paper",
-  "published_at": "2026-08-11 19:32 UTC",
+  "published_at": "2026-08-12 02:38 UTC",
   "stable": true,
   "urls": {
     "page": "https://media.tanh.xyz/seewhy/paper/recall-gen_paper.html",
     "pdf": "https://media.tanh.xyz/seewhy/paper/recall-gen_paper.pdf"
   },
   "files": {
-    "assets/condition_bars.json": "c12ccc16e409fffa",
+    "assets/condition_bars.json": "e36e8320c0ff29b7",
     "assets/context_size.json": "c37e3bf878838bf6",
+    "assets/dataset_transfer.json": "eed72f4d0a28c97c",
     "assets/divergence.json": "dbdc89299212fbc9",
+    "assets/length_transfer.json": "dc882d8f13073712",
     "assets/state_size.json": "d004d5d12c37be8c",
     "figures/condition_bars.typ": "a51ab1675897b261",
     "figures/context_size.typ": "d0533cd70cca91d0",
+    "figures/dataset_transfer.typ": "d5a2fc456ca74783",
     "figures/divergence.typ": "6a986c5e6d53b38c",
+    "figures/length_transfer.typ": "d164b8a9bc9e10fe",
     "figures/state_size.typ": "0b951b03851f6ac4",
-    "main.typ": "4ee62e3dde44d2c7",
-    "sections/01-introduction.typ": "59ff557eb7d950b1",
+    "main.typ": "0c80720d7fdf2429",
+    "sections/01-introduction.typ": "be220c83132882ac",
     "sections/02-background.typ": "44a4fda1da5c891f",
     "sections/03-task.typ": "1c24d649f904104d",
     "sections/04-methodology.typ": "7579209c2139cac5",
-    "sections/05-experiments.typ": "6c4b666ee1c50793",
-    "sections/06-results.typ": "4b2942b300d2eb85",
-    "sections/07-analysis.typ": "c7d7c510a27a932f",
-    "sections/08-limitations.typ": "e57984a0775ea897",
-    "sections/09-conclusion.typ": "9ba4d2caa7a1ebd8",
+    "sections/05-experiments.typ": "f42699b5503b57f0",
+    "sections/06-results.typ": "71eab519426abb33",
+    "sections/07-analysis.typ": "35fd2468ca13ccde",
+    "sections/08-limitations.typ": "03808b4d1e97de72",
+    "sections/09-conclusion.typ": "c90807caef708f8b",
     "template.typ": "b5ac382cce4cfec4"
   }
 }

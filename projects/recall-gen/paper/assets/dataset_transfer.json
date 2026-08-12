@@ -1,0 +1,14 @@
+{
+ "pool": [
+  "held-out MNIST",
+  "Fashion-MNIST",
+  "MNIST, pixels permuted",
+  "random fields"
+ ],
+ "id_acc": [
+  1.0,
+  0.6513671875,
+  0.1162109375,
+  0.2216796875
+ ]
+}

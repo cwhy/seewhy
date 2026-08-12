@@ -168,6 +168,11 @@ def build_figures(rows: dict[str, dict]) -> list[Figure]:
     if len(st) > 1:
         figs.append(state_size(st))
 
+    if "transfer_length" in rows:
+        figs.append(length_transfer(rows["transfer_length"]))
+    if "transfer_dataset" in rows:
+        figs.append(dataset_transfer(rows["transfer_dataset"]))
+
     modes = {lbl: rows[e] for lbl, e in
              (("recall only", "exp1"), ("completion only", "exp2"), ("mixed", "exp3"))
              if e in rows}
@@ -175,3 +180,52 @@ def build_figures(rows: dict[str, dict]) -> list[Figure]:
         figs.append(condition_bars(modes))
 
     return figs
+
+
+def length_transfer(row: dict, name: str = "length_transfer") -> Figure:
+    """Gain against TEST-time context size, for models trained at different sizes.
+
+    Only gain is plotted, not identification accuracy: accuracy's chance level is
+    1/M, which falls 64-fold across this axis, so the two cannot share a panel
+    honestly. Gain needs no chance level. The markdown report carries the fuller
+    three-panel version.
+    """
+    Ms = [int(m) for m in row["lengths"]]
+    label = {"recall_M16": "trained on recall, 16 in context",
+             "recall_M256": "trained on recall, 256 in context",
+             "complete_best": "trained to complete"}
+    series = {label[mk]: [row["transfer"][mk][str(m)]["gain"] for m in Ms]
+              for mk in label if mk in row["transfer"]}
+    data = long_form(Ms, series, x_name="M", y_name="gain", series_name="model")
+    return line_chart(
+        name, data,
+        x="M", y="gain", colour="model", points=True, log_x=True,
+        x_label="context images at test time (log scale)", y_label="gain",
+        colour_label="",
+        hlines=[(0.0, "the context is not being read")],
+        width=cm(13), height=cm(7.5),
+        alt="Gain against test-time context size for three trained models. The "
+            "model trained at 16 stays well above zero until 256; the models "
+            "trained at 256 and on completion sit on zero throughout.",
+    )
+
+
+def dataset_transfer(row: dict, name: str = "dataset_transfer") -> Figure:
+    """How far the recall-trained model's matching ability travels off MNIST."""
+    t = row["transfer"]["recall_M16"]
+    tags = ["mnist", "fashion", "shuffled", "noise"]
+    nice = {"mnist": "held-out MNIST", "fashion": "Fashion-MNIST",
+            "shuffled": "MNIST, pixels permuted", "noise": "random fields"}
+    return bar_chart(
+        name,
+        {"pool": [nice[k] for k in tags],
+         "id_acc": [t[k]["metrics"]["B_novel_present"]["id_acc"] for k in tags]},
+        x="pool", y="id_acc", x_order=[nice[k] for k in tags],
+        x_label="what the 16 context images are",
+        y_label="identification accuracy",
+        y_limits=(0.0, 1.05),
+        hlines=[(1 / 16, "chance")],
+        width=cm(13), height=cm(6.5),
+        alt="Identification accuracy of one recall-trained model on four image "
+            "pools, with a chance reference line at 0.063.",
+    )

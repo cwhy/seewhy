@@ -61,9 +61,16 @@ against the 0.561 that a model *trained* there reaches. Giving it a large
 context at inference buys nothing, because there was never anything in it to
 use.
 
-Its retrieval degrades over the same range exactly as the capacity hypothesis
-predicts: identification accuracy 1.000 → 1.000 → 0.876 → 0.322 as the state is
-asked to hold more than it ever had to.
+Its retrieval degrades over the same range, which the capacity hypothesis
+predicts — but the size of that degradation is easy to overstate, and an earlier
+version of the figure above did. Identification accuracy runs 1.000 → 1.000 →
+0.876 → 0.322, and **chance runs 0.250 → 0.063 → 0.016 → 0.004 alongside it**,
+because chance is 1/M. At M=256, 0.322 is 82× chance, not a collapse.
+
+`gain` is the metric without that problem — it needs no chance level — and it
+runs +0.676 → +0.834 → +0.715 → +0.175. So the model is still retrieving
+something at a context sixteen times larger than it trained on, and the honest
+statement is that retrieval degrades substantially rather than fails.
 
 **So the M=256 result is entirely a training-time selection effect.** Long
 contexts do not unlock anything at inference; they change which solution gradient
@@ -101,8 +108,10 @@ ability and how much is MNIST?
 
 Four pools of increasing distance from the training distribution, all 28×28 in
 [0,1], all evaluated with the same model (trained on recall at M=16) and the same
-16-image context size. Identification accuracy is the metric because it needs no
-normaliser and so is comparable across pools that have nothing else in common.
+16-image context size. Identification accuracy is the metric here because it needs no normaliser and so
+is comparable across pools that have nothing else in common — and unlike the
+length experiment, M is fixed at 16 throughout, so its chance level is a
+constant 0.063 in every column.
 
 ![identification accuracy across four image pools](https://media.tanh.xyz/seewhy/26-08-12/recallgen_dataset_transfer.png)
 

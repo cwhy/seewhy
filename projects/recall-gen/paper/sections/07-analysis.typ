@@ -6,22 +6,50 @@
 
 = Analysis
 
-== Why retrieval transfers for free
-
-Retrieval generalising to unseen images is the least surprising result here, and
-it is worth saying why so that it is not mistaken for a strong claim.
+== What retrieval training actually learns, and how far it travels
 
 The delta-rule state is a content-addressed table. A context image is written
 under a key computed from its own pixels, and a query reads with a key computed
 from its visible pixels. Nothing in that circuit refers to *which* image is being
-stored — only to what it looks like. A mechanism built out of "compute a key from
-the input, match, read" has no place to put a memorised identity, so it applies
-unchanged to inputs it has never met.
+stored — only to what it looks like, so there is no slot in it for a memorised
+identity, and it applies unchanged to images the model has never met. The digit
+split confirms it: identification accuracy is 1.000 on digit classes the model
+never saw in training. Whatever the keys encode, it is not digit identity.
 
-The digit split makes the point sharply: identification accuracy is 1.000 on
-digit classes the model never saw in training. Whatever the keys encode, it is
-not digit identity. This is generalisation in the sense that the *mechanism*
-transfers — and it is exactly the sense in which retrieval is cheap.
+It is tempting to stop there and conclude that the mechanism is
+distribution-free. It is not, and the difference matters enough to state
+carefully.
+
+A key is a *learned* map from 784 pixels to a 64-number address. What makes two
+images land at different addresses is a similarity metric, and that metric was
+fitted to MNIST. Fashion-MNIST — still grayscale, still centred, still
+28 #sym.times 28 — drops identification to 0.651. MNIST under a single fixed
+pixel permutation drops it to 0.116, against chance 0.063, even though the
+permuted images have the same pixels, the same marginal statistics and the same
+pairwise distances, so a nearest-neighbour matcher on raw pixels would score
+identically on both pools. The entire gap between 1.000 and 0.116 is the learned
+encoder's dependence on MNIST's spatial layout.
+
+So *neither* of the two things a model can learn here is free of its training
+data. They differ in **granularity**:
+
+#align(center, table(
+  columns: 3, stroke: none, align: (left, left, left), inset: 5pt,
+  table.hline(stroke: rule),
+  [*what is stored in the weights*], [*granularity*], [*how far it travels*],
+  table.hline(stroke: rule),
+  [individual images], [one entry per training image],
+  [nowhere: 0.134 on training-pool images against 0.561 on novel ones],
+  [a similarity metric], [one function for the distribution],
+  [within the distribution: 1.000 across digit classes, 0.651 across datasets,
+   0.116 once spatial layout is destroyed],
+  table.hline(stroke: rule),
+))
+
+"Retrieval generalises" therefore means the coarse-grained thing transfers within
+the distribution it was fitted to. That is a real and useful property — it is
+what lets the mechanism work on unseen classes — but it is not freedom from the
+training data, and it cannot be assumed to survive a change of domain.
 
 == Why completion decays as retrieval sharpens
 
@@ -95,6 +123,26 @@ the large-context run 0.658, so how many items must be told apart matters
 alongside how many numbers are available to tell them apart with. Both are
 properties of the memory rather than of the context, which is what the argument
 needs, but the two knobs are not interchangeable and we do not claim they are.
+
+== Why a bigger context at inference changes nothing
+
+If large contexts carried usable signal, a model trained at $M = 16$ should
+extract some of it when handed 256 images. It extracts none: its completion error
+*rises* to 0.942 while a model trained at 256 reaches 0.561 on the same task. And
+the reverse fails too — the model trained at 256 does not recover retrieval when
+handed a context of 4, where the state has sixteen-fold spare capacity.
+
+Both follow from the two-route account. The short-trained model took route A and
+never built route B, so a larger context has nothing to unlock; all it does is
+overload a memory that was tuned for sixteen items, which is why the error climbs
+towards the mean-image line rather than staying flat. The long-trained model took
+route B and never built route A, so a smaller context does not give it anything
+to read — its error is flat to within 0.02 across a 64-fold change in context
+size, which is what a model that ignores its input entirely looks like.
+
+The two are separate attractors. Training selects one; inference-time context
+size does not move between them. Any account in which context length is the
+operative variable *at inference* predicts otherwise and is ruled out.
 
 == Why nothing crosses the digit split
 

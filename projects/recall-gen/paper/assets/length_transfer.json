@@ -1,0 +1,44 @@
+{
+ "M": [
+  4,
+  16,
+  64,
+  256,
+  4,
+  16,
+  64,
+  256,
+  4,
+  16,
+  64,
+  256
+ ],
+ "gain": [
+  0.6759542052264585,
+  0.8336394383275763,
+  0.714633775318797,
+  0.17507047358800698,
+  -0.011455300652170819,
+  -0.0016045315370880608,
+  -0.001967434684477465,
+  -0.0142224663398961,
+  -0.014948221472428136,
+  -0.005251525064202123,
+  -0.003435882753089259,
+  -0.013074920237693688
+ ],
+ "model": [
+  "trained on recall, 16 in context",
+  "trained on recall, 16 in context",
+  "trained on recall, 16 in context",
+  "trained on recall, 16 in context",
+  "trained on recall, 256 in context",
+  "trained on recall, 256 in context",
+  "trained on recall, 256 in context",
+  "trained on recall, 256 in context",
+  "trained to complete",
+  "trained to complete",
+  "trained to complete",
+  "trained to complete"
+ ]
+}

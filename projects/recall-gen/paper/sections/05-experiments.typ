@@ -55,6 +55,16 @@ digits the training pool contains.
 
   [exp10, exp11, exp12], [seed replicates], [`experiments{10,11,12}.py`],
   [Seed variance on the two headline configurations.],
+
+  [`transfer_length`], [evaluation only], [`scripts/eval_transfer.py`],
+  [Is the large-context result a property of large contexts at inference, or of
+   training at large context? The architecture has no length-dependent
+   parameters, so this needs no retraining.],
+
+  [`transfer_dataset`], [evaluation only], [`scripts/eval_transfer.py`],
+  [How far does the learned similarity metric travel? Four pools at increasing
+   distance from MNIST, including one that is MNIST under a fixed pixel
+   permutation — the same pixels, the same statistics, no spatial structure.],
   table.hline(stroke: rule),
 ))
 
@@ -80,6 +90,12 @@ whether the context images come from the training pool. A model that has
 memorised its training images scores far better on C than on D. This is not a
 hypothetical: it is what both completion-trained runs do, and it is why "the
 ceiling" in this paper is quoted from D and not from C.
+
+*A metric immune to the obvious confound.* Identification accuracy is inflated
+by models that never retrieve — a good completion picks the right neighbour by
+itself — and its chance level is $1 slash M$, which moves 64-fold across the
+context sizes used here. Every claim about *whether a model retrieves* is made
+with #m[gain] instead, which has neither problem.
 
 *Shared evaluation episodes.* All runs are scored on the same 512 episodes per
 condition, drawn once from a fixed seed. Differences between runs therefore

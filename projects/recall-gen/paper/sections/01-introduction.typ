@@ -11,12 +11,12 @@ correctly. This is called #gloss[in-context learning][solving a task from
 examples supplied in the input, with no change to the model's weights], and it
 is the property that makes such models useful without retraining.
 
-There is a long-running argument about what is actually happening. One view is
-that the model is *learning* from the examples — extracting a rule and applying
-it to a case it has not seen. The other is that it is *retrieving* — finding the
-example most like the query and reusing its answer. The two are hard to tell
-apart in language, because a model that has read a large fraction of the
-internet has usually seen something close to whatever you ask.
+There is a long-running argument about what is happening. One view is that the
+model is *learning* from the examples — extracting a rule and applying it to a
+case it has not seen. The other is that it is *retrieving* — finding the example
+most like the query and reusing its answer. The two are hard to tell apart in
+language, because a model that has read a large fraction of the internet has
+usually seen something close to whatever you ask.
 
 This paper takes the question somewhere the ambiguity can be removed. We build a
 task where retrieval and generalisation are *mutually exclusive by
@@ -40,6 +40,36 @@ it. That state is the only route from the context to the answer, and it does not
 grow with $M$ — so raising $M$ is a way of *forcing* the model out of retrieval
 and into whatever else it can do.
 
+== What the answer turns out to be
+
+Stated once, plainly, because the rest of the paper is the evidence for it:
+
+#callout(title: [The finding])[
+  Retrieval training produces a *similarity metric*, not knowledge. The metric is
+  general enough to work on images the model has never seen, and even on digit
+  classes it has never seen — but it is a metric fitted to the training
+  distribution, not a distribution-free one, and it carries nothing usable when
+  there is nothing to match. Where a recall-trained model *appears* to start
+  generalising, it has stopped retrieving.
+]
+
+Two things in that statement need guarding against misreading, and both are
+measured rather than asserted.
+
+*"General" is bounded.* It is tempting to say a content-addressed mechanism has
+nowhere to put a memorised identity and therefore applies to any input. That is
+false here. The same model that identifies unseen digits at 1.000 identifies
+Fashion-MNIST items at 0.651, and MNIST images under a fixed pixel permutation —
+literally the same pixels, with the same statistics and the same pairwise
+distances — at 0.116, against a chance level of 0.063. Nothing the model learned
+is free of its training data. What differs between the two things it could learn
+is *granularity*: individual images, which transfer nowhere, or a similarity
+metric over the distribution, which transfers within it.
+
+*"Stopped retrieving" is not a figure of speech.* At a context of 256 images the
+recall-trained model gains 0.004 from having the answer present, against 0.835 at
+16 — the same 0.00 that models trained never to retrieve post.
+
 == Contributions
 
 + *A task that separates retrieval from generalisation cleanly*, with four
@@ -47,37 +77,30 @@ and into whatever else it can do.
   best possible soft look-up from the context, which bounds what any mechanism
   can extract from the context alone (§3, §4).
 
-+ *Retrieval generalises perfectly and for free.* A model trained only to
-  retrieve images from its training pool retrieves images it has never seen
-  equally well — identification accuracy 1.000 on both, with no measurable
-  penalty. The mechanism is content-addressed, not a memorised table (§6).
++ *A metric that survives the confound.* Identification accuracy, the obvious
+  measure, is inflated by models that never retrieve: a good completion picks the
+  right neighbour on its own. We use #m[gain], the difference in error between
+  otherwise-identical episodes whose answer is present or absent, and show it
+  separates the two mechanisms where accuracy does not (§4, §6).
 
-+ *Retrieval training does not produce completion ability; it consumes it.* On
-  queries whose answer is absent, a recall-trained model ends at 0.852 — worse
-  than a plain linear regression fitted on the same data and ignoring the context
-  entirely (0.645) — and it gets *worse* through training, from 0.635 at step 500
-  as its retrieval improves. Training on a half-and-half mixture instead reaches
-  the full completion ceiling at no cost to it, so the two abilities are not
-  competing for the same capacity: the recall objective simply supplies no
-  gradient toward completion (§6).
++ *Retrieval training does not produce completion ability; it consumes it.* A
+  recall-trained model ends at 0.852 on queries whose answer is absent — worse
+  than a linear regression that ignores the context entirely (0.645) — and gets
+  worse through training, from 0.635 at step 500, as its retrieval sharpens.
+  Training on a half-and-half mixture reaches the full completion ceiling at no
+  cost, so the two are not competing for capacity: the recall objective supplies
+  no gradient toward completion (§6).
 
-+ *The two abilities are not two grades of one thing.* Under a digit split
-  (train on 0–4, test on 5–9), the recall-trained model retrieves digits it has
-  never seen with identification accuracy 1.000 while completing those same
-  digits at 1.006 — the level of predicting the average image. The retrieval
-  machinery transfers completely across the split and the generalisation
-  machinery does not transfer at all (§6, §7).
++ *Generalisation appears exactly when retrieval fails.* Across a context sweep,
+  completion improves only as retrieval collapses, and at the largest context the
+  model has converged on the same weight-memorised solution a completion
+  objective finds. Shrinking the *memory* at fixed context reproduces the trade
+  on identical episodes, which separates capacity from information (§6, §7).
 
-+ *Generalisation appears exactly when retrieval fails.* Sweeping the context
-  size across the point where the memory can no longer hold the context, the
-  recall-trained model's ability to complete unseen digits improves — but only
-  as, and because, its retrieval collapses. At the largest context it has
-  stopped using the context at all, and has converged on the same
-  weight-memorised solution that a model trained on completion finds (§6, §7).
++ *It is a training-time effect, not an inference-time one.* Evaluated at a
+  context of 256, the model trained at 16 does not improve — it degrades to
+  0.942, against 0.561 for a model trained there. The two solutions are separate
+  attractors that inference-time context size does not move between (§6).
 
-+ *A fine-tuning probe* measuring whether the retrieval solution is worth
-  anything as a starting point for a model that must generalise (§6).
-
-The overall answer is negative, and specific about it: within this setting, pure
-retrieval training buys no generalisation. What looks like generalisation
-emerging at large context is the model abandoning the context.
++ *A measurement of how far the learned mechanism travels*, which is what makes
+  the first contribution's word "general" honest (§6).

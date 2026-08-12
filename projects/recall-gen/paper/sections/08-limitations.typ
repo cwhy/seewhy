@@ -31,10 +31,12 @@ being trained under identical losses.
 
 == Scope
 
-/ One dataset: MNIST only. MNIST digits are unusually predictable from their top
-  halves and unusually well aligned, which flatters both retrieval and
-  completion. Nothing here has been checked on a dataset where the two are
-  harder.
+/ One training dataset: MNIST only. MNIST digits are unusually predictable from
+  their top halves and unusually well aligned, which flatters both retrieval and
+  completion. Nothing here is *trained* on a dataset where the two are harder.
+  §6 measures how far the learned mechanism transfers off MNIST, which bounds the
+  claim but does not remove the limitation: a model trained on a broader pool
+  might learn a metric that travels further, and we do not know how much further.
 / One mask: the bottom 14 rows, always. Random-pixel masking was not run. It
   would make retrieval easier (surviving pixels nearly determine identity) and
   completion much easier (neighbouring pixels are visible), and could move the
@@ -83,6 +85,20 @@ one axis, at one context size.
   overhead, so an early configuration at batch 64 was doing a quarter of the work
   for 80% of the cost. Nothing was wrong with it, but it made the sweep
   unaffordable and was replaced before any reported run.
+
+== The word "general", used carefully
+
+Earlier drafts of this work described the retrieval mechanism as generalising
+"perfectly and for free", on the reasoning that a content-addressed circuit has
+nowhere to store a memorised identity. The transfer measurements in §6 show that
+this is wrong as stated: the mechanism is a similarity metric fitted to MNIST,
+and it degrades to 0.651 on Fashion-MNIST and to 0.116 on the same pixels under a
+permutation. The claim as it now stands — generalisation *within* the training
+distribution, including across held-out classes — is what the evidence supports.
+The stronger version was not load-bearing for any other result, but it was
+carried through several drafts before being tested, which is worth recording: it
+was the kind of claim that sounds like a deduction from the architecture and is
+in fact an empirical question.
 
 == Where this does not generalise
 
