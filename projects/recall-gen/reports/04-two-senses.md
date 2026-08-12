@@ -8,13 +8,24 @@ page and that is what made the result read as self-contradictory.
 **Short answer: no.** With one caveat that is worth separating out rather than
 waving at.
 
+> **Correction, added after [Report 5](https://media.tanh.xyz/seewhy/26-08-12/recall-gen_report_05-transfer.html).**
+> This report says the retrieval mechanism generalises "perfectly and for free"
+> and is "content-addressed, so it has nowhere to put a memorised identity".
+> That is too strong. The mechanism was itself learned from MNIST: it is a
+> similarity metric fitted to the training distribution, and it degrades to
+> 0.651 identification on Fashion-MNIST and to 0.116 — near chance — on MNIST
+> with its pixels permuted, where the images are literally the same pixels.
+> Neither route is free of the training data; they differ in *granularity*.
+> Everything else below stands, but read "generalises" as "generalises within
+> the distribution it was trained on".
+
 ---
 
 ## The word means two things here
 
 | | the question | answer |
 |---|---|---|
-| **Sense 1 — the mechanism** | Does the look-up circuit still work on inputs it never trained on? | **Yes, perfectly** |
+| **Sense 1 — the mechanism** | Does the look-up circuit still work on inputs it never trained on? | **Yes — within the training distribution.** See the correction below |
 | **Sense 2 — the knowledge** | Did it learn anything *about digits* that helps when there is nothing to look up? | **No** |
 
 Sense 1 is what "retrieval generalises" meant in Report 1. Sense 2 is what you
