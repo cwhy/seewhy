@@ -73,6 +73,13 @@ similar-looking neighbours); and how the context is built, either 16 images
 unrelated to the query or the query's 16 nearest neighbours by pixel distance
 on the visible half.
 
+When the answer is present, the fully-trained network does not approximate
+it, it reproduces it: on six example queries (chosen at fixed percentiles of
+a model-free difficulty measure, not by hand), its squared error on the
+hidden half is 0.00 in every one.
+
+![Six queries whose true image is one of the 16 unrelated context images. Rows, top to bottom: the true image; what the network is given (bottom half hidden); always predicting the mean training image; a model-free nearest-match look-up at temperature 0.03; the fully-trained network; the frozen-layer network. Each panel shows the true visible half composited with that method's predicted hidden half, labelled with its own raw squared error on the hidden half only.](https://media.tanh.xyz/seewhy/26-08-19/recall-gen_r9_recon_present.png)
+
 The reference computation, used as both a baseline and a ruler, is:
 
 ```
@@ -132,6 +139,20 @@ same context (0.552), and a ridge regression baseline with no context at all
 (0.631). A control that swaps in a different query's neighbours drops this
 network's accuracy to 0.763, so the result is not simply memorising a prior
 over digit shapes — the frozen network is reading the context it is given.
+
+The same contrast, shown rather than scored, on the harder unrelated-image
+context: with the answer absent, the fully-trained network does not blur its
+guess toward the mean, it commits to a specific, confident, wrong completion
+— a plausible 9 at p23, a curled tail turning a 7 into something 9-like at
+p41, a doubled stroke on a 2 at p95. The frozen network is visibly blurrier
+and scores lower squared error at p5, p23 and p41 (0.04 vs 0.05, 0.04 vs
+0.06, 0.04 vs 0.05); at p95, the hardest of the six columns, the ordering
+reverses (0.11 against 0.10). The look-up row shows what this context is
+worth: smeared, overlapping strokes, scoring worse than the mean image at
+the two hardest columns — a context carrying no information about an absent
+target.
+
+![The same six queries and row order as above, but the true image is now not in the context — the answer must be predicted rather than copied.](https://media.tanh.xyz/seewhy/26-08-19/recall-gen_r9_recon_absent.png)
 
 ## A second way to make the network resemble a copy of one image, with no training at all
 

@@ -9,16 +9,24 @@ Run on the GPU box:
     uv run --no-sync python projects/recall-gen/scripts/gen_report_09.py
 """
 import json
+import pickle
 import sys
 from pathlib import Path
 
-sys.path.append(str(Path(__file__).parent.parent.parent.parent))   # repo root
+PROJECT_DIR = Path(__file__).resolve().parent.parent               # projects/recall-gen
+sys.path.append(str(PROJECT_DIR.parents[1]))                       # repo root
+sys.path.insert(0, str(PROJECT_DIR))                                # for `lib.*`
 
 import numpy as np
+import jax
+import jax.numpy as jnp
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
+from lib.core import Cfg, row_mask
+from lib import evalsets
+from lib.train import Run, build_pools, make_eval
 from shared_lib.media import save_matplotlib_figure, save_media
 from shared_lib.report import save_report
 
@@ -313,15 +321,100 @@ def make_task_diagram_svg() -> str:
     return "\n".join(parts)
 
 
+# ── Figures 4/5: sample reconstructions, i.i.d. context, both conditions ────
+# Ported from scripts/tmp/iid_reconstructions.py (kept as-is there; this is the
+# generator's own copy). Columns are chosen at fixed percentiles of a
+# MODEL-FREE difficulty measure (the look-up's own per-sample error at
+# tau=0.03 on the absent condition) — never file order, never a trained
+# model's error — and the same six queries are used in both figures, since
+# the eval sets share their queries by construction. Every panel composites
+# the true visible half back over the predicted hidden half: the network
+# emits all 784 pixels but is scored on 392, so the visible half it emits is
+# unconstrained noise and would be misleading to show as-is.
+def fig_reconstructions():
+    cfg = Cfg(d_model=256, n_layers=4, dk=64, n_heads=4, n_tokens=20)   # exp1/exp26 shape
+    pcts = (5, 23, 41, 59, 77, 95)
+
+    rn = Run(exp_name="", name="", M=16, Q=4, mask_rows=14, cfg=cfg)
+    pools, labels = build_pools(rn)
+    mask = row_mask(14)
+    mask_j = jnp.array(mask)
+    hid = mask > 0.5
+    mean_img = pools["train"].mean(0)
+    ev = evalsets.build(pools, mask, 16, 4, 512, mean_img, ctx_mode="iid", labels=labels)
+
+    def soft_lookup(ctx, qry, tau):
+        vis = 1.0 - mask_j
+        d = (((qry[:, :, None, :] - ctx[:, None, :, :]) ** 2) * vis).sum(-1) / vis.sum()
+        return jnp.einsum("eqm,emp->eqp", jax.nn.softmax(-d / tau, -1), ctx)
+
+    def load(name):
+        with open(PROJECT_DIR / name, "rb") as f:
+            return jax.tree_util.tree_map(jnp.asarray, pickle.load(f))
+
+    eval_fn = make_eval(rn, mask_j)
+    models = {"fully-trained network": load("params_exp1.pkl"),
+              "frozen-layer network": load("params_exp26.pkl")}
+
+    # Column choice: model-free difficulty on the absent condition, shared by
+    # both figures — the two figures show the same six queries throughout.
+    es_abs = ev["D_novel_absent"]
+    lk_abs = soft_lookup(es_abs.ctx, es_abs.qry, 0.03)
+    per = np.asarray((((lk_abs - es_abs.qry) ** 2) * mask_j).sum(-1)[:, 0]) / int(hid.sum())
+    cols = [int(np.argsort(per)[int(p / 100 * (len(per) - 1))]) for p in pcts]
+
+    urls = {}
+    for cond, tag, url_key in (
+        ("B_novel_present", "the query's own image IS one of the 16 context images — copying is possible", "present"),
+        ("D_novel_absent", "the query's own image is NOT in the context — it must be predicted", "absent"),
+    ):
+        es = ev[cond]
+        q = es.qry[:, 0, :]
+        row_defs = [
+            ("true image", np.asarray(q)),
+            ("given to the network\n(bottom half hidden)", np.asarray(q) * (1 - mask) + 0.5 * mask),
+            ("always predict\nthe mean image", np.broadcast_to(mean_img, (512, 784))),
+            ("model-free look-up\n(tau=0.03)", np.asarray(soft_lookup(es.ctx, es.qry, 0.03)[:, 0, :])),
+        ]
+        for nm, p in models.items():
+            pred, _ = eval_fn(p, es.ctx, es.qry)
+            row_defs.append((nm, np.asarray(pred[:, 0, :])))
+
+        fig, ax = plt.subplots(len(row_defs), len(cols),
+                               figsize=(1.55 * len(cols), 1.72 * len(row_defs)))
+        for r, (nm, img) in enumerate(row_defs):
+            for c, i in enumerate(cols):
+                v = img[i].copy()
+                if r >= 2:   # composite the true visible half back in; label with raw squared error
+                    e = float(((v[hid] - np.asarray(q)[i][hid]) ** 2).mean())
+                    v = np.asarray(q)[i] * (1 - mask) + v * mask
+                    ax[r, c].text(0.03, 0.06, f"e={e:.2f}", transform=ax[r, c].transAxes,
+                                  fontsize=8, color="#39ff6a")
+                ax[r, c].imshow(v.reshape(28, 28), cmap="gray", vmin=0, vmax=1)
+                ax[r, c].set_xticks([]); ax[r, c].set_yticks([])
+                if r == 0:
+                    ax[r, c].set_title(f"p{pcts[c]}", fontsize=9)
+            ax[r, 0].set_ylabel(nm, fontsize=7.8)
+        fig.suptitle(f"unrelated-image context — {tag}", fontsize=9.5)
+        fig.tight_layout(rect=[0, 0, 1, 0.96])
+        urls[url_key] = save_matplotlib_figure(f"{PROJ}_r9_recon_{url_key}", fig, format="png", dpi=150)
+        plt.close(fig)
+
+    return urls["present"], urls["absent"]
+
+
 def main():
     url_tradeoff = fig_tradeoff()
     url_tau_d = fig_tau_vs_d()
     url_geometry = fig_geometry()
     url_diagram = save_media(f"{PROJ}_r9_task_diagram.svg", make_task_diagram_svg().encode("utf-8"), "image/svg+xml")
+    url_recon_present, url_recon_absent = fig_reconstructions()
     print("fig_tradeoff:", url_tradeoff)
     print("fig_tau_vs_error:", url_tau_d)
     print("fig_geometry:", url_geometry)
     print("fig_diagram:", url_diagram)
+    print("fig_recon_present:", url_recon_present)
+    print("fig_recon_absent:", url_recon_absent)
 
     md = f"""# Generalisation appears only where the network is kept from resembling a copy of its single closest match
 
@@ -398,6 +491,13 @@ similar-looking neighbours); and how the context is built, either 16 images
 unrelated to the query or the query's 16 nearest neighbours by pixel distance
 on the visible half.
 
+When the answer is present, the fully-trained network does not approximate
+it, it reproduces it: on six example queries (chosen at fixed percentiles of
+a model-free difficulty measure, not by hand), its squared error on the
+hidden half is 0.00 in every one.
+
+![Six queries whose true image is one of the 16 unrelated context images. Rows, top to bottom: the true image; what the network is given (bottom half hidden); always predicting the mean training image; a model-free nearest-match look-up at temperature 0.03; the fully-trained network; the frozen-layer network. Each panel shows the true visible half composited with that method's predicted hidden half, labelled with its own raw squared error on the hidden half only.]({url_recon_present})
+
 The reference computation, used as both a baseline and a ruler, is:
 
 ```
@@ -457,6 +557,20 @@ same context (0.552), and a ridge regression baseline with no context at all
 (0.631). A control that swaps in a different query's neighbours drops this
 network's accuracy to 0.763, so the result is not simply memorising a prior
 over digit shapes — the frozen network is reading the context it is given.
+
+The same contrast, shown rather than scored, on the harder unrelated-image
+context: with the answer absent, the fully-trained network does not blur its
+guess toward the mean, it commits to a specific, confident, wrong completion
+— a plausible 9 at p23, a curled tail turning a 7 into something 9-like at
+p41, a doubled stroke on a 2 at p95. The frozen network is visibly blurrier
+and scores lower squared error at p5, p23 and p41 (0.04 vs 0.05, 0.04 vs
+0.06, 0.04 vs 0.05); at p95, the hardest of the six columns, the ordering
+reverses (0.11 against 0.10). The look-up row shows what this context is
+worth: smeared, overlapping strokes, scoring worse than the mean image at
+the two hardest columns — a context carrying no information about an absent
+target.
+
+![The same six queries and row order as above, but the true image is now not in the context — the answer must be predicted rather than copied.]({url_recon_absent})
 
 ## A second way to make the network resemble a copy of one image, with no training at all
 
