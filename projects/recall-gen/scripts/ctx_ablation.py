@@ -46,9 +46,14 @@ MODELS = {
     "exp20_best":  "params_exp20_best.pkl",    # the 0.505 point
     "exp20_final": "params_exp20.pkl",         # after it degrades to 0.665
     "exp23_best":  "params_exp23_best.pkl",    # same-class arm, for contrast
+    # The frozen-mixer runs: retrieval is gone (id ~0.27), so their absent-target
+    # score could be a pure inpainting prior with no context use at all. This is
+    # the measurement that tells the two apart.
+    "exp24_best":  "params_exp24_best.pkl",
+    "exp24_final": "params_exp24.pkl",
 }
 COND = "D_novel_absent"        # the only condition where the context has work to do
-EXP = "ctx_ablation"
+EXP = "ctx_ablation2"
 
 
 def main():

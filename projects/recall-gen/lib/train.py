@@ -46,6 +46,7 @@ class Run:
     augment_train: bool = False  # warp every training image → the pool never repeats
     ctx_mode: str = "iid"        # "iid" | "class" | "knn" — what the context is made of
     knn_offset: int = 0          # ranks skipped in knn mode; dials informativeness
+    train_only: tuple | None = None   # top-level params to train; None = all
     p_gen: float = 0.5           # only for train_mode="mix"
     init_from: str | None = None  # exp_name whose params_*.pkl to start from
     snapshot_best: str | None = None  # condition to track; saves params_<exp>_best.pkl
@@ -92,6 +93,31 @@ def build_pools(rn: Run):
 
 
 # ── training ──────────────────────────────────────────────────────────────────
+
+# Which top-level parameters count as "the embedding". The KDA stack is a fixed
+# algorithm — forget, predict, correct, write — so retrieval needs usable keys,
+# not learned weights. Freezing `layers` asks whether the similarity metric the
+# paper attributes to training lives in the embedding rather than in the mixer.
+EMBED = ("W_pix", "W_msk", "role")
+EMBED_HEAD = EMBED + ("lnf_g", "lnf_b", "head_W", "head_b")
+
+
+def freeze_labels(p, train_only: tuple) -> dict:
+    """Label tree for optax.multi_transform: 'train' or 'freeze' per leaf.
+
+    Everything inside `layers` is frozen at its random init; a top-level
+    parameter is trained only if named in `train_only`.
+    """
+    lab = {k: ("train" if k in train_only else "freeze") for k in p if k != "layers"}
+    lab["layers"] = [{k: "freeze" for k in L} for L in p["layers"]]
+    return lab
+
+
+def n_trainable(p, train_only: tuple | None) -> int:
+    if train_only is None:
+        return n_params(p)
+    return int(sum(np.prod(p[k].shape) for k in train_only))
+
 
 def class_table(labels: np.ndarray) -> np.ndarray:
     """(n_classes, n_min) index table, every class truncated to the smallest.
@@ -308,7 +334,17 @@ def run(rn: Run, make_figs: bool = True) -> dict:
 
     warmup = min(300, rn.steps // 10)
     sched = optax.warmup_cosine_decay_schedule(0.0, rn.lr, warmup, rn.steps, rn.lr * 0.1)
-    opt = optax.chain(optax.clip_by_global_norm(1.0), optax.adamw(sched, weight_decay=0.01))
+    inner = optax.adamw(sched, weight_decay=0.01)
+    if rn.train_only is None:
+        opt = optax.chain(optax.clip_by_global_norm(1.0), inner)
+    else:
+        missing = [k for k in rn.train_only if k not in p]
+        assert not missing, f"train_only names parameters that do not exist: {missing}"
+        opt = optax.chain(optax.clip_by_global_norm(1.0), optax.multi_transform(
+            {"train": inner, "freeze": optax.set_to_zero()}, freeze_labels(p, rn.train_only)))
+        logging.info(f"  training {n_trainable(p, rn.train_only)/1e6:.2f}M of "
+                     f"{np_/1e6:.2f}M params ({', '.join(rn.train_only)}); "
+                     f"all {len(p['layers'])} KDA layers frozen at init")
     st = opt.init(p)
 
     block = make_block(rn, opt, mask,
