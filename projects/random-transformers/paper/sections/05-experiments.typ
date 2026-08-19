@@ -17,7 +17,15 @@ next stage's configuration, so they are listed in the order they were run.
   [exp5], [Is the mechanism a low-dimensional subspace, or a sparse subnetwork?], [`experiments5.py`],
   [exp6], [Can a random transformer imitate a circuit that needs many dimensions?], [`experiments6.py`],
   [exp7], [Can a random transformer model natural language?], [`experiments7.py`],
+  [exp8], [Are the baselines under-trained, or genuinely worse?], [`experiments8.py`],
 )
+
+*exp8 tunes the baselines and not the condition under test.* The width-16 and
+LSTM cells are given a learning-rate search over ${1e-3, 3e-3}$ in addition to
+the schedule every other run uses; the width-1024 random models are not. This is
+deliberate. The paper claims random transformers match or beat fully trained
+models and LSTMs, so an under-trained baseline inflates precisely that claim. The
+asymmetry biases against our own headline.
 
 == Controls
 

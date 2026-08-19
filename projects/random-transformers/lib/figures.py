@@ -80,6 +80,27 @@ def spread(rows, field=None):
 
 # ── exp1: the main table ──────────────────────────────────────────────────────
 
+def _best_over_lr(rows, task, mode, d):
+    """Best median accuracy for a cell, over every learning rate we ran for it.
+
+    exp1 runs one learning rate. exp8 adds two more, but only for the width-16
+    and LSTM cells — the baselines. Reporting a baseline at anything other than
+    its best would inflate the comparison the paper is actually making, so those
+    cells are taken at their best and the width-1024 condition under test is not.
+    The asymmetry is deliberate and is stated in the limitations section.
+    """
+    groups = defaultdict(list)
+    for r in rows:
+        if r.get("task") != task or r.get("mode") != mode or r.get("d") != d:
+            continue
+        exp = r.get("experiment", "")
+        if exp.startswith("exp1_") or exp == "exp8":
+            groups[r.get("lr")].append(paper_metric(r))
+    if not groups:
+        return None
+    return max(_median(v) for v in groups.values())
+
+
 def main_table(rows, name: str = "main_table") -> Figure:
     """Sequence accuracy per task and condition, with chance drawn as its own bar.
 
@@ -88,7 +109,6 @@ def main_table(rows, name: str = "main_table") -> Figure:
     of the four groups.
     """
     exp1 = [r for r in rows if r.get("experiment", "").startswith("exp1_")]
-    by = group(exp1, "task", "mode", "d")
 
     conditions = [("random", 1024, "random 1024"), ("random", 16, "random 16"),
                   ("full", 1024, "trained 1024"), ("full", 16, "trained 16"),
@@ -97,11 +117,11 @@ def main_table(rows, name: str = "main_table") -> Figure:
     task_col, cond_col, acc_col = [], [], []
     for task in TASK_ORDER:
         for mode, d, label in conditions:
-            rs = by.get((task, mode, d))
-            if not rs:
+            best = _best_over_lr(rows, task, mode, d)
+            if best is None:
                 continue
             task_col.append(SHORT_LABEL[task]); cond_col.append(label)
-            acc_col.append(round(_median([paper_metric(r) for r in rs]), 4))
+            acc_col.append(round(best, 4))
         chance = next((r["chance"] for r in exp1 if r["task"] == task), None)
         if chance is not None:
             task_col.append(SHORT_LABEL[task]); cond_col.append("chance")

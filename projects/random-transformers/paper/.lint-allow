@@ -71,3 +71,4 @@
 250      # evaluation interval in steps
 5000     # memorization evaluation interval
 750      # step at which the convergence probe saturated
+0.530    # the paper LSTM decimal-addition accuracy we compare against

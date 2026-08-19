@@ -1,6 +1,6 @@
 {
   "name": "random-transformers_paper",
-  "published_at": "2026-08-19 04:47 UTC",
+  "published_at": "2026-08-19 05:55 UTC",
   "stable": true,
   "urls": {
     "page": "https://media.tanh.xyz/seewhy/paper/random-transformers_paper.html",
@@ -31,16 +31,16 @@
     "figures/width_mod_add.typ": "4a2e12a60b3eb8e6",
     "figures/width_needle.typ": "d8456297592de0ea",
     "figures/width_parens.typ": "808eeb5fc0b17b6f",
-    "main.typ": "5f2e70f0820d618e",
+    "main.typ": "5c1b3030d9ad2a8a",
     "sections/01-introduction.typ": "6c75bab9ead585e0",
     "sections/02-background.typ": "daa2e8af8caf34ba",
     "sections/03-task.typ": "cd871cac2063c4d2",
     "sections/04-methodology.typ": "ebde3ba9687ad473",
-    "sections/05-experiments.typ": "b216e53e32b5af4e",
-    "sections/06-results.typ": "9ee4049b5a82a183",
+    "sections/05-experiments.typ": "6891a1ea48984f8b",
+    "sections/06-results.typ": "50ceb589981f6871",
     "sections/07-analysis.typ": "58f605021f3bdcd2",
-    "sections/08-limitations.typ": "7ecbb091e0ac5e55",
-    "sections/09-conclusion.typ": "a03419c33c280d40",
+    "sections/08-limitations.typ": "a1db4dc7248335f6",
+    "sections/09-conclusion.typ": "d38d77510594ca3f",
     "template.typ": "b5ac382cce4cfec4"
   }
 }

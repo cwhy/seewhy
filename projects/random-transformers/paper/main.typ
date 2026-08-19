@@ -25,7 +25,7 @@
     only the token embedding, positional embedding and unembedding. Such models
     reach 1.000 on modular arithmetic, associative recall, decimal addition and
     parenthesis balancing, in five seeds out of five, against chance levels of
-    0.005, 0.008, ~0 and 0.681; seventeen of twenty cells in the main table fall
+    0.005, 0.008, ~0 and 0.681; nineteen of twenty cells in the main table fall
     within 0.15 of the published numbers, and the proposed mechanism — computation
     confined to a low-dimensional subspace that is not neuron-aligned — reproduces,
     including the paper's own falsification test. We add two findings: the paper's

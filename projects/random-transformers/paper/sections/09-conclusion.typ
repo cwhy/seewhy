@@ -8,9 +8,9 @@ and check whether parentheses balance. It reaches 1.000 on all four, from five
 seeds out of five, against chance levels of 0.005, 0.008, ~0 and 0.681.
 
 We reimplemented the paper in JAX from its text, and every central claim
-reproduced. Seventeen of twenty cells in the main table land within 0.15 of the
-published numbers. The three that do not are baselines, and two of those look
-under-trained on our side.
+reproduced. Nineteen of twenty cells in the main table land within 0.15 of the
+published numbers once the baselines are given a learning-rate search. The one
+that does not is our LSTM on associative recall, and we could not close it.
 
 The mechanism reproduced too. Ten principal directions out of 1024 explain most
 of the variance, while ten neurons explain almost none — a twenty-fold gap that

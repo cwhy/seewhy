@@ -2,33 +2,40 @@
 
 = Limitations and negative results <sec-limitations>
 
-== Three cells we did not reproduce
+== One cell we did not reproduce
 
-Seventeen of twenty cells in the main table fall within 0.15 of the paper. Three
-do not. All three are baselines rather than the condition under test, which is
-the less damaging direction but still worth stating plainly.
+After giving the baselines a learning-rate search (exp8), one cell in the main
+table still disagrees with the paper.
 
 #table(
   columns: 5,
   stroke: 0.5pt + luma(200), inset: 5pt, align: (left, right, right, right, left),
-  table.header([*Cell*], [*Ours*], [*Paper*], [*Chance*], [*Our reading*]),
-  [decimal, trained, width 16], [0.381], [0.675], [~0], [under-trained],
-  [needle, LSTM, width 1024],   [0.357], [0.995], [0.008], [under-trained],
+  table.header([*Cell*], [*Ours*], [*Paper*], [*Chance*], [*Status*]),
+  [needle, LSTM, width 1024],   [0.357], [0.995], [0.008], [unresolved],
+  [decimal, trained, width 16], [0.922], [0.675], [~0],    [resolved at lr 3e-3],
+  [modular addition, trained, width 16], [0.992], [0.972], [0.005], [resolved at lr 3e-3],
+  [decimal, LSTM, width 1024],  [0.638], [0.530], [~0],    [resolved at lr 3e-3],
   [parens, trained, width 1024],[0.735], [0.923], [0.681], [the paper flags this cell too],
 )
 
-The third is not really a disagreement. The paper says of that exact cell: the
-width-1024 fully trained transformer had trouble reaching perfect accuracy on
-parenthesis balancing, likely due to imperfect hyperparameter choices. We see the
-same anomaly in the same place, more severely.
+Three of the four cells that initially looked wrong were simply under-trained,
+and a learning-rate search fixed them. Two now sit *above* the paper's numbers.
 
-The first two are ours. Both are baselines whose losses were still descending at
-the end of training. Our budgets were set by the fully trained width-1024
-condition, which is not the slowest condition everywhere.
+The parenthesis cell is not really a disagreement. The paper says of that exact
+cell: the width-1024 fully trained transformer had trouble reaching perfect
+accuracy on parenthesis balancing, likely due to imperfect hyperparameter
+choices. We see the same anomaly in the same place, more severely.
 
-An under-trained baseline inflates our headline, since the paper's claim is that
-random transformers match or beat fully trained models and LSTMs. A learning-rate
-search for these cells is running and is not included in the numbers above.
+*The LSTM on needle in a haystack is a real gap, and we did not close it.* Our
+recurrent baseline reaches 0.357 where the paper reports 0.995. Three learning
+rates and a warmup made no difference — the best of them was 0.357.
+
+We think this is our LSTM rather than the paper's, since ours is a deliberately
+plain single-layer implementation and the paper's is not described in enough
+detail to match. But we cannot demonstrate that, and it is the one number in this
+replication we would not defend. It matters because "outperforms a fully trained
+LSTM on associative recall" is a comparison the paper draws, and on our numbers
+the random transformer wins that comparison by more than it should.
 
 == The optimiser details the paper omits
 

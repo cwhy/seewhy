@@ -10,6 +10,10 @@ the four tasks each sequence has exactly one scored token, so this is the same a
 sequence accuracy. Decimal addition is the exception, and @sec-limitations
 explains why we report it their way.
 
+Baseline cells — width 16 and the LSTM — are reported at the best of three
+learning rates. The width-1024 random models are reported at one. @sec-experiments
+says why the asymmetry runs in that direction.
+
 == The main result
 
 #fig(include "/figures/main_table.typ", caption: [
@@ -34,9 +38,9 @@ All five seeds reach 1.000 on every task. Not "close to", but the same value
 every time. The paper's central claim replicates from an independent
 implementation.
 
-Of the twenty cells in the full table, seventeen fall within 0.15 of the paper.
-The three that do not are discussed in @sec-limitations. All three are baselines,
-not the condition under test.
+Of the twenty cells in the full table, nineteen fall within 0.15 of the paper.
+The one that does not is our LSTM baseline on associative recall, discussed in
+@sec-limitations.
 
 == Width decides everything
 
