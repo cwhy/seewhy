@@ -36,6 +36,14 @@ All three saw digits 0 to 4 and nothing else.
 
 ![Completions across three levels of novelty](https://media.tanh.xyz/seewhy/26-08-19/recall-gen_r12_digit_split_grid_v2.png)
 
+The red number under each method is that network's score over all 512 episodes of
+that block. The numbers under the tiles are the three episodes shown. The tiles
+are examples; the red number is the result.
+
+Those red numbers come from an independent draw of 512 episodes, so they differ
+from the figures quoted in this text by up to about 0.02. That is sampling noise
+between two draws, not disagreement.
+
 ## The task
 
 Each example is a small episode. The network is shown sixteen complete MNIST

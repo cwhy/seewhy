@@ -23,7 +23,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-from lib.core import Cfg, row_mask
+from lib.core import Cfg, row_mask, masked_mse
 from lib import evalsets
 from lib.train import Run, build_pools, make_eval
 from shared_lib.media import save_matplotlib_figure
@@ -65,14 +65,14 @@ def _soft_lookup(ctx, qry, mask_j, tau):
     return jnp.einsum("eqm,emp->eqp", jax.nn.softmax(-d / tau, -1), ctx)
 
 
-def build(ctx_mode="iid", Q=4):
+def build(ctx_mode="iid", Q=4, seed=20260819):
     rn = Run(exp_name="", name="", M=16, Q=Q, mask_rows=14, cfg=CFG,
              train_digits=(0, 1, 2, 3, 4), held_digits=(5, 6, 7, 8, 9),
              conditions=SPLIT)
     pools, labels = build_pools(rn)
     mask = row_mask(14)
     ev = evalsets.build(pools, mask, 16, Q, 512, pools["train"].mean(0),
-                        conditions=SPLIT, labels=labels, ctx_mode=ctx_mode)
+                        conditions=SPLIT, labels=labels, ctx_mode=ctx_mode, seed=seed)
     return rn, mask, ev
 
 
@@ -96,6 +96,14 @@ def fig_grid(ctx_mode="iid", Q=4, suffix="", headline="", sub=""):
     rn, mask, ev = build(ctx_mode, Q)
     mask_j = jnp.array(mask)
     eval_fn = make_eval(rn, mask_j)
+    def aggregate(params, es):
+        se = 0.0
+        for i in range(0, es.ctx.shape[0], 128):
+            pred, _ = eval_fn(params, es.ctx[i:i + 128], es.qry[i:i + 128])
+            se += (es.ctx[i:i + 128].shape[0] / es.ctx.shape[0]) * float(
+                masked_mse(pred, es.qry[i:i + 128], mask_j))
+        return se / es.mse_mean
+
     nets = [("recall-trained", _load("exp8")),
             ("completion-trained", _load("exp9")),
             ("frozen layers", _load("exp29"))]
@@ -154,8 +162,16 @@ def fig_grid(ctx_mode="iid", Q=4, suffix="", headline="", sub=""):
                     fontsize=10.5, fontweight="bold")
             for r, (rlabel, params) in enumerate([("true image", None)] + nets):
                 y = y0 + BLOCK_TITLE + r * (TILE + ROW_GAP + ERR_H)
-                fig.text((x0 + LAB_W - 0.10) / FIG_W, 1.0 - (y + TILE / 2) / FIG_H,
-                         rlabel, ha="right", va="center", fontsize=8.6)
+                lx = (x0 + LAB_W - 0.10) / FIG_W
+                if params is None:
+                    fig.text(lx, 1.0 - (y + TILE / 2) / FIG_H, rlabel,
+                             ha="right", va="center", fontsize=8.6)
+                else:
+                    fig.text(lx, 1.0 - (y + TILE / 2 - 0.09) / FIG_H, rlabel,
+                             ha="right", va="center", fontsize=8.6)
+                    fig.text(lx, 1.0 - (y + TILE / 2 + 0.10) / FIG_H,
+                             f"all 512 episodes: {aggregate(params, es):.3f}",
+                             ha="right", va="center", fontsize=7.6, color="#a03030")
                 for c, i in enumerate(cols):
                     x = x0 + LAB_W + c * (TILE + COL_GAP)
                     truth = np.asarray(es.qry[i, 0])
@@ -214,7 +230,8 @@ def fig_bars():
     return url
 
 
-SUB = ("Numbers are normalised error: 1.00 is no better than drawing the average digit. "
+SUB = ("Normalised error: 1.00 is no better than drawing the average digit. "
+       "RED is that network's score over all 512 episodes; numbers under tiles are single episodes. "
        "Columns are fixed difficulty percentiles, ranked without any network.")
 
 
@@ -269,6 +286,14 @@ starting values forever. Only the input embedding and the output layer learn —
 All three saw digits 0 to 4 and nothing else.
 
 ![Completions across three levels of novelty]({url_grid})
+
+The red number under each method is that network's score over all 512 episodes of
+that block. The numbers under the tiles are the three episodes shown. The tiles
+are examples; the red number is the result.
+
+Those red numbers come from an independent draw of 512 episodes, so they differ
+from the figures quoted in this text by up to about 0.02. That is sampling noise
+between two draws, not disagreement.
 
 ## The task
 
