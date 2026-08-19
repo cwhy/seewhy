@@ -34,7 +34,7 @@ starting values forever. Only the input embedding and the output layer learn —
 
 All three saw digits 0 to 4 and nothing else.
 
-![Completions across three levels of novelty](https://media.tanh.xyz/seewhy/26-08-19/recall-gen_r12_digit_split_grid_v2.png)
+![Completions across three levels of novelty](https://media.tanh.xyz/seewhy/26-08-19/recall-gen_r12_digit_split_grid_5col_v1.png)
 
 The red number under each method is that network's score over all 512 episodes of
 that block. The numbers under the tiles are the three episodes shown. The tiles
@@ -167,7 +167,7 @@ nearest neighbours, ranked by how similar their visible halves are. For an unsee
 No network here was trained that way. This is a transfer test: same weights, new
 kind of context.
 
-![The same three networks on nearest-neighbour contexts](https://media.tanh.xyz/seewhy/26-08-19/recall-gen_r12_digit_split_grid_knn.png)
+![The same three networks on nearest-neighbour contexts](https://media.tanh.xyz/seewhy/26-08-19/recall-gen_r12_digit_split_grid_knn_5col_v1.png)
 
 The collapse largely reverses. On unseen digits with the answer absent, the
 recall-trained network goes from **1.009** to **0.686**. It was worse than

@@ -107,10 +107,11 @@ def fig_grid(ctx_mode="iid", Q=4, suffix="", headline="", sub=""):
     nets = [("recall-trained", _load("exp8")),
             ("completion-trained", _load("exp9")),
             ("frozen layers", _load("exp29"))]
-    PCT = [0.15, 0.50, 0.85]
+    PCT = [0.10, 0.30, 0.50, 0.70, 0.90]
 
-    TILE, LAB_W, COL_GAP, ROW_GAP, ERR_H = 0.86, 1.30, 0.09, 0.05, 0.17
-    BLOCK_W = LAB_W + 3 * TILE + 2 * COL_GAP
+    TILE, LAB_W, COL_GAP, ROW_GAP, ERR_H = 0.80, 1.30, 0.08, 0.05, 0.17
+    NCOL = len(PCT)
+    BLOCK_W = LAB_W + NCOL * TILE + (NCOL - 1) * COL_GAP
     BLOCK_TITLE = 0.30
     NROW = 1 + len(nets)
     BLOCK_H = BLOCK_TITLE + NROW * TILE + (NROW - 1) * ROW_GAP + NROW * ERR_H
@@ -158,7 +159,7 @@ def fig_grid(ctx_mode="iid", Q=4, suffix="", headline="", sub=""):
             x0 = BAND_LAB + k * (BLOCK_W + GAP_X)
             es = ev[cond]
             if b == 0:
-                txt(x0 + LAB_W + (3 * TILE + 2 * COL_GAP) / 2, y0 - 0.30, head,
+                txt(x0 + LAB_W + (NCOL * TILE + (NCOL - 1) * COL_GAP) / 2, y0 - 0.30, head,
                     fontsize=10.5, fontweight="bold")
             for r, (rlabel, params) in enumerate([("true image", None)] + nets):
                 y = y0 + BLOCK_TITLE + r * (TILE + ROW_GAP + ERR_H)
@@ -237,11 +238,11 @@ SUB = ("Normalised error: 1.00 is no better than drawing the average digit. "
 
 def main():
     url_grid = fig_grid(
-        ctx_mode="iid", Q=4, suffix="_v2",
+        ctx_mode="iid", Q=4, suffix="_5col_v1",
         headline="Context: sixteen unrelated digits. Trained on 0-4.",
         sub=SUB)
     url_knn = fig_grid(
-        ctx_mode="knn", Q=1, suffix="_knn",
+        ctx_mode="knn", Q=1, suffix="_knn_5col_v1",
         headline="Context: the query's sixteen nearest neighbours. Same three networks.",
         sub=SUB + " No network was trained on this kind of context.")
     url_bars = fig_bars()
