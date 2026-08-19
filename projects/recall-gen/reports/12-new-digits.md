@@ -27,9 +27,14 @@ two numbers above describe.
 The **completion-trained** network never had its answer in the context during
 training. Copying was never available to it. It could only ever predict.
 
-Both saw digits 0 to 4 and nothing else.
+A third network, **frozen layers**, was trained like the recall-trained one, but
+with most of it held fixed. Its four context-processing layers keep their random
+starting values forever. Only the input embedding and the output layer learn —
+0.60M of its 4.03M numbers.
 
-![Completions across three levels of novelty](https://media.tanh.xyz/seewhy/26-08-19/recall-gen_r12_digit_split_grid.png)
+All three saw digits 0 to 4 and nothing else.
+
+![Completions across three levels of novelty](https://media.tanh.xyz/seewhy/26-08-19/recall-gen_r12_digit_split_grid_v2.png)
 
 ## The task
 
@@ -117,6 +122,63 @@ digits drops to **0.370**, against the recall-trained network's 1.000.
 
 So neither objective produces knowledge that crosses a class boundary. One keeps
 its finding ability and loses its predicting ability. The other loses both.
+
+## Freezing helps, and is not enough
+
+The frozen network exists here for a reason. On held-out *images* it is the best
+generaliser we have measured. The question is whether that survives held-out
+*classes*.
+
+It helps. On unseen digits with the answer absent it scores **0.888**, against
+the recall-trained network's 0.999. Roughly half the gap to the familiar-digit
+score closes.
+
+It is not enough. The linear map that ignores the context still scores 0.851. The
+frozen network remains worse than using no context at all.
+
+Its retrieval barely suffers: identification accuracy **0.941** on unseen digits,
+against the recall-trained network's 1.000 and chance of 0.063.
+
+One number cuts the other way and belongs here. Measured at its best point during
+training rather than at the end, the frozen network reaches **0.753** on unseen
+digits, which does beat the linear map. It then drifts back to 0.888 by the end.
+The other two networks have no saved mid-training checkpoint, so that number
+cannot be compared like-for-like with their rows, and every figure here uses
+end-of-training weights for all three.
+
+## An informative context rescues most of it
+
+Everything above uses a context of sixteen unrelated digits. Such a context says
+almost nothing about an absent answer. That is a property of the task, not of the
+networks, and it can be changed.
+
+So change it. Instead of sixteen unrelated images, give the query its own sixteen
+nearest neighbours, ranked by how similar their visible halves are. For an unseen
+9, those neighbours are other unseen 9s.
+
+No network here was trained that way. This is a transfer test: same weights, new
+kind of context.
+
+![The same three networks on nearest-neighbour contexts](https://media.tanh.xyz/seewhy/26-08-19/recall-gen_r12_digit_split_grid_knn.png)
+
+The collapse largely reverses. On unseen digits with the answer absent, the
+recall-trained network goes from **1.009** to **0.686**. It was worse than
+drawing the average digit. It is now better than the linear map that ignores the
+context, which scores 0.851.
+
+The frozen network improves too, from 0.883 to **0.703**.
+
+The completion-trained network does not move at all: 1.214 to **1.222**. It never
+reads its context, so a better context is worth nothing to it.
+
+This is not the network suddenly understanding a 9. It is the context supplying
+what the weights lack. The neighbours of an unseen 9 are other 9s, and copying
+from them works without knowing anything about the class.
+
+The honest summary of the two figures together: the class barrier is real, but it
+is a barrier in the weights, not in the task. Put the missing knowledge in the
+context and a network that reads its context can use it, even for a class it has
+never been trained on.
 
 ## What this means
 

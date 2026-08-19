@@ -65,18 +65,18 @@ def _soft_lookup(ctx, qry, mask_j, tau):
     return jnp.einsum("eqm,emp->eqp", jax.nn.softmax(-d / tau, -1), ctx)
 
 
-def build():
-    rn = Run(exp_name="", name="", M=16, Q=4, mask_rows=14, cfg=CFG,
+def build(ctx_mode="iid", Q=4):
+    rn = Run(exp_name="", name="", M=16, Q=Q, mask_rows=14, cfg=CFG,
              train_digits=(0, 1, 2, 3, 4), held_digits=(5, 6, 7, 8, 9),
              conditions=SPLIT)
     pools, labels = build_pools(rn)
     mask = row_mask(14)
-    ev = evalsets.build(pools, mask, 16, 4, 512, pools["train"].mean(0),
-                        conditions=SPLIT, labels=labels)
+    ev = evalsets.build(pools, mask, 16, Q, 512, pools["train"].mean(0),
+                        conditions=SPLIT, labels=labels, ctx_mode=ctx_mode)
     return rn, mask, ev
 
 
-def fig_grid():
+def fig_grid(ctx_mode="iid", Q=4, suffix="", headline="", sub=""):
     """Six blocks: three levels of novelty down, answer present/absent across.
 
     Panel numbers are NORMALISED error: the panel's squared error over the hidden
@@ -93,16 +93,19 @@ def fig_grid():
     visible half back over the predicted hidden half and carry their own squared
     error on the hidden pixels.
     """
-    rn, mask, ev = build()
+    rn, mask, ev = build(ctx_mode, Q)
     mask_j = jnp.array(mask)
     eval_fn = make_eval(rn, mask_j)
-    nets = [("recall-trained", _load("exp8")), ("completion-trained", _load("exp9"))]
+    nets = [("recall-trained", _load("exp8")),
+            ("completion-trained", _load("exp9")),
+            ("frozen layers", _load("exp29"))]
     PCT = [0.15, 0.50, 0.85]
 
     TILE, LAB_W, COL_GAP, ROW_GAP, ERR_H = 0.86, 1.30, 0.09, 0.05, 0.17
     BLOCK_W = LAB_W + 3 * TILE + 2 * COL_GAP
     BLOCK_TITLE = 0.30
-    BLOCK_H = BLOCK_TITLE + 3 * TILE + 2 * ROW_GAP + 3 * ERR_H
+    NROW = 1 + len(nets)
+    BLOCK_H = BLOCK_TITLE + NROW * TILE + (NROW - 1) * ROW_GAP + NROW * ERR_H
     BAND_LAB = 1.55                       # left margin holding the novelty label
     GAP_X, GAP_Y = 0.55, 0.34
     TOP = 1.28
@@ -122,18 +125,14 @@ def fig_grid():
             sp.set_edgecolor(edge); sp.set_linewidth(1.0)
         return ax
 
-    txt(FIG_W / 2, 0.16, "Trained on digits 0-4. Every block is the same two networks.",
-        fontsize=12.5)
+    txt(FIG_W / 2, 0.16, headline, fontsize=12.5)
     txt(FIG_W / 2, 0.44,
         "recall-trained: during training its answer was ALWAYS one of the sixteen context images, so copying always worked.",
         fontsize=8.8, color="#2f6fbf")
     txt(FIG_W / 2, 0.62,
         "completion-trained: during training its answer was NEVER in the context, so it could only ever predict.",
         fontsize=8.8, color="#e07a3c")
-    txt(FIG_W / 2, 0.84,
-        "Numbers are normalised error: 1.00 is no better than drawing the average digit. "
-        "Columns are fixed difficulty percentiles, ranked without any network.",
-        fontsize=8.8, color="#555")
+    txt(FIG_W / 2, 0.84, sub, fontsize=8.8, color="#555")
 
     for b, (band_label, cond_p, cond_a) in enumerate(BANDS):
         y0 = TOP + b * (BLOCK_H + GAP_Y)
@@ -174,7 +173,8 @@ def fig_grid():
                     if lab:
                         txt(x + TILE / 2, y + TILE + 0.015, lab, fontsize=7.4)
 
-    url = save_matplotlib_figure(f"{PROJ}_r12_digit_split_grid", fig, format="png", dpi=150)
+    url = save_matplotlib_figure(f"{PROJ}_r12_digit_split_grid{suffix}", fig,
+                                 format="png", dpi=150)
     plt.close(fig)
     return url
 
@@ -182,6 +182,7 @@ def fig_grid():
 def fig_bars():
     """The same six blocks as numbers, with the two references that bound them."""
     r8, r9 = rows["exp8_sharedq"]["final"], rows["exp9_sharedq"]["final"]
+    r29 = rows["exp29"]["final"]
     bl = rows["baselines_M16_r14_split"]["baselines"]
     labels = ["0-4\nseen images", "0-4\nnew images", "5-9\nnew digits"]
     order_p = ["A_seen_present", "E_same_present", "B_novel_present"]
@@ -191,10 +192,12 @@ def fig_bars():
     for ax, order, title in [(axes[0], order_p, "answer IS in the context"),
                              (axes[1], order_a, "answer is NOT in the context")]:
         x = np.arange(3)
-        ax.bar(x - 0.19, [r8[c]["nmse"] for c in order], 0.36,
+        ax.bar(x - 0.26, [r8[c]["nmse"] for c in order], 0.25,
                label="recall-trained", color="#2f6fbf")
-        ax.bar(x + 0.19, [r9[c]["nmse"] for c in order], 0.36,
+        ax.bar(x, [r9[c]["nmse"] for c in order], 0.25,
                label="completion-trained", color="#e07a3c")
+        ax.bar(x + 0.26, [r29[c]["nmse"] for c in order], 0.25,
+               label="frozen layers", color="#3f9a6e")
         ax.plot(x, [bl[c]["n_ridge"] for c in order], "k^", ms=7,
                 label="ridge (ignores the context)")
         ax.axhline(1.0, color="#888", ls="--", lw=1.2)
@@ -211,10 +214,22 @@ def fig_bars():
     return url
 
 
+SUB = ("Numbers are normalised error: 1.00 is no better than drawing the average digit. "
+       "Columns are fixed difficulty percentiles, ranked without any network.")
+
+
 def main():
-    url_grid = fig_grid()
+    url_grid = fig_grid(
+        ctx_mode="iid", Q=4, suffix="_v2",
+        headline="Context: sixteen unrelated digits. Trained on 0-4.",
+        sub=SUB)
+    url_knn = fig_grid(
+        ctx_mode="knn", Q=1, suffix="_knn",
+        headline="Context: the query's sixteen nearest neighbours. Same three networks.",
+        sub=SUB + " No network was trained on this kind of context.")
     url_bars = fig_bars()
     print("grid:", url_grid)
+    print("knn:", url_knn)
     print("bars:", url_bars)
 
     md = f"""# Retrieval crosses to new digits. Prediction does not.
@@ -246,7 +261,12 @@ two numbers above describe.
 The **completion-trained** network never had its answer in the context during
 training. Copying was never available to it. It could only ever predict.
 
-Both saw digits 0 to 4 and nothing else.
+A third network, **frozen layers**, was trained like the recall-trained one, but
+with most of it held fixed. Its four context-processing layers keep their random
+starting values forever. Only the input embedding and the output layer learn —
+0.60M of its 4.03M numbers.
+
+All three saw digits 0 to 4 and nothing else.
 
 ![Completions across three levels of novelty]({url_grid})
 
@@ -336,6 +356,63 @@ digits drops to **0.370**, against the recall-trained network's 1.000.
 
 So neither objective produces knowledge that crosses a class boundary. One keeps
 its finding ability and loses its predicting ability. The other loses both.
+
+## Freezing helps, and is not enough
+
+The frozen network exists here for a reason. On held-out *images* it is the best
+generaliser we have measured. The question is whether that survives held-out
+*classes*.
+
+It helps. On unseen digits with the answer absent it scores **0.888**, against
+the recall-trained network's 0.999. Roughly half the gap to the familiar-digit
+score closes.
+
+It is not enough. The linear map that ignores the context still scores 0.851. The
+frozen network remains worse than using no context at all.
+
+Its retrieval barely suffers: identification accuracy **0.941** on unseen digits,
+against the recall-trained network's 1.000 and chance of 0.063.
+
+One number cuts the other way and belongs here. Measured at its best point during
+training rather than at the end, the frozen network reaches **0.753** on unseen
+digits, which does beat the linear map. It then drifts back to 0.888 by the end.
+The other two networks have no saved mid-training checkpoint, so that number
+cannot be compared like-for-like with their rows, and every figure here uses
+end-of-training weights for all three.
+
+## An informative context rescues most of it
+
+Everything above uses a context of sixteen unrelated digits. Such a context says
+almost nothing about an absent answer. That is a property of the task, not of the
+networks, and it can be changed.
+
+So change it. Instead of sixteen unrelated images, give the query its own sixteen
+nearest neighbours, ranked by how similar their visible halves are. For an unseen
+9, those neighbours are other unseen 9s.
+
+No network here was trained that way. This is a transfer test: same weights, new
+kind of context.
+
+![The same three networks on nearest-neighbour contexts]({url_knn})
+
+The collapse largely reverses. On unseen digits with the answer absent, the
+recall-trained network goes from **1.009** to **0.686**. It was worse than
+drawing the average digit. It is now better than the linear map that ignores the
+context, which scores 0.851.
+
+The frozen network improves too, from 0.883 to **0.703**.
+
+The completion-trained network does not move at all: 1.214 to **1.222**. It never
+reads its context, so a better context is worth nothing to it.
+
+This is not the network suddenly understanding a 9. It is the context supplying
+what the weights lack. The neighbours of an unseen 9 are other 9s, and copying
+from them works without knowing anything about the class.
+
+The honest summary of the two figures together: the class barrier is real, but it
+is a barrier in the weights, not in the task. Put the missing knowledge in the
+context and a network that reads its context can use it, even for a class it has
+never been trained on.
 
 ## What this means
 
