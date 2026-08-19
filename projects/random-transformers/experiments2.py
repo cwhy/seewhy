@@ -23,7 +23,7 @@ sys.path.append(str(Path(__file__).resolve().parent))
 
 import jax
 
-from experiments1 import BATCH, EVAL_EVERY, LR, N_HEAD, N_LAYER, SEEDS, STEPS, WD
+from experiments1 import BATCH, EVAL_EVERY, LR, N_HEAD, N_LAYER, SEEDS, STEPS, WARMUP, WD
 from lib.grid import run_grid
 from lib.tasks import get_task
 
@@ -48,7 +48,7 @@ def cells():
                     "task_name": task_name,
                     "mode": mode, "d": WIDTH, "n_layer": N_LAYER, "n_head": N_HEAD,
                     "seed": seed, "steps": STEPS[task_name], "batch": BATCH[task_name],
-                    "lr": LR, "wd": WD, "eval_every": EVAL_EVERY,
+                    "lr": LR, "wd": WD, "warmup": WARMUP, "eval_every": EVAL_EVERY,
                 }
 
 

@@ -34,7 +34,7 @@ import optax
 from lib.lm_data import CTX, VOCAB, load_tokens, to_contexts
 from lib.model import forward, init_params, n_params, split_params
 from lib.results_io import append_result, read_rows
-from lib.train import GRAD_CLIP
+from lib.train import GRAD_CLIP, make_optimizer
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s", datefmt="%H:%M:%S")
 
@@ -43,9 +43,10 @@ WIDTHS = (32, 64, 128, 256, 512)
 DEPTHS = (2, 4)
 MODES = ("random", "full")
 SEEDS = (0,)
-N_HEAD = 8
+N_HEAD = 4
 BATCH = 32
 LR, WD = 6e-4, 0.1               # the paper's language-modeling optimiser settings
+WARMUP = 500
 EVAL_EVERY = 500
 EVAL_BATCHES = 40
 
@@ -104,8 +105,7 @@ def main():
                     params = init_params(jax.random.key(seed), vocab=VOCAB, n_ctx=CTX,
                                          d=width, n_layer=n_layer, n_head=N_HEAD)
                     trainable, frozen = split_params(params, mode)
-                    opt = optax.chain(optax.clip_by_global_norm(GRAD_CLIP),
-                                      optax.adamw(LR, weight_decay=WD))
+                    opt = make_optimizer(LR, WD, warmup=WARMUP)
                     opt_state = opt.init(trainable)
                     grad_fn = jax.value_and_grad(lm_loss)
 

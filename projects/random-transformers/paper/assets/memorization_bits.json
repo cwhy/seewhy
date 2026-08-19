@@ -1,0 +1,10 @@
+{
+ "model": [
+  "fully trained",
+  "random"
+ ],
+ "bits": [
+  2.4,
+  0.204
+ ]
+}

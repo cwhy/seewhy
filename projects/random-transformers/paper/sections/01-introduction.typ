@@ -9,10 +9,9 @@ process that turns those random numbers into something that computes.
 This paper is a replication of a result that complicates that picture. Zhong and
 Andreas @zhong2024random asked what happens if you take a randomly initialised
 #gloss[transformer][the neural network architecture behind modern language
-models] and refuse to change almost any of it. Specifically: freeze every weight
-in the network's interior — permanently, at its random initial value — and allow
-training to adjust only the parts that translate between symbols and vectors at
-the very edges of the model.
+models] and refuse to change almost any of it. Specifically: freeze every weight in the network's interior, permanently, at
+its random initial value. Training may adjust only the parts that translate
+between symbols and vectors, at the very edges of the model.
 
 Concretely, a transformer that reads a sequence of symbols does three things.
 First it looks up a vector for each input symbol — the #gloss[embedding][a lookup
@@ -34,10 +33,9 @@ in the random network, and training's job was only to find an encoding that
 reaches it.
 
 #callout(title: [Why this would matter])[
-  When a trained model is found to contain an interpretable circuit — a
-  mechanism that does modular arithmetic, or copies a repeated token — the
-  natural reading is that gradient descent *built* that circuit from the
-  training signal. If a network with a frozen random interior does the same
+  Trained models are found to contain interpretable circuits. One does modular
+  arithmetic; another copies a repeated token. The natural reading is that
+  gradient descent *built* those circuits from the training signal. If a network with a frozen random interior does the same
   task, that reading is at least incomplete. Some of the structure would be
   attributable to the architecture and its initialisation, and would be present
   before the first gradient step.

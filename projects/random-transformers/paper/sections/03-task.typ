@@ -22,10 +22,10 @@ accuracy measures generalisation rather than in-distribution performance.
 
 *Needle in a haystack.* A list of marker–value pairs followed by a query:
 $[m_1, c_1, m_2, c_2, dots, m_k, c_k, m_u]$, with the answer $c_u$ scored. The
-number of pairs $k$ is uniform on $[1, 30]$; values are uniform in $[1, 127]$;
-markers are $k$ *distinct* integers drawn from $[128, 157]$; and the query
-symbol is the asked marker plus $30$, so the query is never literally equal to
-the marker it refers to. The model must locate the earlier occurrence and read
+number of pairs $k$ is uniform on $[1, 30]$. Values are uniform in $[1, 127]$.
+Markers are $k$ *distinct* integers drawn from $[128, 157]$. The query symbol is
+the asked marker plus $30$, so it is never literally equal to the marker it
+refers to. The model must locate the earlier occurrence and read
 off what followed it. Vocabulary 256, sequences padded to 62.
 
 *Decimal addition.* Two ten-digit numbers, digits reversed so that carries
@@ -44,10 +44,10 @@ answer symbols reusing the same integers. This is the extreme case for
 embedding-only training: with four token embeddings and eighty positional ones,
 there is very little to optimise.
 
-Generating parenthesis sequences uniformly at random would make almost all of
-them unbalanced and the task trivial, so we follow the paper's generate-then-
-mutate recipe: with probability $1/3$ a uniformly random sequence, otherwise a
-uniformly random balanced sequence; then, each with probability $1/2$, a
+Uniformly random parenthesis sequences would almost all be unbalanced, making
+the task trivial. So we follow the paper's generate-then-mutate recipe. With
+probability $1/3$ draw a uniformly random sequence, otherwise a uniformly random
+balanced one. Then, each with probability $1/2$, apply a
 geometrically-distributed number of random transpositions and of random symbol
 flips. Uniform balanced sequences are drawn by the cycle lemma. On our test set
 this yields *30.6%* balanced sequences.
@@ -87,10 +87,10 @@ distribution.
 Target models use an amplified initialisation (@sec-methodology), without which
 their outputs are near-uniform and every student succeeds trivially.
 
-*Language modeling.* TinyStories @eldan2023tinystories, a corpus of simple
-short stories written by GPT-3.5 and GPT-4 with the vocabulary of a young child,
-chosen because small models can learn it well enough for the comparison to be
-about the models. We fit a 10,000-token byte-level
+*Language modeling.* TinyStories @eldan2023tinystories is a corpus of simple
+short stories written by GPT-3.5 and GPT-4, with the vocabulary of a young
+child. We chose it because small models learn it well enough for the comparison
+to be about the models. We fit a 10,000-token byte-level
 #gloss[BPE][byte-pair encoding: a tokeniser that merges frequent character pairs
 into single symbols] tokeniser on the training split and pack the token stream
 into non-overlapping 512-token contexts. Every position is scored.
@@ -98,15 +98,14 @@ into non-overlapping 512-token contexts. Every position is scored.
 == What makes these hard, and the shortcut we had to rule out
 
 Three of the four algorithmic tasks cannot be solved by memorising input–output
-pairs, because their inputs are drawn fresh from spaces far too large to
-enumerate: there are $10^20$ decimal addition problems and $2^60$ parenthesis
-sequences. Modular addition *can* be memorised — all 39,601 pairs fit easily —
+pairs. Their inputs are drawn fresh from spaces far too large to enumerate.
+There are $10^20$ decimal addition problems and $2^60$ parenthesis sequences. Modular addition *can* be memorised — all 39,601 pairs fit easily —
 which is exactly why it is the one task with a held-out split.
 
-The shortcut that needed ruling out is on the parenthesis task, where we deviate
-from the paper by drawing training data from a fixed pool of 500,000
-pre-generated sequences rather than an endless stream, because the recursive
-generator does not vectorise on a GPU. A finite pool invites memorisation. It
+The shortcut that needed ruling out is on the parenthesis task. There we
+deviate from the paper, drawing training data from a fixed pool of 500,000
+pre-generated sequences rather than an endless stream. The recursive generator
+does not vectorise on a GPU. A finite pool invites memorisation. It
 cannot happen here: the model's entire trainable capacity on this task is four
 token embeddings, eighty positional embeddings and a four-row unembedding, and
 the pool is 500,000 sequences. There is no configuration of those parameters

@@ -36,7 +36,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s", datefm
 
 EXP = "exp4"
 WIDTH = 128
-N_LAYER, N_HEAD = 2, 8
+N_LAYER, N_HEAD = 2, 4
 MODES = ("random", "full")
 SEEDS = (0, 1, 2)
 
@@ -46,7 +46,7 @@ SEEDS = (0, 1, 2)
 STEPS = 60_000
 BATCH = 8192
 EVAL_EVERY = 5_000
-LR, WD = 1e-3, 1e-3
+LR, WD, WARMUP = 1e-3, 1e-3, 500
 
 BITS_PER_PAIR = math.log2(512)
 
@@ -81,7 +81,7 @@ def main():
                 continue
             logging.info(f"  {cell}")
             row = train_task(monitor_task, mode=mode, d=WIDTH, n_layer=N_LAYER, n_head=N_HEAD,
-                             seed=seed, steps=STEPS, batch=BATCH, lr=LR, wd=WD,
+                             seed=seed, steps=STEPS, batch=BATCH, lr=LR, wd=WD, warmup=WARMUP,
                              eval_every=EVAL_EVERY, log=True)
 
             acc = full_set_accuracy(row["_params"], task)

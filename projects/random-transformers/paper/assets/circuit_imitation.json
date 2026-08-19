@@ -1,0 +1,50 @@
+{
+ "target_width": [
+  4,
+  8,
+  12,
+  16,
+  32,
+  64,
+  128,
+  4,
+  8,
+  12,
+  16,
+  32,
+  64,
+  128
+ ],
+ "kl": [
+  0.0093,
+  0.0201,
+  0.0343,
+  0.0389,
+  0.1782,
+  0.5805,
+  1.07,
+  0.0035,
+  0.0023,
+  0.0046,
+  0.0038,
+  0.0073,
+  0.0155,
+  0.1215
+ ],
+ "student": [
+  "random student",
+  "random student",
+  "random student",
+  "random student",
+  "random student",
+  "random student",
+  "random student",
+  "fully trained student",
+  "fully trained student",
+  "fully trained student",
+  "fully trained student",
+  "fully trained student",
+  "fully trained student",
+  "fully trained student"
+ ]
+}

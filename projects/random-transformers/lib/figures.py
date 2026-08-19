@@ -29,9 +29,35 @@ TASK_LABEL = {
 }
 TASK_ORDER = ["mod_add", "needle", "decimal", "parens"]
 
+# Short forms for grouped bar charts. Four groups of four bars leaves too little
+# width per category for the full names, and adjacent labels collide.
+SHORT_LABEL = {
+    "mod_add": "mod. add",
+    "needle": "needle",
+    "decimal": "decimal",
+    "parens": "parens",
+    "memorization": "memorize",
+}
+
 
 def _median(xs):
     return statistics.median(xs) if xs else float("nan")
+
+
+def paper_metric(row: dict) -> float:
+    """The accuracy the paper's tables report, for one run.
+
+    The authors score *per token* over the positions their `compute_metrics`
+    marks as wanted. For modular addition, needle-in-a-haystack and parenthesis
+    balancing there is exactly one scored token per sequence, so token and
+    sequence accuracy are the same number. Decimal addition is the exception:
+    it scores ten or eleven digits plus a terminator, and the strict
+    all-or-nothing reading is a substantially harder metric than the paper's.
+
+    Reporting sequence accuracy there would have understated every model,
+    including ours, against the published numbers.
+    """
+    return row["test_tok_acc"] if row.get("task") == "decimal" else row["test_seq_acc"]
 
 
 def group(rows, *keys):
@@ -43,9 +69,12 @@ def group(rows, *keys):
     return out
 
 
-def spread(rows, field="test_seq_acc"):
-    """``(median, min, max)`` of a field across seeds — what the tables report."""
-    vals = [r[field] for r in rows]
+def spread(rows, field=None):
+    """``(median, min, max)`` across seeds — what the tables report.
+
+    With no field, uses :func:`paper_metric`, which is the comparable number.
+    """
+    vals = [r[field] for r in rows] if field else [paper_metric(r) for r in rows]
     return _median(vals), min(vals), max(vals)
 
 
@@ -71,19 +100,19 @@ def main_table(rows, name: str = "main_table") -> Figure:
             rs = by.get((task, mode, d))
             if not rs:
                 continue
-            task_col.append(TASK_LABEL[task]); cond_col.append(label)
-            acc_col.append(round(_median([r["test_seq_acc"] for r in rs]), 4))
+            task_col.append(SHORT_LABEL[task]); cond_col.append(label)
+            acc_col.append(round(_median([paper_metric(r) for r in rs]), 4))
         chance = next((r["chance"] for r in exp1 if r["task"] == task), None)
         if chance is not None:
-            task_col.append(TASK_LABEL[task]); cond_col.append("chance")
+            task_col.append(SHORT_LABEL[task]); cond_col.append("chance")
             acc_col.append(round(chance, 4))
 
     return bar_chart(
         name, {"task": task_col, "condition": cond_col, "accuracy": acc_col},
         x="task", y="accuracy", fill="condition",
-        x_order=[TASK_LABEL[t] for t in TASK_ORDER],
+        x_order=[SHORT_LABEL[t] for t in TASK_ORDER], position="dodge",
         x_label="", y_label="sequence accuracy", fill_label="model",
-        y_limits=(0.0, 1.0), width=cm(15), height=cm(8),
+        y_limits=(0.0, 1.0), width=cm(16), height=cm(7.5),
         alt="Grouped bars of sequence accuracy on four algorithmic tasks for "
             "random and fully trained transformers at widths 1024 and 16, a "
             "fully trained LSTM, and the chance level for each task.",
@@ -107,7 +136,7 @@ def width_sweep(rows, task: str, name: str | None = None) -> Figure:
 
     series = {}
     for mode, label in (("random", "random (embeddings only)"), ("full", "fully trained")):
-        series[label] = [round(_median([r["test_seq_acc"] for r in by[(mode, w)]]), 4)
+        series[label] = [round(_median([paper_metric(r) for r in by[(mode, w)]]), 4)
                          if (mode, w) in by else None for w in widths]
     series = {k: v for k, v in series.items() if any(x is not None for x in v)}
 
@@ -118,7 +147,8 @@ def width_sweep(rows, task: str, name: str | None = None) -> Figure:
         name or f"width_{task}", data,
         x="width", y="accuracy", colour="training", points=True, log_x=True,
         x_label="hidden width", y_label="sequence accuracy", colour_label="",
-        y_limits=(0.0, 1.0), hlines=[(round(chance, 4), "chance")],
+        y_limits=(0.0, 1.0), x_limits=(min(widths), max(widths)),
+        hlines=[(round(chance, 4), "chance")],
         title=TASK_LABEL.get(task, task),
         width=cm(13), height=cm(7),
         alt=f"Sequence accuracy on {TASK_LABEL.get(task, task)} against hidden "
@@ -143,15 +173,15 @@ def ablation(rows, name: str = "ablation") -> Figure:
             rs = by.get((task, mode))
             if not rs:
                 continue
-            task_col.append(TASK_LABEL[task]); var_col.append(label)
-            acc_col.append(round(_median([r["test_seq_acc"] for r in rs]), 4))
+            task_col.append(SHORT_LABEL[task]); var_col.append(label)
+            acc_col.append(round(_median([paper_metric(r) for r in rs]), 4))
 
     return bar_chart(
         name, {"task": task_col, "trained": var_col, "accuracy": acc_col},
         x="task", y="accuracy", fill="trained",
-        x_order=[TASK_LABEL[t] for t in TASK_ORDER],
+        x_order=[SHORT_LABEL[t] for t in TASK_ORDER], position="dodge",
         x_label="", y_label="sequence accuracy", fill_label="optimised",
-        y_limits=(0.0, 1.0), width=cm(15), height=cm(8),
+        y_limits=(0.0, 1.0), width=cm(16), height=cm(7.5),
         alt="Grouped bars showing sequence accuracy at width 1024 when different "
             "subsets of the embedding matrices are optimised.",
     )
@@ -193,7 +223,7 @@ def subspace(rows, layer: str = "L1", name: str | None = None) -> Figure:
                 continue
             for key, blabel in ((f"pc_{layer}", "top 10 components"),
                                 (f"neuron_{layer}", "top 10 neurons")):
-                task_col.append(TASK_LABEL.get(task, task))
+                task_col.append(SHORT_LABEL.get(task, task))
                 basis_col.append(f"{mlabel}: {blabel}")
                 val_col.append(round(_median([r[key] for r in rs]), 4))
 
@@ -201,9 +231,9 @@ def subspace(rows, layer: str = "L1", name: str | None = None) -> Figure:
         name or f"subspace_{layer}",
         {"task": task_col, "basis": basis_col, "variance": val_col},
         x="task", y="variance", fill="basis",
-        x_order=[TASK_LABEL.get(t, t) for t in order],
+        x_order=[SHORT_LABEL.get(t, t) for t in order], position="dodge",
         x_label="", y_label="fraction of variance explained", fill_label="",
-        y_limits=(0.0, 1.0), width=cm(16), height=cm(8),
+        y_limits=(0.0, 1.0), width=cm(17), height=cm(7.5),
         title=f"activations after layer {layer[-1]}" if layer.startswith("L") else "embeddings",
         alt="Grouped bars comparing the fraction of activation variance explained "
             "by the top ten principal components against the top ten individual "

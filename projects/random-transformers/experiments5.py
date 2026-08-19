@@ -45,7 +45,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s", datefm
 EXP = "exp5"
 TOP_K = 10
 N_INPUTS = 2048
-N_LAYER, N_HEAD = 2, 8
+N_LAYER, N_HEAD = 2, 4
 SEEDS = (0, 1, 2)
 MODES = ("random", "full")
 TASKS = ("mod_add", "needle", "decimal", "parens")

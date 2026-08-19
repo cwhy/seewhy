@@ -66,9 +66,17 @@ L = − (1/|M|) Σ_{(b,t) ∈ M} log p(x_{b,t+1} | x_{b,≤t})
 ```
 
 `M` is the mask each task supplies. Prompt tokens and padding are excluded, so
-loss and accuracy both see only the answer. AdamW, learning rate 1e-3, weight
-decay 1e-3, global gradient-norm clipping at 1.0 (paper §D.3). Language
-modeling uses 6e-4 / 0.1.
+loss and accuracy both see only the answer. AdamW, weight decay 1e-3, global gradient-norm
+clipping at 1.0 (paper §D.3). Language modeling uses weight decay 0.1.
+
+**Learning rate: 3e-4 with a 500-step linear warmup — a deviation.** The paper
+specifies 1e-3 and mentions no warmup. In our implementation that combination
+is unstable for *fully trained* width-1024 models, and only for those: they
+plateau at 0.14 on needle-in-a-haystack and stay there for 10,000 steps.
+Embedding-only training reaches 1.00 under every setting we tried. The same
+optimiser is used in every condition so that no comparison is between
+differently tuned setups. Full evidence in
+[reports/exp1-budget.md](reports/exp1-budget.md).
 
 ## Tasks
 
@@ -96,10 +104,14 @@ split by design.
 
 ## Metrics
 
-**Sequence accuracy** — every scored token in a sequence is correct. This is the
-strict metric and is what the tables report. **Token accuracy** is logged
-alongside it, and is the more informative one for decimal addition, where a
-single wrong digit zeroes the sequence score.
+**The paper's metric is per token**, over the positions its `compute_metrics`
+marks as wanted (confirmed against the authors' code, not the paper text, which
+says only "accuracy"). For modular addition, needle-in-a-haystack and
+parenthesis balancing there is exactly one scored token per sequence, so token
+and sequence accuracy coincide. **Decimal addition is the exception** — ten or
+eleven digits plus a terminator — and the strict sequence reading is a much
+harder metric. We log both and report the paper's for comparability;
+`lib.figures.paper_metric` is the single place that decides.
 
 **Chance levels**, derived rather than asserted:
 
@@ -127,4 +139,14 @@ claim — neither number means anything alone.
 
 ## Findings
 
-_(appended as results land)_
+**Embedding-only training is insensitive to optimiser tuning; full training is
+not.** Across four learning-rate/warmup combinations, embedding-only training
+reached 1.00 on needle-in-a-haystack every time, while full training ranged from
+0.14 (never escaping a plateau) to 1.00. This is weak but real support for the
+paper's thesis: a model that only has to find an *encoding* of an existing
+circuit has no fragile search to disrupt. Found by accident while chasing a bug
+— see [reports/exp1-budget.md](reports/exp1-budget.md).
+
+**The plateau has a readable value.** A fully trained model stuck at 0.1416
+matches `E[1/k]` for `k ~ U[1,30]` = 0.1332 — the score of a model that has
+learned to answer with *some* value from the context but not which one.

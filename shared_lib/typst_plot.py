@@ -601,6 +601,7 @@ def bar_chart(
     y: str,
     fill: str | None = None,
     x_order: Sequence[str] | None = None,
+    position: str | None = None,
     horizontal: bool = False,
     title: str | None = None,
     subtitle: str | None = None,
@@ -622,12 +623,19 @@ def bar_chart(
     A discrete x axis is ordered alphabetically unless `x_order` says otherwise,
     which scrambles any grouping the labels imply. Pass the categories in the
     order they should appear — usually just the order they were built in.
+
+    `position` is the geom's positional adjustment: `"dodge"` puts the `fill`
+    levels side by side, `"stack"` piles them up. **Pass `"dodge"` whenever the
+    fill levels are alternatives rather than parts of a whole** — stacked bars
+    of competing conditions sum to a total that means nothing, and read as if
+    the tallest bar were the sum of the others.
     """
     cols = _columns(data)
     mapping = aes(x=x, y=y, **({"fill": fill} if fill else {}))
 
     layers: list[Raw] = [
         geom_col(width=0.72, stroke=None,
+                 **({"position": position} if position else {}),
                  **({} if fill else {"fill": rgb((palette or PALETTE)[0])}))
     ]
     layers += _reference_lines(hlines)   # x is categorical here, so no labels

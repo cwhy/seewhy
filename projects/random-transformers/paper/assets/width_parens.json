@@ -1,0 +1,50 @@
+{
+ "width": [
+  16,
+  32,
+  64,
+  128,
+  256,
+  512,
+  1024,
+  16,
+  32,
+  64,
+  128,
+  256,
+  512,
+  1024
+ ],
+ "accuracy": [
+  0.8196,
+  0.9478,
+  0.9978,
+  1.0,
+  1.0,
+  1.0,
+  1.0,
+  1.0,
+  1.0,
+  1.0,
+  1.0,
+  1.0,
+  1.0,
+  0.7354
+ ],
+ "training": [
+  "random (embeddings only)",
+  "random (embeddings only)",
+  "random (embeddings only)",
+  "random (embeddings only)",
+  "random (embeddings only)",
+  "random (embeddings only)",
+  "random (embeddings only)",
+  "fully trained",
+  "fully trained",
+  "fully trained",
+  "fully trained",
+  "fully trained",
+  "fully trained",
+  "fully trained"
+ ]
+}

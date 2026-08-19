@@ -27,8 +27,33 @@ DEFAULT_WD = 1e-3
 GRAD_CLIP = 1.0
 
 
-def make_optimizer(lr: float, wd: float):
-    return optax.chain(optax.clip_by_global_norm(GRAD_CLIP), optax.adamw(lr, weight_decay=wd))
+def make_optimizer(lr: float, wd: float, warmup: int = 0, steps: int | None = None):
+    """AdamW with gradient clipping, behind a linear warmup and cosine decay.
+
+    The paper's Appendix D.3 gives only "AdamW ... learning rate 1e-3 and weight
+    decay 1e-3 ... clip all gradient norms at 1". Both the warmup and the decay
+    are absent from it, and both turn out to be decisive for *fully trained*
+    models:
+
+        no warmup, constant lr    needle/full/1024 plateaus at 0.14 forever
+        warmup, constant lr       reaches 0.92, then destabilises
+        warmup + cosine decay     solves the task
+
+    Embedding-only training succeeds under all three, which is why the omission
+    is invisible from the paper's own results. The authors' released code sets
+    `warmup_steps = 500` and `lr_scheduler_type = "cosine"`; we match it. See
+    reports/exp1-budget.md.
+    """
+    if warmup and steps:
+        sched = optax.warmup_cosine_decay_schedule(
+            init_value=0.0, peak_value=lr, warmup_steps=warmup,
+            decay_steps=steps, end_value=0.0)
+    elif warmup:
+        sched = optax.linear_schedule(0.0, lr, warmup)
+    else:
+        sched = lr
+    return optax.chain(optax.clip_by_global_norm(GRAD_CLIP),
+                       optax.adamw(sched, weight_decay=wd))
 
 
 @functools.lru_cache(maxsize=None)
@@ -66,6 +91,7 @@ def train_task(
     batch: int = 1000,
     lr: float = DEFAULT_LR,
     wd: float = DEFAULT_WD,
+    warmup: int = 0,
     eval_every: int = 500,
     log: bool = True,
 ) -> dict:
@@ -79,7 +105,7 @@ def train_task(
     trainable, frozen = split_params(params, mode)
     n_train_p, n_total_p = n_params(trainable), n_params(params)
 
-    opt = make_optimizer(lr, wd)
+    opt = make_optimizer(lr, wd, warmup=warmup, steps=steps)
     opt_state = opt.init(trainable)
 
     grad_fn = jax.value_and_grad(loss_fn)
@@ -119,6 +145,7 @@ def train_task(
     return {
         "task": task.name, "mode": mode, "d": d, "n_layer": n_layer, "n_head": n_head,
         "seed": seed, "steps": steps, "batch": batch, "lr": lr, "wd": wd,
+        "warmup": warmup,
         "vocab": task.vocab, "n_ctx": task.n_ctx, "seq_len": task.seq_len,
         "chance": task.chance,
         "n_trainable_params": n_train_p, "n_params": n_total_p,

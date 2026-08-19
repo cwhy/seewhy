@@ -67,6 +67,11 @@ the authors' cluster, so:
 - **LSTM baseline.** Included, since "beats a fully trained LSTM" is one of the
   paper's headline comparisons, but with a single-layer textbook LSTM rather
   than a tuned one.
+- **Learning rate and warmup.** 3e-4 with a 500-step linear warmup, against the
+  paper's 1e-3 and no warmup. Forced: at 1e-3 without warmup our fully trained
+  width-1024 models never leave a plateau on needle-in-a-haystack, even at the
+  paper's own budget. Applied identically in every condition. See
+  `reports/exp1-budget.md`.
 
 ## An inconsistency in the source
 

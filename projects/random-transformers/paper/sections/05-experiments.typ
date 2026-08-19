@@ -21,6 +21,9 @@ next stage's configuration, so they are listed in the order they were run.
 
 == Controls
 
+A fully trained LSTM @hochreiter1997long is included alongside, since "beats a
+fully trained recurrent model" is one of the paper's headline comparisons.
+
 *The positive control is the `full` condition, and it is in every cell.* Every
 random-transformer number has a fully trained number beside it from the same
 harness, same task encoding, same budget, same seeds. This is what separates "the
@@ -32,13 +35,13 @@ assumed, and printed beside every accuracy. It is what makes the parenthesis
 results readable, since chance there is 69.4% rather than something negligible.
 
 *A third control is on the task encodings themselves.* An incorrectly encoded
-task trains without complaint and reports a plausible-looking number. Before any
-experiment ran, and after every change to the task code, a verification script
-decoded samples from each task and checked them against an independently written
-implementation of the rule — that the decimal output really is the sum of the
-inputs, that the needle query really resolves to its marker's value, that the
-parenthesis label agrees with a hand-written Dyck check, that the modular
-addition train and test splits are disjoint. All checks pass; they are what the
+task trains without complaint and reports a plausible-looking number. So a
+verification script runs before any experiment, and after every change to the
+task code. It decodes samples and checks them against an independently written
+implementation of each rule. That the decimal output really is the sum of the
+inputs. That the needle query really resolves to its marker's value. That the
+parenthesis label agrees with a hand-written Dyck check. That the modular
+addition train and test splits are disjoint. All checks pass. They are what the
 rest of the paper rests on.
 
 == Deliberate design choices

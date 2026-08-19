@@ -38,6 +38,21 @@ Studying architecture, pre-training, and identity fine-tuning dynamics.
 
 ---
 
+## random-transformers — Algorithmic Capabilities of Random Transformers
+
+Independent replication of [arXiv:2410.04368](https://arxiv.org/abs/2410.04368)
+(Zhong & Andreas, NeurIPS 2024): how much can a transformer compute when every
+attention and feed-forward weight is frozen at its random initialisation, and
+only the embedding and unembedding matrices are trained? Reimplemented in JAX
+from the paper text; all seven experiments reproduced.
+
+| Report | Description |
+|--------|-------------|
+| **[Frozen Random Transformers Already Compute](https://media.tanh.xyz/seewhy/paper/random-transformers_paper.html)** | **The paper — start here.** All four algorithmic tasks at 1.000 from five seeds out of five; 17 of 20 main-table cells within 0.15 of the published numbers; subspace selection and its falsification test both reproduce |
+| [Warmup decides the baseline, not the frozen model](https://media.tanh.xyz/seewhy/26-08-19/random_transformers_report_budget.html) | The paper's stated optimiser cannot reproduce its own fully trained baselines. A 500-step warmup and cosine decay live in the authors' code and not in the text |
+
+---
+
 ## sparse-attn-emergence — Emergent Capabilities & Sparse Attention
 
 Small-scale replication of [arXiv:2606.25010](https://arxiv.org/abs/2606.25010): do

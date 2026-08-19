@@ -12,16 +12,27 @@
 #import "/template.typ": *
 
 #show: paper.with(
-  title: "Algorithmic Capabilities of Random Transformers — a Replication",
-  subtitle: none,
+  title: "Frozen Random Transformers Already Compute",
+  subtitle: [a replication of Zhong and Andreas, _Algorithmic Capabilities of
+    Random Transformers_ (NeurIPS 2024)],
   date: none,
-  status: "draft",
+  status: "final",
   web: sys.inputs.at("web", default: "0") == "1",
   abstract: [
-    #todo[
-      Write this last. Four sentences: the question, what was done, the
-      headline number with its baseline beside it, and the conclusion.
-    ]
+    How much of a transformer's algorithmic ability exists before it is trained?
+    We reimplemented Zhong and Andreas (2024) in JAX from its text, freezing every
+    attention and feed-forward weight at its random initialisation and training
+    only the token embedding, positional embedding and unembedding. Such models
+    reach 1.000 on modular arithmetic, associative recall, decimal addition and
+    parenthesis balancing, in five seeds out of five, against chance levels of
+    0.005, 0.008, ~0 and 0.681; seventeen of twenty cells in the main table fall
+    within 0.15 of the published numbers, and the proposed mechanism — computation
+    confined to a low-dimensional subspace that is not neuron-aligned — reproduces,
+    including the paper's own falsification test. We add two findings: the paper's
+    stated optimiser cannot reproduce its own fully trained baselines, since a
+    warmup and cosine decay present in the authors' code are missing from the
+    text, and the fact that only the baseline condition is sensitive to this is
+    itself evidence for the paper's thesis.
   ],
 )
 

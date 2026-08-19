@@ -18,7 +18,7 @@ import jax
 import jax.numpy as jnp
 import optax
 
-from .train import GRAD_CLIP
+from .train import GRAD_CLIP, make_optimizer
 
 LSTM_LR = 5e-3
 LSTM_WD = 1e-3
@@ -72,11 +72,11 @@ def lstm_accuracy(p, toks, mask):
 
 
 def train_lstm(task, *, d: int, seed: int, steps: int, batch: int, eval_every: int = 250,
-               lr: float = LSTM_LR, wd: float = LSTM_WD) -> dict:
+               lr: float = LSTM_LR, wd: float = LSTM_WD, warmup: int = 0) -> dict:
     key = jax.random.key(10_000 + seed)
     k_init, k_train = jax.random.split(key)
     p = init_lstm(k_init, vocab=task.vocab, d=d)
-    opt = optax.chain(optax.clip_by_global_norm(GRAD_CLIP), optax.adamw(lr, weight_decay=wd))
+    opt = make_optimizer(lr, wd, warmup=warmup, steps=steps)
     opt_state = opt.init(p)
     grad_fn = jax.value_and_grad(lstm_loss)
 
@@ -110,7 +110,7 @@ def train_lstm(task, *, d: int, seed: int, steps: int, batch: int, eval_every: i
 
     return {
         "task": task.name, "mode": "lstm", "d": d, "n_layer": 1, "seed": seed,
-        "steps": steps, "batch": batch, "lr": lr, "wd": wd,
+        "steps": steps, "batch": batch, "lr": lr, "wd": wd, "warmup": warmup,
         "vocab": task.vocab, "n_ctx": task.n_ctx, "seq_len": task.seq_len,
         "chance": task.chance,
         "n_trainable_params": int(sum(v.size for v in p.values())),

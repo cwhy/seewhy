@@ -25,7 +25,7 @@ sys.path.append(str(Path(__file__).resolve().parent))
 
 import jax
 
-from experiments1 import BATCH, EVAL_EVERY, LR, N_LAYER, STEPS, WD
+from experiments1 import BATCH, EVAL_EVERY, LR, N_LAYER, STEPS, WARMUP, WD
 from lib.grid import run_grid
 from lib.tasks import get_task
 
@@ -35,7 +35,7 @@ EXP = "exp3"
 WIDTHS = (32, 64, 128, 256, 512)
 MODES = ("random", "full")
 SEEDS = (0, 1, 2)
-N_HEAD = 8
+N_HEAD = 4
 ALL_TASKS = ("mod_add", "needle", "decimal", "parens")
 TASKS = tuple(os.environ.get("RT_TASKS", ",".join(ALL_TASKS)).split(","))
 
@@ -53,7 +53,7 @@ def cells():
                         "task_name": task_name,
                         "mode": mode, "d": width, "n_layer": N_LAYER, "n_head": N_HEAD,
                         "seed": seed, "steps": STEPS[task_name], "batch": BATCH[task_name],
-                        "lr": LR, "wd": WD, "eval_every": EVAL_EVERY,
+                        "lr": LR, "wd": WD, "warmup": WARMUP, "eval_every": EVAL_EVERY,
                     }
 
 

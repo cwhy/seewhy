@@ -29,7 +29,11 @@ $ h &<- h + "Attn"("LN"(h)) \
 
 with causal multi-head attention and $"MLP"(x) = "GeLU"(x W_"fc" + b_"fc") W_"proj" + b_"proj"$
 where $W_"fc"$ is $d times 4d$. After the last block a final $"LN"$, then
-$"logits" = "LN"(h) U^top$. Attention uses 8 heads throughout.
+$"logits" = "LN"(h) U^top$. Attention uses *4 heads* throughout, which the paper
+does not state and we took from the authors' released code. The choice is not
+neutral for us: more heads means more independent random circuits for
+embedding-only training to select among, so the larger value we first used would
+have flattered the condition under test.
 
 Input embeddings are the sum of the two tables:
 
@@ -98,26 +102,46 @@ AdamW @loshchilov2019decoupled throughout, with gradient norms clipped at 1.0.
   ("optimiser (synthetic tasks)", "AdamW, lr 1e-3, weight decay 1e-3"),
   ("optimiser (language modeling)", "AdamW, lr 6e-4, weight decay 0.1"),
   ("optimiser (LSTM baseline)", "AdamW, lr 5e-3, weight decay 1e-3"),
+  ("learning-rate schedule", "500-step linear warmup, then cosine decay to zero"),
   ("gradient clipping", "global norm 1.0"),
   ("depth", "2 blocks (4 also swept for language modeling)"),
-  ("attention heads", "8"),
+  ("attention heads", "4"),
   ("main-table widths", "1024 and 16"),
   ("width sweep", "16, 32, 64, 128, 256, 512, 1024"),
   ("evaluation interval", "every 250 steps (5000 for memorization)"),
 )
 
+#callout(title: [The schedule is not in the paper, and it decides the baseline])[
+  Appendix D.3 of the paper gives only "AdamW optimizer with a learning rate
+  $10^(-3)$ and weight decay $10^(-3)$ ... We clip all gradient norms at 1."
+  There is no warmup and no decay in that description. Under it we could not
+  reproduce the paper's fully trained results at all. A fully trained width-1024
+  model plateaus at 0.14 on needle-in-a-haystack. It stays there for 10,000
+  steps — the paper's own budget.
+
+  The authors' released code sets `warmup_steps = 500` and
+  `lr_scheduler_type = "cosine"`. With both, the published learning rate works.
+  Embedding-only training reaches 1.00 with or without either — which is exactly
+  why the omission leaves no trace in the paper's own tables. @sec-analysis
+  returns to this, because it is a small piece of evidence for the paper's
+  thesis rather than only an erratum.
+]
+
 Budgets are per task, and are the main place we depart from the paper — see
 @sec-limitations. The paper uses 10,000 steps at batch 1000 for the streamed
-tasks; a convergence probe found needle-in-a-haystack saturating after roughly
-750,000 training examples regardless of how they were batched (step 750 at batch
-1000, step 2000 at batch 250), so budgets were set from that measurement with a
-two- to fourfold margin rather than copied:
+tasks. A convergence probe found needle-in-a-haystack saturating after roughly
+750,000 training examples, regardless of batching (step 750 at batch 1000, step
+2000 at batch 250). Budgets were initially set from that measurement.
+That was an error, and worth stating: a budget shared by several conditions has
+to be calibrated on the *slowest* of them, and embedding-only training is the
+fastest by an order of magnitude. The budgets below are set by the fully trained
+condition instead:
 
 #kv(
   ("modular addition", "20,000 steps x batch 1000"),
-  ("needle in a haystack", "3,000 steps x batch 500"),
-  ("decimal addition", "6,000 steps x batch 500"),
-  ("parenthesis balancing", "4,000 steps x batch 500"),
+  ("needle in a haystack", "8,000 steps x batch 500"),
+  ("decimal addition", "8,000 steps x batch 500"),
+  ("parenthesis balancing", "6,000 steps x batch 500"),
   ("memorization", "60,000 steps x batch 8192"),
   ("circuit imitation", "6,000 steps x batch 256"),
   ("language modeling", "one pass over 100M tokens, batch 32 x 512 tokens"),
@@ -125,9 +149,9 @@ two- to fourfold margin rather than copied:
 
 == Seeds, aggregation, hardware
 
-The main table and the ablation use *5 seeds* per cell; the width sweep, the
-memorization and circuit-imitation experiments use *3*; the language-modeling
-sweep is a *single run* per cell. Reported numbers are medians across seeds,
+The main table and the ablation use *5 seeds* per cell. The width sweep,
+memorization and circuit imitation use *3*. The language-modeling sweep is a
+*single run* per cell. Reported numbers are medians across seeds,
 following the paper, with the min–max range across seeds given alongside in
 @sec-results. The paper uses 10 seeds; ours is a compute-driven reduction and
 the medians are correspondingly noisier.

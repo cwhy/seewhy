@@ -37,7 +37,7 @@ import optax
 
 from lib.model import forward, init_params, n_params, split_params
 from lib.results_io import append_result, read_rows
-from lib.train import GRAD_CLIP
+from lib.train import GRAD_CLIP, make_optimizer
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s", datefmt="%H:%M:%S")
 
@@ -46,11 +46,11 @@ VOCAB = 512
 SEQ_LEN = 40
 TARGET_WIDTHS = (4, 8, 12, 16, 32, 64, 128)
 TARGET_LAYERS, TARGET_HEADS = 3, 2
-STUDENT_WIDTH, STUDENT_LAYERS, STUDENT_HEADS = 512, 2, 8
+STUDENT_WIDTH, STUDENT_LAYERS, STUDENT_HEADS = 512, 3, 4
 MODES = ("random", "full")
 SEEDS = (0, 1, 2)
 STEPS, BATCH, EVAL_EVERY = 6_000, 256, 500
-LR, WD = 1e-3, 1e-3
+LR, WD, WARMUP = 1e-3, 1e-3, 500
 
 PROJECT = Path(__file__).parent
 JSONL = PROJECT / "results.jsonl"
@@ -61,15 +61,23 @@ def init_target(key, d):
     amplified, so targets differ from each other and from uniform.
 
     The paper's main text says query and key are scaled by 10 while the appendix
-    writes the resulting standard deviation as 0.4, which is a factor of 20. We
-    follow the main text (x10 -> 0.2) and record the choice.
+    writes the resulting standard deviation as 0.4, which is a factor of 20. The
+    authors' code settles it — `imitation.py` does:
+
+        u.mlp.c_proj.weight.data *= 20
+        u.attn.c_attn.weight.data *= 10
+        model.lm_head.weight.data *= 100 / n_embd_target**0.5
+
+    So the QKV factor is 10, and the factor of 20 applies to the MLP *output*
+    projection alone, not to both MLP matrices as the phrase "feed forward
+    weights" suggests. (It also scales `c_proj.bias`, which is initialised to
+    zero and so is a no-op.)
     """
     p = init_params(key, vocab=VOCAB, n_ctx=SEQ_LEN, d=d,
                     n_layer=TARGET_LAYERS, n_head=TARGET_HEADS)
     for i in range(TARGET_LAYERS):
         b = f"block{i}"
         p[f"{b}/attn/W_qkv"] = p[f"{b}/attn/W_qkv"] * 10.0
-        p[f"{b}/mlp/W_fc"] = p[f"{b}/mlp/W_fc"] * 20.0
         p[f"{b}/mlp/W_proj"] = p[f"{b}/mlp/W_proj"] * 20.0
     p["U"] = p["U"] * (100.0 / math.sqrt(d))
     return p
@@ -104,8 +112,7 @@ def main():
                 student = init_params(k_s, vocab=VOCAB, n_ctx=SEQ_LEN, d=STUDENT_WIDTH,
                                       n_layer=STUDENT_LAYERS, n_head=STUDENT_HEADS)
                 trainable, frozen = split_params(student, mode)
-                opt = optax.chain(optax.clip_by_global_norm(GRAD_CLIP),
-                                  optax.adamw(LR, weight_decay=WD))
+                opt = make_optimizer(LR, WD, warmup=WARMUP)
                 opt_state = opt.init(trainable)
 
                 def kl_loss(tr, fr, toks):

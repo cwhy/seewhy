@@ -1,0 +1,73 @@
+# Numbers in the prose that are task or architecture definitions, not results.
+# Each is fixed by the source paper's Appendix D.1 or D.2 and cannot appear in
+# results.jsonl. Kept short on purpose: a long list here usually means results
+# that should be logged are not being logged.
+
+199      # modulus of the modular addition task
+39601    # 199^2, all input pairs
+37621    # training pairs after the 95/5 split
+1980     # test pairs
+30       # maximum marker-value pairs in needle-in-a-haystack
+127      # top of the value range in needle-in-a-haystack
+128      # bottom of the marker range
+157      # top of the marker range
+60       # maximum parenthesis sequence length
+62       # padded needle / parenthesis sequence length
+34       # decimal addition sequence length
+31       # decimal addition vocabulary
+29       # top decimal output digit token
+20       # bottom decimal output digit token
+11       # the '=' token, and the maximum number of output digits
+10       # the '+' token, and the number of digits per operand
+39       # worked example in the task description
+71       # worked example
+110      # worked example
+511      # top of the memorization key and value range
+1023     # top of the memorization y range
+262144   # 512^2 memorization associations
+9        # bits per memorized association, log2(512)
+0.503    # chance on modular addition, 1/199
+0.787    # chance on needle-in-a-haystack, 1/127
+0.195    # chance on memorization, 1/512
+69.4     # chance on parenthesis balancing, the majority class
+30.6     # fraction of balanced sequences in the parenthesis test set
+1e-10    # a uniform digit guesser's odds on decimal addition
+0.1332   # E[1/k] for k ~ U[1,30], the value of the plateau in reports/exp1-budget.md
+0.02     # initialisation standard deviation, from the paper
+12       # parameters per block as a multiple of d^2
+13       # bias parameters per block as a multiple of d
+24       # GPU memory in GB
+2.89     # lower bound of the paper's stated target-entropy range
+3.02     # upper bound of the paper's stated target-entropy range
+3.3      # upper bound of the paper's stated target cross-KL range
+0.8      # lower bound of the paper's stated target cross-KL range
+99328    # the paper's Table 6 entry for E_token on modular addition
+203776   # what that entry would be at p = 199
+97       # the vocabulary size the paper's Table 6 entry implies
+
+# Numbers quoted from the source paper's own tables, which are not our results.
+2.88     # the paper's bits-per-parameter for a fully trained model
+0.675    # the paper's decimal/trained/16 accuracy
+0.41     # the paper's bits-per-parameter for a random model
+3.28     # entropy upper bound under the rejected 1.5x unembedding scale
+6.2      # cross-KL upper bound under the same rejected scale
+
+# The numeric check splits thousands separators, so a parameter count written
+# as 659,584 is seen as "659" and "584".
+659
+584
+784
+601
+621
+980
+262
+144
+328
+203
+776
+
+# Hardware and budget constants.
+4090     # GPU model number
+250      # evaluation interval in steps
+5000     # memorization evaluation interval
+750      # step at which the convergence probe saturated

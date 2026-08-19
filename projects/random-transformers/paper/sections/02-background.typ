@@ -22,7 +22,7 @@ Three stages:
 + *The stack.* A sequence of identical blocks, each refining the vectors. One
   block does two things. #gloss[Self-attention][each position computes a
   weighted average of the other positions' vectors, choosing the weights from
-  the vectors themselves] lets positions exchange information; a
+  the vectors themselves] lets positions exchange information. A
   #gloss[feed-forward network][a small two-layer function applied independently
   at each position] then transforms each position on its own. Both are wrapped
   in residual connections, meaning each writes an update that is *added* to the
@@ -50,9 +50,9 @@ a model that assigns probability $1$ to the truth scores $0$, and a model that
 spreads its probability uniformly over $v$ symbols scores $ln v$.
 
 *Freezing* a parameter means excluding it from that update. It keeps its initial
-value forever. Crucially, gradients still flow *through* a frozen weight: the
-weights at the edges of the model can only be improved by computing how the
-loss depends on them, and that computation passes through the frozen interior.
+value forever. Crucially, gradients still flow *through* a frozen weight. The
+weights at the edges can only be improved by computing how the loss depends on
+them. That computation passes through the frozen interior.
 Freezing removes the interior from the search, not from the computation.
 
 #callout(title: [The one distinction the whole paper turns on])[
@@ -87,7 +87,7 @@ should therefore be much lower than for a fully trained model, and it is
 The tasks are chosen because each is already understood in fully trained
 models. Modular addition is the standard setting for #gloss[grokking][a long
 plateau of memorisation followed by an abrupt jump to generalisation]
-@power2022grokking, and the circuits trained models use for it have been
+@power2022grokking. The circuits trained models use for it have been
 reverse-engineered @nanda2023progress @zhong2023clock. Associative recall is the
 setting where *induction heads* — attention patterns that find an earlier
 occurrence of the current token and copy what followed it — were identified
