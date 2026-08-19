@@ -105,7 +105,7 @@ def fig_grid():
     BLOCK_H = BLOCK_TITLE + 3 * TILE + 2 * ROW_GAP + 3 * ERR_H
     BAND_LAB = 1.55                       # left margin holding the novelty label
     GAP_X, GAP_Y = 0.55, 0.34
-    TOP = 0.92
+    TOP = 1.28
     FIG_W = BAND_LAB + 2 * BLOCK_W + GAP_X + 0.25
     FIG_H = TOP + 3 * BLOCK_H + 2 * GAP_Y + 0.15
 
@@ -124,7 +124,13 @@ def fig_grid():
 
     txt(FIG_W / 2, 0.16, "Trained on digits 0-4. Every block is the same two networks.",
         fontsize=12.5)
-    txt(FIG_W / 2, 0.46,
+    txt(FIG_W / 2, 0.44,
+        "recall-trained: during training its answer was ALWAYS one of the sixteen context images, so copying always worked.",
+        fontsize=8.8, color="#2f6fbf")
+    txt(FIG_W / 2, 0.62,
+        "completion-trained: during training its answer was NEVER in the context, so it could only ever predict.",
+        fontsize=8.8, color="#e07a3c")
+    txt(FIG_W / 2, 0.84,
         "Numbers are normalised error: 1.00 is no better than drawing the average digit. "
         "Columns are fixed difficulty percentiles, ranked without any network.",
         fontsize=8.8, color="#555")
@@ -230,6 +236,18 @@ average-digit score. It has learned nothing about what a 9 looks like.
 Both numbers come from the same network, on the same unseen images, in the same
 evaluation run. Only the question differs.
 
+Two networks appear throughout this report. They are identical in size and shape.
+They differ only in the episodes they were trained on.
+
+The **recall-trained** network always had its answer sitting in the context during
+training. Copying was always a valid strategy for it, and it is the network the
+two numbers above describe.
+
+The **completion-trained** network never had its answer in the context during
+training. Copying was never available to it. It could only ever predict.
+
+Both saw digits 0 to 4 and nothing else.
+
 ![Completions across three levels of novelty]({url_grid})
 
 ## The task
@@ -307,10 +325,10 @@ prior that applies to five digits and does not extend.
 
 ## The other training signal fails differently
 
-A second network was trained on the same split, but on the opposite objective.
-Its answer was never in the context. It could only ever predict.
+The completion-trained network was never allowed to copy. If predicting is the
+skill that transfers, it is the network that should show it.
 
-That network handles new images of familiar digits reasonably: **0.642**. On
+It handles new images of familiar digits reasonably: **0.642**. On
 unseen digits it scores **1.221** — worse than drawing the average digit.
 
 It also loses the ability to find things. Identification accuracy on unseen

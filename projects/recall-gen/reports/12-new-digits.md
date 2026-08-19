@@ -17,6 +17,18 @@ average-digit score. It has learned nothing about what a 9 looks like.
 Both numbers come from the same network, on the same unseen images, in the same
 evaluation run. Only the question differs.
 
+Two networks appear throughout this report. They are identical in size and shape.
+They differ only in the episodes they were trained on.
+
+The **recall-trained** network always had its answer sitting in the context during
+training. Copying was always a valid strategy for it, and it is the network the
+two numbers above describe.
+
+The **completion-trained** network never had its answer in the context during
+training. Copying was never available to it. It could only ever predict.
+
+Both saw digits 0 to 4 and nothing else.
+
 ![Completions across three levels of novelty](https://media.tanh.xyz/seewhy/26-08-19/recall-gen_r12_digit_split_grid.png)
 
 ## The task
@@ -94,10 +106,10 @@ prior that applies to five digits and does not extend.
 
 ## The other training signal fails differently
 
-A second network was trained on the same split, but on the opposite objective.
-Its answer was never in the context. It could only ever predict.
+The completion-trained network was never allowed to copy. If predicting is the
+skill that transfers, it is the network that should show it.
 
-That network handles new images of familiar digits reasonably: **0.642**. On
+It handles new images of familiar digits reasonably: **0.642**. On
 unseen digits it scores **1.221** — worse than drawing the average digit.
 
 It also loses the ability to find things. Identification accuracy on unseen
