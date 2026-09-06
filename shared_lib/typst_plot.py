@@ -80,6 +80,16 @@ class Raw(str):
 
 _IDENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_-]*$")
 
+# Typst reserved words. A dictionary key that is one of these cannot be written
+# bare — `(context: (...))` is a parse error, reported only as "expected
+# expression" with no location — so a data column named after one has to be
+# quoted. `context` is the one that actually bites: it is a natural name for a
+# column and has been a Typst keyword since 0.11.
+_KEYWORDS = frozenset("""
+    none auto true false not and or in as let set show context import include
+    return if else for while break continue
+""".split())
+
 
 def _num(v: Any) -> str:
     """Format a number as a plain Typst numeric literal (never exponential)."""
@@ -101,8 +111,13 @@ def _quote(s: str) -> str:
 
 
 def _key(k: str) -> str:
-    """A Typst dictionary key: bare identifier when it can be, else quoted."""
-    return k if _IDENT.match(k) else _quote(k)
+    """A Typst dictionary key: bare identifier when it can be, else quoted.
+
+    Reserved words are quoted too. Typst parses `(context: 1)` as the start of a
+    context expression and fails with a bare "expected expression" carrying no
+    location, which is a long way from the column name that caused it.
+    """
+    return k if _IDENT.match(k) and k not in _KEYWORDS else _quote(k)
 
 
 def _kw(k: str) -> str:

@@ -18,10 +18,9 @@ import jax
 import jax.numpy as jnp
 import optax
 
-from shared_lib.datasets import load_supervised_image
-
-from .core import (Cfg, PIX, init_params, n_params, predict, masked_mse, row_mask,
+from .core import (Cfg, init_params, n_params, predict, masked_mse,
                    augment as warp)
+from . import domains
 from . import evalsets
 from . import viz
 
@@ -34,9 +33,27 @@ class Run:
     exp_name: str
     name: str
     # task
-    M: int = 16                  # context images per episode
+    domain: str = "mnist"        # "mnist" | "fashion_mnist" | "chess" — what a token IS
+    M: int = 16                  # context items per episode
     Q: int = 4                   # queries per episode
-    mask_rows: int = 14          # bottom rows hidden (14 = bottom half)
+    mask_rows: int = 14          # slices hidden: image rows from the bottom (14 =
+                                 # bottom half), or board files from the queenside
+    # Sample a fresh random mask per TRAINING episode instead of using the
+    # domain's fixed one. A synthetic prior meant to cover several real domains
+    # has to cover their masks too: MNIST hides its bottom 392 coordinates and
+    # chess its queenside 416, and a network trained on one meets a shift at the
+    # other on top of the distribution shift being measured. Evaluation always
+    # uses the domain's real fixed mask.
+    random_mask: bool = False
+    mask_frac: tuple = (0.3, 0.7)     # per-episode share of VALID coords hidden
+    # Draw a fresh training pool before every block of `eval_every` steps.
+    # A synthetic prior's whole premise is that the network infers the world in
+    # front of it rather than recognising one it has memorised, and a fixed pool
+    # of SYNTH_WORLDS worlds is seen thousands of times over a full run — which
+    # is precisely what lets it memorise. TabPFN never reuses a prior draw.
+    # Resampling makes the pool effectively unbounded at the cost of one pool
+    # regeneration (~1s) per block.
+    resample_pool: bool = False
     # training
     batch: int = 256      # the token scan is launch-bound; 4x the batch costs ~1.2x
     steps: int = 12000
@@ -50,9 +67,10 @@ class Run:
     p_gen: float = 0.5           # only for train_mode="mix"
     init_from: str | None = None  # exp_name whose params_*.pkl to start from
     snapshot_best: str | None = None  # condition to track; saves params_<exp>_best.pkl
-    # data
-    train_digits: tuple | None = None   # None = all ten
-    held_digits: tuple | None = None    # pool for the "novel" conditions
+    # data — named "digits" for MNIST's sake; they are class ids in any domain
+    # (Fashion-MNIST garment ids, chess game-phase buckets).
+    train_digits: tuple | None = None   # None = every class
+    held_digits: tuple | None = None    # classes forming the "novel" pool
     # model
     cfg: Cfg = field(default_factory=Cfg)
     # eval
@@ -67,18 +85,18 @@ def build_pools(rn: Run):
     """Three pools.
 
     train      episodes are drawn from here during training
-    held       the "novel" pool — MNIST's test split, optionally restricted to
-               `held_digits`. When `held_digits` is disjoint from `train_digits`
-               this is novel CLASSES, not merely novel images.
-    held_same  MNIST test split restricted to the TRAINING digits. Identical to
-               `held` unless a digit split is in play, in which case it is the
-               control that separates "image never seen" from "class never seen".
+    held       the "novel" pool — the dataset's test split, optionally restricted
+               to `held_digits`. When `held_digits` is disjoint from
+               `train_digits` this is novel CLASSES, not merely novel items.
+    held_same  the test split restricted to the TRAINING classes. Identical to
+               `held` unless a class split is in play, in which case it is the
+               control that separates "item never seen" from "class never seen".
+
+    What a class is depends on the domain: an MNIST digit, a Fashion-MNIST
+    garment, or a chess game-phase bucket. `lib/domains.py` owns that; this
+    function only splits on the label it is handed.
     """
-    ds = load_supervised_image("mnist")
-    Xtr = np.asarray(ds.X).reshape(-1, PIX).astype(np.float32) / 255.0
-    ytr = np.asarray(ds.y)
-    Xte = np.asarray(ds.X_test).reshape(-1, PIX).astype(np.float32) / 255.0
-    yte = np.asarray(ds.y_test)
+    Xtr, ytr, Xte, yte = domains.raw_pools(rn.domain)
     if rn.train_digits is not None:
         keep = np.isin(ytr, rn.train_digits)
         Xtr, ytr = Xtr[keep], ytr[keep]
@@ -90,6 +108,16 @@ def build_pools(rn: Run):
         Xte, yte = Xte[keep], yte[keep]
     return ({"train": Xtr, "held": Xte, "held_same": Xsame},
             {"train": ytr, "held": yte, "held_same": ysame})
+
+
+def build_mask(rn: Run) -> np.ndarray:
+    """1.0 on the coordinates the query hides, flattened to (d_in,)."""
+    return domains.mask_vector(rn.domain, rn.mask_rows)
+
+
+def build_visible(rn: Run) -> np.ndarray:
+    """1.0 on coordinates that are real AND shown — what look-ups are built from."""
+    return domains.visible_vector(rn.domain, rn.mask_rows)
 
 
 # ── training ──────────────────────────────────────────────────────────────────
@@ -133,11 +161,28 @@ def class_table(labels: np.ndarray) -> np.ndarray:
 def make_block(rn: Run, opt, mask, class_tab: np.ndarray | None = None):
     """One jitted block of `eval_every` optimiser steps, scanned."""
     cfg, M, Q, B = rn.cfg, rn.M, rn.Q, rn.batch
+    P = cfg.d_in
     gen_frac = {"recall": 0.0, "gen": 1.0, "mix": rn.p_gen}[rn.train_mode]
-    vis_idx = np.flatnonzero(row_mask(rn.mask_rows) < 0.5)     # static
+    vis_idx = np.flatnonzero(
+        domains.visible_vector(rn.domain, rn.mask_rows) > 0.5)     # static
     if rn.ctx_mode == "class":
         assert class_tab is not None, "ctx_mode='class' needs a class table"
         ctab = jnp.array(class_tab)
+
+    valid_j = jnp.array(domains.valid_vector(rn.domain))
+
+    def sample_mask(k):
+        """A fresh (B,1,P) mask, or the domain's fixed one when not randomising.
+
+        Bernoulli at a per-episode rate, intersected with the valid coordinates
+        so padding is never hidden — there is nothing there to reconstruct.
+        """
+        if not rn.random_mask:
+            return mask
+        ku, kf = jax.random.split(k)
+        frac = jax.random.uniform(kf, (B, 1, 1), minval=rn.mask_frac[0],
+                                  maxval=rn.mask_frac[1])
+        return (jax.random.uniform(ku, (B, 1, P)) < frac).astype(jnp.float32) * valid_j
 
     def block(p, st, pool, key):
         n = pool.shape[0]
@@ -163,16 +208,22 @@ def make_block(rn: Run, opt, mask, class_tab: np.ndarray | None = None):
                 # Rank 0 is the query itself (distance exactly 0), so drop it and
                 # the target is exactly absent from the filler context.
                 nb = jax.lax.top_k(-d, M // Q + 1 + rn.knn_offset)[1][:, 1 + rn.knn_offset:]
-                filler = pool[nb].reshape(B, M, PIX)
-                qry = qry.reshape(B, Q, PIX)
+                filler = pool[nb].reshape(B, M, P)
+                qry = qry.reshape(B, Q, P)
             else:   # "class" — the whole episode is one digit class
                 kc, kp = jax.random.split(kq)
                 c = jax.random.randint(kc, (B, 1), 0, ctab.shape[0])
-                pos = jax.random.randint(kp, (B, M + Q), 0, ctab.shape[1])
+                # WITHOUT replacement. An earlier version drew positions
+                # uniformly and noted the collision rate as ~0.3%, which is true
+                # for an MNIST class of several thousand images. A synthetic
+                # world holds SYNTH_PER_WORLD items — 48 — and there the rate is
+                # 1 - (1 - 1/48)^16 = 29%. That is harmless for recall training,
+                # where the target is deliberately written into the context
+                # afterwards, and fatal for completion training, whose whole
+                # premise is that the answer is absent.
+                pos = jnp.argsort(jax.random.uniform(kp, (B, ctab.shape[1])),
+                                  axis=1)[:, :M + Q]
                 idx = jnp.take_along_axis(ctab[c[:, 0]], pos, axis=1)
-                # Sampled with replacement, so a query lands in the filler about
-                # M/n_min ~ 0.3% of the time. Same order as the iid path's
-                # collision rate and left alone for the same reason.
                 filler, qry = pool[idx[:, :M]], pool[idx[:, M:]]
 
             slots = jnp.argsort(jax.random.uniform(ks, (B, M)), axis=1)[:, :Q]
@@ -187,17 +238,17 @@ def make_block(rn: Run, opt, mask, class_tab: np.ndarray | None = None):
 
         def sample(k):
             kc, kq, kf, kg, ka, kb = jax.random.split(k, 6)
-            ctx = pool[jax.random.randint(kc, (B, M), 0, n)]              # (B,M,784)
+            ctx = pool[jax.random.randint(kc, (B, M), 0, n)]              # (B,M,P)
             if rn.augment_train:
                 # Warp before the target is selected, so the target-present query
                 # is the augmented context image exactly — recall stays exact and
                 # only the pool's finiteness is removed.
-                ctx = warp(ka, ctx.reshape(B * M, PIX)).reshape(B, M, PIX)
+                ctx = warp(ka, ctx.reshape(B * M, P)).reshape(B, M, P)
             sel = jax.random.randint(kq, (B, Q), 0, M)
             from_ctx = jnp.take_along_axis(ctx, sel[..., None], axis=1)   # target present
             fresh = pool[jax.random.randint(kf, (B, Q), 0, n)]            # target absent
             if rn.augment_train:
-                fresh = warp(kb, fresh.reshape(B * Q, PIX)).reshape(B, Q, PIX)
+                fresh = warp(kb, fresh.reshape(B * Q, P)).reshape(B, Q, P)
             if gen_frac == 0.0:
                 return ctx, from_ctx
             if gen_frac == 1.0:
@@ -209,9 +260,11 @@ def make_block(rn: Run, opt, mask, class_tab: np.ndarray | None = None):
 
         def step(carry, k):
             p, st = carry
-            ctx, qry = draw(k)
+            kd, km = jax.random.split(k)
+            ctx, qry = draw(kd)
+            m = sample_mask(km)
             loss, g = jax.value_and_grad(
-                lambda pp: masked_mse(predict(pp, ctx, qry, mask, cfg), qry, mask))(p)
+                lambda pp: masked_mse(predict(pp, ctx, qry, m, cfg), qry, m))(p)
             up, st = opt.update(g, st, p)
             return (optax.apply_updates(p, up), st), loss
 
@@ -237,13 +290,22 @@ def make_eval(rn: Run, mask):
     return fn
 
 
-def evaluate(eval_fn, p, ev: dict, mask, mean_img, chunk=128):
+def evaluate(eval_fn, p, ev: dict, mask, mean_img, chunk=128, domain: str = "mnist"):
+    """Score every condition. `sq_acc` is board-only and NaN elsewhere.
+
+    Normalised MSE is the project's common currency across domains, but on a
+    chess board it is unreadable: `sq_acc` says the same thing in the units the
+    domain is about — the fraction of hidden squares whose most-likely piece is
+    the right one. Its reference point is the all-empty guess, which the
+    baselines row carries as `sq_acc_empty`.
+    """
+    board = domains.get(domain).kind == "board"
     mask_j, mean_j = jnp.array(mask), jnp.array(mean_img)
     out = {}
     for cond, es in ev.items():
         E = es.ctx.shape[0]
         se = sn = sm = smn = 0.0
-        hits = nnhits = 0.0
+        hits = nnhits = sqacc = 0.0
         preds = None
         for i in range(0, E, chunk):
             c, q = es.ctx[i:i + chunk], es.qry[i:i + chunk]
@@ -258,11 +320,14 @@ def evaluate(eval_fn, p, ev: dict, mask, mean_img, chunk=128):
             nnhits += w * float((argmin == es.nn_idx[i:i + chunk]).mean())
             if es.present:
                 hits += w * float((argmin == es.tgt_idx[i:i + chunk]).mean())
+            if board:
+                sqacc += w * domains.piece_accuracy(pred, q, mask, domain)
         out[cond] = dict(
             mse=se, nmse=se / es.mse_mean,
             mse_nn=es.mse_nn, nmse_nn=es.mse_nn / es.mse_mean,
             mse_mean=es.mse_mean,
             id_acc=hits if es.present else float("nan"),
+            sq_acc=sqacc if board else float("nan"),
             nn_agree=nnhits,          # does the model's answer point at the look-up pick?
             mse_to_nn=smn,            # how close is the output TO the look-up answer
             mse_to_meanimg=sm,        # ...and to the dataset prior
@@ -299,14 +364,20 @@ def run(rn: Run, make_figs: bool = True) -> dict:
     assert not (rn.augment_train and rn.ctx_mode != "iid"), \
         "augmentation and structured contexts have not been combined — the warp " \
         "would move an image away from the neighbours it was chosen for"
+    dom = domains.get(rn.domain)
+    assert not (rn.augment_train and dom.kind != "image"), \
+        f"the warp resamples on a 28x28 grid; domain {rn.domain!r} is not an image"
+    assert rn.cfg.d_in == dom.d_in, \
+        f"cfg.d_in={rn.cfg.d_in} but domain {rn.domain!r} has tokens of {dom.d_in}"
     pools_np, labels_np = build_pools(rn)
-    mask = jnp.array(row_mask(rn.mask_rows))
+    mask = jnp.array(build_mask(rn))
     mean_img = pools_np["train"].mean(0)
     logging.info(f"pools: train={pools_np['train'].shape} held={pools_np['held'].shape}")
 
     ev = evalsets.build(pools_np, np.asarray(mask), rn.M, rn.Q, rn.n_eval,
                         mean_img, conditions=rn.conditions, ctx_mode=rn.ctx_mode,
-                        labels=labels_np, knn_offset=rn.knn_offset)
+                        labels=labels_np, knn_offset=rn.knn_offset,
+                        vis=build_visible(rn))
     for c, es in ev.items():
         logging.info(f"  {c:<16} mse_mean={es.mse_mean:.4f}  mse_lookup={es.mse_nn:.4f}"
                      f"  (ratio {es.mse_nn / es.mse_mean:.3f})")
@@ -330,7 +401,7 @@ def run(rn: Run, make_figs: bool = True) -> dict:
         logging.info(f"  initialised from {src.name}")
     np_ = n_params(p)
     logging.info(f"{rn.exp_name}: {np_/1e6:.2f}M params, state={rn.cfg.state_floats} floats "
-                 f"vs {rn.M * PIX} floats of context content")
+                 f"vs {rn.M * rn.cfg.d_in} floats of context content")
 
     warmup = min(300, rn.steps // 10)
     sched = optax.warmup_cosine_decay_schedule(0.0, rn.lr, warmup, rn.steps, rn.lr * 0.1)
@@ -358,10 +429,13 @@ def run(rn: Run, make_figs: bool = True) -> dict:
     for b in range(n_blocks):
         k_train, kb = jax.random.split(k_train)
         tb = time.perf_counter()
+        if rn.resample_pool and b > 0:
+            # Seeded off the block index so a run stays reproducible.
+            pool = jnp.array(domains.resample(rn.domain, seed=1_000_000 + b))
         p, st, loss = block(p, st, pool, kb)
         loss = float(loss)
         step = (b + 1) * rn.eval_every
-        m = evaluate(eval_fn, p, ev, mask, mean_img)
+        m = evaluate(eval_fn, p, ev, mask, mean_img, domain=rn.domain)
         hist["step"].append(step)
         hist["loss"].append(loss)
         for c in ev:
@@ -380,7 +454,7 @@ def run(rn: Run, make_figs: bool = True) -> dict:
                           for c in ev)
         logging.info(f"  step {step:>6}  loss {loss:.5f}  {parts}  [{time.perf_counter()-tb:.0f}s]")
 
-    final = evaluate(eval_fn, p, ev, mask, mean_img)
+    final = evaluate(eval_fn, p, ev, mask, mean_img, domain=rn.domain)
     elapsed = time.perf_counter() - t0
 
     # Params and history so a figure can be redrawn without a five-minute rerun.
@@ -398,7 +472,7 @@ def run(rn: Run, make_figs: bool = True) -> dict:
                              qry=np.asarray(es.qry[:8, 0]), pred=final[c]["preds"][:, 0],
                              nn=nn_pick[:, 0]))
         urls["grid"] = viz.completion_grid(f"recallgen_{rn.exp_name}_grid", rows,
-                                           np.asarray(mask))
+                                           np.asarray(mask), domain=rn.domain)
         urls["curves"] = viz.learning_curves(f"recallgen_{rn.exp_name}_curves", hist,
                                              {c: ev[c].mse_nn / ev[c].mse_mean for c in ev})
         logging.info(f"  grid   -> {urls['grid']}")

@@ -53,14 +53,14 @@ def _slots(M: int, Q: int, n_ep: int, rng) -> np.ndarray:
     return np.stack([rng.choice(M, Q, replace=False) for _ in range(n_ep)]).astype(np.int32)
 
 
-def _draw_iid(pool, M, Q, n_ep, rng, labels=None, mask=None, knn_offset=0):
+def _draw_iid(pool, M, Q, n_ep, rng, labels=None, mask=None, knn_offset=0, vis=None):
     """The original construction: M unrelated images, then Q unrelated queries."""
     n = pool.shape[0]
     idx = np.stack([rng.choice(n, M + Q, replace=False) for _ in range(n_ep)])
     return pool[idx[:, :M]], pool[idx[:, M:]], _slots(M, Q, n_ep, rng)
 
 
-def _draw_class(pool, M, Q, n_ep, rng, labels=None, mask=None, knn_offset=0):
+def _draw_class(pool, M, Q, n_ep, rng, labels=None, mask=None, knn_offset=0, vis=None):
     """Every image in the episode — context and queries — is of one class."""
     assert labels is not None, "ctx_mode='class' needs labels for this pool"
     members = {c: np.flatnonzero(labels == c) for c in np.unique(labels)}
@@ -69,7 +69,7 @@ def _draw_class(pool, M, Q, n_ep, rng, labels=None, mask=None, knn_offset=0):
     return pool[idx[:, :M]], pool[idx[:, M:]], _slots(M, Q, n_ep, rng)
 
 
-def _draw_knn(pool, M, Q, n_ep, rng, labels=None, mask=None, knn_offset=0):
+def _draw_knn(pool, M, Q, n_ep, rng, labels=None, mask=None, knn_offset=0, vis=None):
     """The context is built FROM the queries: each query contributes its own
     k = M/Q nearest neighbours in the pool, ranked by distance on the VISIBLE
     half — the same quantity the soft-look-up ceiling is built from, which is what
@@ -87,9 +87,11 @@ def _draw_knn(pool, M, Q, n_ep, rng, labels=None, mask=None, knn_offset=0):
     qidx = np.stack([rng.choice(n, Q, replace=False) for _ in range(n_ep)])   # (E,Q)
     qry = pool[qidx]
 
-    vis = (mask < 0.5)
-    Pv = jnp.array(pool[:, vis])
-    flat = jnp.array(qry.reshape(n_ep * Q, -1)[:, vis])
+    # Real AND shown. `mask < 0.5` would also select padding, which adds nothing
+    # to any distance but widens the gather.
+    cols = (mask < 0.5) if vis is None else (np.asarray(vis) > 0.5)
+    Pv = jnp.array(pool[:, cols])
+    flat = jnp.array(qry.reshape(n_ep * Q, -1)[:, cols])
     take = knn_offset + k + 1                       # +1 for the query itself at rank 0
     # |a-b|^2 = |a|^2 + |b|^2 - 2a.b, so only the (chunk, n) distance matrix is
     # ever materialised — the broadcast form needs tens of GB at pool scale.
@@ -118,7 +120,8 @@ DRAWS = {"iid": _draw_iid, "class": _draw_class, "knn": _draw_knn}
 def build(pools: dict, mask: np.ndarray, M: int, Q: int, n_ep: int,
           mean_img: np.ndarray, seed: int = 12345,
           conditions: dict | None = None, ctx_mode: str = "iid",
-          labels: dict | None = None, knn_offset: int = 0) -> dict[str, EvalSet]:
+          labels: dict | None = None, knn_offset: int = 0,
+          vis: np.ndarray | None = None) -> dict[str, EvalSet]:
     conditions = conditions or DEFAULT_CONDITIONS
     assert Q <= M, f"need Q ({Q}) <= M ({M}) to place the targets in distinct slots"
     draw_fn = DRAWS[ctx_mode]
@@ -127,7 +130,7 @@ def build(pools: dict, mask: np.ndarray, M: int, Q: int, n_ep: int,
     pool_names = list(dict.fromkeys(p for p, _ in conditions.values()))
     draws = {name: draw_fn(pools[name], M, Q, n_ep, np.random.default_rng(seed + 1000 * i),
                            labels=(labels or {}).get(name), mask=mask,
-                           knn_offset=knn_offset)
+                           knn_offset=knn_offset, vis=vis)
              for i, name in enumerate(pool_names)}
 
     mask_j = jnp.array(mask)
@@ -144,7 +147,8 @@ def build(pools: dict, mask: np.ndarray, M: int, Q: int, n_ep: int,
 
         ctx_j, qry_j = jnp.array(ctx), jnp.array(qry)
         mean_pred = jnp.broadcast_to(jnp.array(mean_img), qry_j.shape)
-        m_nn, nn_idx = nn_baseline(ctx_j, qry_j, mask_j)
+        m_nn, nn_idx = nn_baseline(ctx_j, qry_j, mask_j,
+                                   vis=None if vis is None else jnp.array(vis))
         out[name] = EvalSet(
             ctx=ctx_j, qry=qry_j, tgt_idx=jnp.array(tgt_idx), present=present,
             mse_mean=float(masked_mse(mean_pred, qry_j, mask_j)),

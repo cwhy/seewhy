@@ -35,9 +35,10 @@ PROJECT = Path(__file__).resolve().parents[1]
 sys.path.append(str(PROJECT.parents[1]))          # repo root LAST — see workflow.md
 sys.path.insert(0, str(PROJECT))
 
-from lib.core import Cfg, row_mask
+from lib.core import Cfg
 from lib import evalsets
-from lib.train import Run, build_pools, make_eval, evaluate, append_result, already_done
+from lib.train import (Run, build_pools, build_mask, make_eval, evaluate,
+                       append_result, already_done)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
@@ -71,7 +72,7 @@ def run_from_row(row: dict) -> Run:
 def rescore(row: dict, params: Path) -> dict:
     rn = run_from_row(row)
     pools_np, _ = build_pools(rn)
-    mask = row_mask(rn.mask_rows)
+    mask = build_mask(rn)
     mean_img = pools_np["train"].mean(0)
     ev = evalsets.build(pools_np, mask, rn.M, rn.Q, rn.n_eval, mean_img,
                         conditions=rn.conditions)
@@ -80,7 +81,7 @@ def rescore(row: dict, params: Path) -> dict:
         p = jax.tree_util.tree_map(jnp.asarray, pickle.load(f))
     eval_fn = make_eval(rn, jnp.array(mask))
     final = evaluate(eval_fn, p, ev, mask, mean_img,
-                     chunk=32 if rn.M >= 256 else 128)
+                     chunk=32 if rn.M >= 256 else 128, domain=rn.domain)
     final = {c: {k: v for k, v in final[c].items() if k != "preds"} for c in final}
 
     # The A1 deliverable: what the normalisers were, and what they now are.

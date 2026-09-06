@@ -357,6 +357,50 @@ def save_figure(
     )
 
 
+def compose(name, body: str, *, assets: Mapping[str, bytes] | None = None,
+            fmt: str = "svg", margin: str = "6pt", fill: str = "white",
+            stable: bool = False) -> str:
+    """Compile a Typst DOCUMENT (not a single `Figure`) and upload it.
+
+    `save_figure` covers one gribouille plot. Two plots side by side, or a grid
+    of image tiles with labels, are documents rather than plots — Typst composes
+    them with `grid`, which is what it is for — so they need their own entry.
+
+    `assets` is {relative path: bytes}, written beside the entry so `image(...)`
+    can reach them; the compile root is that directory.
+
+    Prefer `fmt="svg"` even when the document embeds rasters. Typst inlines them
+    as base64, but PNG export rasterises the whole page — white space, labels and
+    all — at a fixed dpi, so it is both larger and blurry once the page is scaled
+    to a report column. A tile grid measured 209 KB as SVG against 341 KB as PNG.
+    """
+    from .typst_plot import GRIBOUILLE, typ
+    src = (f"#import {typ(GRIBOUILLE)}: *\n"
+           f"#set page(width: auto, height: auto, margin: {margin}, fill: {fill})\n"
+           f"{body}\n")
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        for rel, blob in (assets or {}).items():
+            dest = root / rel
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_bytes(blob)
+        (root / "entry.typ").write_text(src, encoding="utf-8")
+        data = compile_report(root, entry="entry.typ", fmt=fmt)
+    ct = "image/svg+xml" if fmt == "svg" else f"image/{fmt}"
+    return save_media(f"{name}.{fmt}", data, ct,
+                      key_dir=STABLE_DIR if stable else None,
+                      cache_control=STABLE_CACHE_CONTROL if stable else None)
+
+
+def panels(name, figures, *, columns: int = 2, gutter: str = "16pt",
+           fmt: str = "svg", **kw) -> str:
+    """Several gribouille plots laid out side by side as one figure."""
+    from .typst_plot import typ
+    calls = ", ".join(f.typst(typ(f.data)) for f in figures)
+    return compose(name, f"#grid(columns: {columns}, column-gutter: {gutter}, {calls})",
+                   fmt=fmt, **kw)
+
+
 # ───────────────────────────── change tracking ──────────────────────────────
 
 

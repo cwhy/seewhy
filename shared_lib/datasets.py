@@ -426,3 +426,148 @@ def load_sudoku_extreme(
     )
     _save_to_cache(cache_path, result)
     return result
+
+
+# ── Chess: Lichess Stockfish evaluations ──────────────────────────────────────
+#
+# Source file is a 7.5 GB SQLite database on the GPU box, one row per position:
+#
+#     CREATE TABLE evaluations(id, fen, binary, eval)
+#
+# 37 164 639 rows, ids dense from 1. `eval` is a Stockfish score in pawns from
+# White's point of view; `binary` is an opaque bitboard blob this loader ignores
+# in favour of parsing the FEN, which is self-describing.
+#
+# The loader below is deliberately RAW: it hands back FEN strings and scores,
+# not tensors. Rows are consecutive plies of one game, so ids are strongly
+# autocorrelated — positions 4642 and 4643 differ by a single move. Two
+# consequences shape the interface:
+#
+#   * the train/test split is a single id THRESHOLD, so no game straddles it;
+#   * within each side, positions are sampled uniformly at random rather than
+#     taken as a contiguous block, so a pool is near-iid instead of being a few
+#     hundred games in move order.
+
+CHESS_DB_PATH = "/home/newuser/Projects/chess/2021-07-31-lichess-evaluations-37MM.db"
+CHESS_N_ROWS = 37_164_639
+CHESS_SPLIT_ID = 29_731_711        # ~80% of the table; games do not straddle it
+
+# Channel order for `fen_to_planes`. Index 0 is the empty square, so a plane
+# vector is a proper 13-way one-hot and its mean over a pool is the per-square
+# marginal distribution over piece types.
+CHESS_PIECES = " PNBRQKpnbrqk"
+
+
+class ChessPositions(NamedTuple):
+    """Raw positions. No encoding is applied — `fen` is the source string.
+
+    `idx` is the row id in the source table, kept so a position can be traced
+    back and so adjacency between two sampled positions is checkable.
+    """
+
+    n_train: int
+    n_test: int
+    fen: np.ndarray         # (n_train,) dtype object — FEN exactly as stored
+    score: np.ndarray       # (n_train,) float32 — Stockfish eval in pawns, White POV
+    idx: np.ndarray         # (n_train,) int64 — source row id
+    fen_test: np.ndarray
+    score_test: np.ndarray
+    idx_test: np.ndarray
+
+
+def _chess_sample(conn, lo: int, hi: int, n: int, rng, chunk: int = 5000):
+    """Draw `n` distinct row ids uniformly from [lo, hi) and fetch them.
+
+    Ids are dense, so a uniform draw over the range needs no index scan; the
+    `IN (...)` lookups ride the table's `id_idx` and run at ~7k rows/s/chunk.
+    """
+    # Population passed as a count, not an array: materialising 30M int64 ids
+    # only to permute them costs 240 MB and seconds, and Generator.choice takes
+    # the cheap path when the population is an integer.
+    ids = np.sort(rng.choice(hi - lo, size=n, replace=False).astype(np.int64) + lo)
+    fens, scores, got = [], [], []
+    for i in range(0, n, chunk):
+        block = ids[i:i + chunk]
+        q = ",".join(str(int(v)) for v in block)
+        for rid, fen, ev in conn.execute(
+                f"SELECT id, fen, eval FROM evaluations WHERE id IN ({q})"):
+            got.append(rid)
+            fens.append(fen)
+            scores.append(float(ev) if ev is not None else 0.0)
+    return (np.array(fens, dtype=object), np.array(scores, np.float32),
+            np.array(got, np.int64))
+
+
+def load_chess_positions(
+    n_tr: int = 200_000,
+    n_tst: int = 150_000,
+    db_path: str | None = None,
+    split_id: int = CHESS_SPLIT_ID,
+    seed: int = 0,
+) -> ChessPositions:
+    """Raw FEN + Stockfish score, sampled from the Lichess evaluations database.
+
+    Train positions come from ids below `split_id`, test positions from above
+    it, so the two sides share no game.
+    """
+    import sqlite3
+
+    cache_path = _get_cache_path("chess_evals", n_tr, n_tst, kind=f"raw_s{seed}")
+    cached = _load_from_cache(cache_path)
+    if cached is not None:
+        return cached
+
+    path = db_path or CHESS_DB_PATH
+    if not os.path.exists(path):
+        raise FileNotFoundError(
+            f"Lichess evaluations database not found at {path}. It lives on the "
+            "GPU box only; pass db_path= to point elsewhere."
+        )
+    conn = sqlite3.connect(path)
+    rng = np.random.default_rng(seed)
+    fen, score, idx = _chess_sample(conn, 1, split_id, n_tr, rng)
+    fen_t, score_t, idx_t = _chess_sample(conn, split_id, CHESS_N_ROWS + 1, n_tst, rng)
+    conn.close()
+
+    ds = ChessPositions(
+        n_train=len(fen), n_test=len(fen_t),
+        fen=fen, score=score, idx=idx,
+        fen_test=fen_t, score_test=score_t, idx_test=idx_t,
+    )
+    _save_to_cache(cache_path, ds)
+    return ds
+
+
+def fen_to_planes(fens) -> np.ndarray:
+    """FEN strings -> (N, 8, 8, 13) float32 one-hot piece planes.
+
+    Axis 0 is the rank in DISPLAY order — index 0 is rank 8, the top of a drawn
+    board — and axis 1 is the file a..h. That ordering means a figure can
+    `imshow` the array without transposing, and a mask over files is a slice on
+    axis 1.
+
+    Only piece placement is encoded. Side to move, castling rights and the
+    en-passant square are dropped: this is the piece representation, and a
+    completion task over hidden squares has no use for them.
+    """
+    fens = np.asarray(fens, dtype=object).reshape(-1)
+    out = np.zeros((len(fens), 8, 8, 13), np.float32)
+    out[..., 0] = 1.0                                   # every square empty
+    lookup = {c: i for i, c in enumerate(CHESS_PIECES)}
+    for n, fen in enumerate(fens):
+        for r, row in enumerate(fen.split(" ", 1)[0].split("/")):
+            f = 0
+            for ch in row:
+                if ch.isdigit():
+                    f += int(ch)
+                else:
+                    out[n, r, f, 0] = 0.0
+                    out[n, r, f, lookup[ch]] = 1.0
+                    f += 1
+    return out
+
+
+def chess_piece_count(fens) -> np.ndarray:
+    """Pieces on the board, per FEN — the phase axis this project splits on."""
+    return np.array([sum(c.isalpha() for c in f.split(" ", 1)[0])
+                     for f in np.asarray(fens, dtype=object).reshape(-1)], np.int32)

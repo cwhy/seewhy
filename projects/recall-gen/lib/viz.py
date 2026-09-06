@@ -11,39 +11,41 @@ import matplotlib.pyplot as plt
 sys.path.append(str(Path(__file__).parent.parent.parent.parent))
 from shared_lib.media import save_matplotlib_figure
 
-SIDE = 28
+from . import domains
 
 
-def _img(ax, v, title=None, cmap="gray"):
-    ax.imshow(np.asarray(v).reshape(SIDE, SIDE), cmap=cmap, vmin=0, vmax=1)
-    ax.set_xticks([]); ax.set_yticks([])
+def _tile(ax, v, domain, mask=None, hidden=False, title=None):
+    domains.draw(ax, v, domain, mask=mask, hidden_shading=hidden)
     if title:
         ax.set_title(title, fontsize=7)
 
 
-def completion_grid(name: str, rows: list[dict], mask, n_show=6) -> str:
+def completion_grid(name: str, rows: list[dict], mask, n_show=6,
+                    domain: str = "mnist") -> str:
     """One block per condition. Columns: query input, model completion, truth,
     look-up baseline. `rows` is a list of dicts with those keys plus `label`.
 
-    The model column is a COMPOSITE — the query's visible pixels with the
-    model's prediction pasted into the hole. The head emits all 784 pixels but
+    The model column is a COMPOSITE — the query's visible coordinates with the
+    model's prediction pasted into the hole. The head emits every coordinate but
     the loss only ever scores the hidden ones, so the model's visible half is
     unconstrained noise and showing it raw makes every completion look broken.
     """
     mask = np.asarray(mask)
     ncols = 4
+    scale = 1.05 if domains.get(domain).kind == "image" else 1.35
     fig, axes = plt.subplots(len(rows) * n_show, ncols,
-                             figsize=(ncols * 1.05, len(rows) * n_show * 1.05))
+                             figsize=(ncols * scale, len(rows) * n_show * scale))
     for r, row in enumerate(rows):
         for j in range(n_show):
             i = r * n_show + j
             truth = np.asarray(row["qry"][j])
-            vis = truth * (1 - mask) + 0.5 * mask                   # grey the hole
-            comp = truth * (1 - mask) + np.asarray(row["pred"][j]) * mask
-            _img(axes[i, 0], vis, f"{row['label']}: input" if j == 0 else None)
-            _img(axes[i, 1], comp, "model" if j == 0 else None)
-            _img(axes[i, 2], truth, "truth" if j == 0 else None)
-            _img(axes[i, 3], row["nn"][j], "look-up" if j == 0 else None)
+            comp = domains.composite(truth, row["pred"][j], mask)
+            _tile(axes[i, 0], truth, domain, mask=mask, hidden=True,
+                  title=f"{row['label']}: input" if j == 0 else None)
+            _tile(axes[i, 1], comp, domain, title="model" if j == 0 else None)
+            _tile(axes[i, 2], truth, domain, title="truth" if j == 0 else None)
+            _tile(axes[i, 3], row["nn"][j], domain,
+                  title="look-up" if j == 0 else None)
         axes[r * n_show, 0].set_ylabel(row["label"], fontsize=7)
     fig.tight_layout(pad=0.2)
     url = save_matplotlib_figure(name, fig, format="png", dpi=150)

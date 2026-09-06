@@ -133,3 +133,26 @@ def save_svg(filename: str, fig) -> str:
     fig.savefig(buffer, format="svg", bbox_inches="tight")
     buffer.seek(0)
     return save_media(filename, buffer, "image/svg+xml")
+
+def array_to_png(arr2d, *, upscale: int = 1) -> bytes:
+    """A 2-D array of values in [0, 1] as greyscale PNG bytes.
+
+    `upscale` enlarges by nearest-neighbour repetition. Enlarging here rather
+    than letting a renderer or a browser stretch a small image keeps the pixels
+    square and hard-edged, which matters whenever the individual values are the
+    subject rather than an approximation of a smooth field.
+
+    Returns bytes rather than uploading, so the caller can embed the image in a
+    document as easily as store it.
+    """
+    import io
+    import numpy as np
+    from PIL import Image
+
+    a = (np.clip(np.asarray(arr2d, dtype="float32"), 0.0, 1.0) * 255).astype("uint8")
+    im = Image.fromarray(a, mode="L")
+    if upscale > 1:
+        im = im.resize((a.shape[1] * upscale, a.shape[0] * upscale), Image.NEAREST)
+    buf = io.BytesIO()
+    im.save(buf, format="PNG")
+    return buf.getvalue()

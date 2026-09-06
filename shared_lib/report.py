@@ -11,6 +11,19 @@ from .html import save_html
 
 _PICO_CSS_CDN = "https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css"
 
+# Pico ships `img { max-width: 100% }`, which leaves an image narrower than the
+# column at its intrinsic size. Typst emits a page sized to its content — a 17cm
+# figure is ~640px — so figures rendered small while matplotlib's wider SVGs
+# happened not to. Figures in these reports are always meant to fill the column,
+# and every one is either vector or several thousand pixels wide, so scaling to
+# the column width costs nothing and fixes both cases.
+_REPORT_CSS = """
+main.container { max-width: 68rem; }
+main.container img { width: 100%; height: auto; display: block;
+                     margin: 1.25rem auto; }
+main.container table { font-variant-numeric: tabular-nums; }
+"""
+
 
 def _render(name: str, markdown_str: str, title: str = "") -> str:
     body = mistletoe.markdown(markdown_str)
@@ -22,6 +35,7 @@ def _render(name: str, markdown_str: str, title: str = "") -> str:
         "  <meta charset='utf-8'>\n"
         f"  <title>{title or name}</title>\n"
         f"  <link rel='stylesheet' href='{_PICO_CSS_CDN}'>\n"
+        f"  <style>{_REPORT_CSS}</style>\n"
         "</head>\n"
         "<body>\n"
         "<main class='container'>\n"
