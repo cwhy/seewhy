@@ -61,6 +61,38 @@ def _delta_step(S, t):
     return S, jnp.einsum("bhvk,bhk->bhv", S, q_t) * scale          # read
 
 
+def _short_conv(x, W):
+    """Depthwise causal convolution: y[t] = sum_i W[i] * x[t-i], elementwise per
+    channel. `W` is (kernel, d_model). The paper puts one of these on q, k and v
+    before the activation; it is the cheapest way to give each token a short
+    window of local context, and it is one of the pieces separating this from a
+    bare linear projection."""
+    K, N = W.shape[0], x.shape[1]
+    xp = jnp.pad(x, ((0, 0), (K - 1, 0), (0, 0)))
+    return sum(W[i] * jax.lax.dynamic_slice_in_dim(xp, K - 1 - i, N, 1)
+               for i in range(K))
+
+
+def _l2norm(t, eps=1e-6):
+    """Row-wise L2 normalisation with a finite gradient at zero.
+
+    `t / (jnp.linalg.norm(t) + eps)` is NOT safe: the norm's own gradient is NaN
+    at exactly zero, and adding eps afterwards does not repair it. A zero vector
+    is reachable here — a causal short convolution leaves the first tokens with
+    no input — so this uses rsqrt with the epsilon inside the square root, whose
+    gradient is finite everywhere.
+    """
+    return t * jax.lax.rsqrt(jnp.sum(t * t, axis=-1, keepdims=True) + eps)
+
+
+def _rms_headwise(o, g, H, DK):
+    """Head-wise RMSNorm on (B, N, H*DK), normalising within each head."""
+    B, N, _ = o.shape
+    h = o.reshape(B, N, H, DK)
+    h = h * jax.lax.rsqrt(jnp.mean(h ** 2, axis=-1, keepdims=True) + 1e-6)
+    return h.reshape(B, N, H * DK) * g
+
+
 def _prepare(x, Lp, cfg, write):
     """q, k, v, alpha, beta for the delta rule, with `write` gating who writes.
 
@@ -70,12 +102,21 @@ def _prepare(x, Lp, cfg, write):
     """
     B, N, _ = x.shape
     H, DK = cfg.n_heads, cfg.dk
-    q = _split(x @ Lp["Wq"], H, DK)
-    k = _split(x @ Lp["Wk"], H, DK)
-    v = _split(x @ Lp["Wv"], H, DK)
-    q = q / (jnp.linalg.norm(q, axis=-1, keepdims=True) + 1e-6)
-    k = k / (jnp.linalg.norm(k, axis=-1, keepdims=True) + 1e-6)
-    alpha = jax.nn.sigmoid(_split(x @ Lp["Wa"] + Lp["ba"], H, DK))
+    full = "conv_q" in Lp                       # the faithful parameterisation
+    if full:
+        # q, k = L2Norm(Swish(ShortConv(W x))), v = Swish(ShortConv(W_v x))
+        pq, pk, pv = (_short_conv(x @ Lp[w], Lp[c]) for w, c in
+                      (("Wq", "conv_q"), ("Wk", "conv_k"), ("Wv", "conv_v")))
+        q, k, v = (_split(jax.nn.silu(t), H, DK) for t in (pq, pk, pv))
+    else:
+        q = _split(x @ Lp["Wq"], H, DK)
+        k = _split(x @ Lp["Wk"], H, DK)
+        v = _split(x @ Lp["Wv"], H, DK)
+    q, k = _l2norm(q), _l2norm(k)
+    # The per-channel decay comes from a LOW-RANK projection in the paper, rank
+    # equal to the head dimension. `Wa` full-rank is the simplified arm.
+    a_pre = (x @ Lp["Wa_down"] @ Lp["Wa_up"] if full else x @ Lp["Wa"]) + Lp["ba"]
+    alpha = jax.nn.sigmoid(_split(a_pre, H, DK))
     beta = jax.nn.sigmoid(x @ Lp["Wb"] + Lp["bb"]).transpose(0, 2, 1)   # (B,H,N)
     if write is not None:
         g = write[:, None, :]                                      # (B,1,N)
@@ -126,7 +167,7 @@ def kda_causal(x, Lp, cfg, write=None, chunk=32):
 
     # scan output is (N,B,H,DK); heads must be adjacent to DK before the
     # reshape, so the batch and time axes come first: (B,N,H,DK).
-    return o.transpose(1, 0, 2, 3).reshape(B, N, D) @ Lp["Wo"]
+    return _out(o.transpose(1, 0, 2, 3).reshape(B, N, D), x, Lp, cfg)
 
 
 def attn_causal(x, Lp, cfg, write=None, chunk=None):
@@ -166,6 +207,21 @@ def attn_causal(x, Lp, cfg, write=None, chunk=None):
                        jax.nn.softmax(jnp.where(keep, s, -jnp.inf), axis=-1), vh)
         o = o.transpose(0, 2, 1, 3)
     return o.reshape(B, N, D) @ Lp["Wo"]
+
+
+def _out(o, x, Lp, cfg):
+    """Head-wise RMSNorm and the data-dependent output gate, then `Wo`.
+
+        o_t = W_o( Sigmoid(W_g^up W_g^down x_t) * RMSNorm(KDA(...)) )
+
+    Both are present only in the faithful arm; the paper attributes the gate with
+    alleviating the attention sink, and uses a low-rank parameterisation for it
+    to keep the parameter comparison fair.
+    """
+    if "Wg_down" in Lp:
+        o = _rms_headwise(o, Lp["rms_g"], cfg.n_heads, cfg.dk)
+        o = o * jax.nn.sigmoid(x @ Lp["Wg_down"] @ Lp["Wg_up"])
+    return o @ Lp["Wo"]
 
 
 MIXERS = {"kda": kda_causal, "attn": attn_causal}
@@ -254,7 +310,8 @@ def kda_chunkwise(x, Lp, cfg, write=None, chunk=64):
     S0 = jnp.zeros((B, H, DK, DK), x.dtype)
     _, o = jax.lax.scan(body, S0, (k_hat, k_til, q_hat, v, b, c[:, :, :, -1]))
     o = o.transpose(1, 2, 0, 3, 4).reshape(B, H, NC * chunk, DK)[:, :, :N]
-    return (o * scale).transpose(0, 2, 1, 3).reshape(B, N, D) @ Lp["Wo"]
+    o = (o * scale).transpose(0, 2, 1, 3).reshape(B, N, D)
+    return _out(o, x, Lp, cfg)
 
 
 MIXERS["kda_wy"] = kda_chunkwise
