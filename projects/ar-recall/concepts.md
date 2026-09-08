@@ -232,72 +232,28 @@ Default is `L = 4`.
 
 ---
 
-## 6. Metrics, and what to read them against
+## 6. Metric
 
-All numbers below are measured by `scripts/baselines.py` on the MNIST test split
-at `V = 16`, target half = bottom 14 rows. They involve no model.
+**Value accuracy on the target half**: the fraction of target-half value tokens
+whose argmax over the `V` value symbols is the correct bin. Reported per 2x2
+cell.
 
-### 6.1 Why plain accuracy will not do
-
-**82.0% of MNIST pixels fall in bin 0.** So predicting "background" everywhere
-scores **0.809** on the target half, and the position-conditional version of the
-same trick scores **0.810** — one part in a thousand better. Against a ceiling of
-1.0, plain value accuracy has a usable range of about 0.19, and most of a
-reported number is background the model was never asked about.
+Read it against these, all measured by `scripts/baselines.py` on the MNIST test
+split with no model involved:
 
 | reference | target-half accuracy |
 |---|---|
 | chance, `1/V` | 0.0625 |
-| marginal (always the most common bin) | 0.8086 |
-| position marginal (most common bin at that position) | 0.8099 |
-| copy ceiling (present arm, answer is verbatim in the stream) | 1.0000 |
+| marginal — always predict the most common bin | 0.8086 |
+| **position marginal — most common bin at that position, no context** | **0.8099** |
+| copy ceiling — present arm, the answer is verbatim in the stream | 1.0000 |
 
-Report it, but do not lead with it.
+**0.810 is the baseline.** 82% of MNIST pixels are background, so a model can
+reach 0.810 without reading the context at all. The usable range is 0.810 to
+1.000, and any cell at or below 0.810 means the context was not used.
 
-### 6.2 The primary metric: foreground accuracy
-
-Value accuracy restricted to target-half pixels whose **true** bin is greater
-than 0. That is 19.1% of the target half, and it is the part of the image that
-carries the digit.
-
-| reference | foreground accuracy |
-|---|---|
-| marginal | **0.0000** (it always says background) |
-| position marginal | **0.0401** |
-| copy ceiling | 1.0000 |
-
-Floor 0.04, ceiling 1.0 — a range of 0.96 instead of 0.19. The conditioning is on
-the *true* value, not the prediction, so it cannot be gamed by a model that
-refuses to predict background.
-
-### 6.3 The secondary metric: cross-entropy
-
-Bits per value token, which is the loss itself and does not saturate:
-
-| reference | bits / value token |
-|---|---|
-| uniform over `V` | 4.0000 |
-| position-conditional (Laplace-smoothed, no context) | **1.0201** |
-| perfect | 0 |
-
-The position-conditional figure is the one that matters. A model scoring above
-1.02 bits on the target half **has not used the context at all** — it is doing
-something a lookup table of per-pixel histograms already does.
-
-### 6.4 Graded error
-
-Mean `|predicted bin - true bin|`, which distinguishes a near miss from a wild
-one. The position marginal scores 2.09 over the whole target half and 10.43 on
-foreground pixels alone — the second number being large precisely because
-predicting background for a bright pixel is a 15-bin error.
-
-### 6.5 What to quote
-
-Lead with **foreground accuracy** and **bits per value token**, each beside its
-position-marginal reference. Add overall accuracy and graded error for
-completeness. This is recall-gen's lesson carried over: report the reference
-point beside every number, and prefer a measure that degrades smoothly to one
-that steps (`recall-gen/reports/22-what-comes-back.md`).
+Training loss is cross-entropy over the `V` value symbols; it is worth logging
+since it is what is optimised, but accuracy against 0.810 is the headline.
 
 ## 7. Worked micro-example
 

@@ -1,15 +1,12 @@
-"""Model-free reference points. Every accuracy this project reports is read
-against these, and a bare accuracy on MNIST is meaningless without them.
+"""Model-free reference points for the target half (rows 14-27).
 
-    chance             1/V
-    marginal           always predict the most common value bin
-    position marginal  predict the most common bin AT THAT POSITION, over the
-                       training split — uses no context at all, so it is the
-                       honest "did the context matter" line
-    copy ceiling       1.0, by construction, in the present arm
+The one that matters is the **position marginal**: predict the most common bin at
+that position, over the training split, using no context whatsoever. It scores
+0.810, because 82% of MNIST pixels are background. That is the line every
+reported accuracy is read against — at or below it, the context was not used.
 
-Reported for the bottom half (rows 14-27), which is what evaluation scores, and
-for all pixels, which is what training scores.
+The rest are printed because they are free: chance, the plain marginal, and some
+alternative measures that were considered and not adopted.
 
     .venv/bin/python projects/ar-recall/scripts/baselines.py
 """
