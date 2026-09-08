@@ -419,8 +419,13 @@ through it, which measured ~10x faster than the scan at every length tested and
 is what makes a 17,640-token episode affordable. `kda_causal` is the scan, kept
 as the reference the chunkwise form is tested against — do not delete it.
 
-**The kernel has a precondition.** It divides by the within-chunk cumulative
-decay, so it needs the decay gate near 1. At the project's initialisation
+**The kernel has a precondition, and it is a known one.** It divides by the
+within-chunk cumulative decay, so it needs the decay gate near 1. The KDA paper
+(arXiv:2510.26692 section 3.2) records the same thing — fine-grained decay
+"introduces numerical precision issues during division operations" — and notes
+that GLA handles it with log-domain computation plus secondary chunking in full
+precision. This implementation instead keeps the chunk small enough that the
+division is safe. At the project's initialisation
 (a ~ 0.994) chunk 128 is comfortable; it holds to a ~ 0.9 and breaks below about
 a ~ 0.4 where the cumulative product underflows float32. Chunk 64 tolerates
 roughly twice as much forgetting. `scripts/test_mixers.py` measures this rather

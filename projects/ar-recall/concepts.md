@@ -194,15 +194,74 @@ kernel for these shapes, so it pays `O(N^2)` memory and runs out past ~1,500
 tokens). At `L = 4` and above the delta rule is the only mixer that fits. This is
 a limitation of the hardware and the available kernels, not a finding.
 
-### 5.2 Order information
+### 5.2 Order information: NoPE for the delta rule
 
-The delta rule carries order in its recurrence. Attention does not, beyond the
-causal mask. **Open decision:** whether to add a position-in-sequence encoding
-(rotary, or learned absolute) so the two mixers are compared on equal terms.
-Rotary is the safer default because absolute embeddings fix a maximum length and
-these streams are ~12,000 tokens. Not yet implemented.
+**The delta-rule arm uses no position encoding, and that is the source design
+rather than a shortcut.** Kimi Linear (arXiv:2510.26692) applies NoPE to *all* of
+its full-attention layers and states the reason directly: it "delegates the
+entire responsibility for encoding positional information and recency bias to the
+KDA layers. KDA is thus established as the primary position-aware operator."
 
-### 5.3 Loss
+The argument is in section 2.2 of that paper. A gated delta rule can be read as a
+*multiplicative* positional encoding whose transition matrix is data-dependent
+and learnable, which relaxes the orthogonality constraint RoPE imposes. Position
+is carried by the decay `Diag(alpha_t)` compounding along the sequence, not by an
+added embedding.
+
+Note what this does **not** license. Kimi Linear's attention layers can be NoPE
+only because KDA layers are interleaved with them, three to one, to supply
+position. A pure-attention model has no such source. So:
+
+- **delta-rule arm** — NoPE. Decided, and it follows the source.
+- **attention arm** — needs a position encoding of its own; rotary is the
+  default, since absolute embeddings would fix a maximum length and these streams
+  are ~12,000 tokens. Still open, and moot while attention cannot run these
+  lengths at all (5.1).
+
+### 5.3 Relation to the KDA paper
+
+The recurrence is the paper's equation (1), which in its convention
+(`S` is `d_k x d_v`, read `o_t = S_t^T q_t`) is
+
+    S_t = (I - beta_t k_t k_t^T) Diag(alpha_t) S_{t-1} + beta_t k_t v_t^T
+
+The form used here and in recall-gen is the transpose of that and is algebraically
+identical: decay the state along the key axis, predict `vhat = S k_t`, correct by
+`e = beta_t (v_t - vhat)`, write `S += e k_t^T`. Expanding the transpose recovers
+equation (1) exactly.
+
+`lib/mixers.kda_chunkwise` is the paper's chunkwise algorithm, equations (6)-(9):
+the WY representation packed by a UT transform, with the same
+`Gamma ⊙ K` / `K / Gamma` pair and the same unit-lower-triangular inverse. It was
+derived here independently and then checked against the paper; the factoring of
+the `beta` and initial-state terms differs, the result does not.
+
+**What this implementation leaves out**, all from the paper's section 4
+"Neural Parameterization", and all worth knowing before any result is compared to
+published KDA numbers:
+
+| paper | here |
+|---|---|
+| `q, k = L2Norm(Swish(ShortConv(W x)))` | `L2Norm(W x)` — no short convolution, no Swish |
+| `v = Swish(ShortConv(W_v x))` | `W_v x` |
+| `alpha` from a **low-rank** projection `W_a^up W_a^down x` | full-rank `W_a x` |
+| `beta = Sigmoid(W_b x)`, scalar per head | the same |
+| head-wise RMSNorm before `W_o` | absent |
+| data-dependent output gate `Sigmoid(W_g^up W_g^down x) ⊙ ...` | absent |
+
+These are inherited from recall-gen, where the simplifications were deliberate —
+the project is about what a bounded memory does, not about reproducing a
+production language model. They are recorded here so the two are not confused.
+
+The numerical precondition in `workflow.md` — that the chunkwise form divides by
+the within-chunk cumulative decay — is acknowledged in the paper's section 3.2:
+fine-grained decay "introduces numerical precision issues during division
+operations", and prior work (GLA) handles it with log-domain computation and
+secondary chunking in full precision. This implementation instead keeps the chunk
+small enough that the division is safe, and `scripts/test_mixers.py` measures
+where that stops being true.
+
+### 5.4 Loss
 
 Cross-entropy at **value slots only**, over the `V` value symbols. Label and
 position slots are not scored: they are drawn by the episode generator, so
@@ -217,7 +276,7 @@ force still trainable.
 The 2x2 of section 4.5 is an **evaluation** slice over target-half tokens. It is
 not a separate loss and it does not change training.
 
-### 5.4 Sizes and cost
+### 5.5 Sizes and cost
 
 Measured on one RTX 4090, four layers, `d_model = 512`, 8 heads of `dk = 64`,
 chunk 128 (`scripts/bench_mixers.py`):
@@ -284,8 +343,9 @@ label, and the last two values would have to be inferred.
 
 ## 8. Decisions still open
 
-1. **Sequence position encoding** (5.2) — rotary, learned, or none. Affects the
-   attention arm most.
+1. **Position encoding for the attention arm** (5.2). Settled for the delta rule:
+   NoPE, following the source. Open for attention, and moot while attention
+   cannot run these lengths.
 2. **Hold-out fraction** for `H` — default 1/16, not yet justified by a
    measurement of cell sizes.
 3. **Whether the context images' order should be fixed or random per episode.**
