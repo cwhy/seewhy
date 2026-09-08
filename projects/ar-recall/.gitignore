@@ -1,0 +1,6 @@
+logs/
+scripts/tmp/
+*.pkl
+*.npy
+*.json
+!results.jsonl
