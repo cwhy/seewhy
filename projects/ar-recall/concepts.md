@@ -138,12 +138,17 @@ directly comparable.
 ### 4.4 The held-out pairing — axis 2
 
 Fix a set `H` of `(label symbol, position)` pairs, sampled once and fixed for the
-life of the project. Default `|H|` is 1/16 of the `LAMBDA x 784` grid.
+life of the project. The default is **`n_hold = 48` positions per label**, 6.1%
+of the grid, split evenly between the top and bottom halves of the image.
+
+The even split is not cosmetic: it makes every training episode exactly
+`(L + 1)(784 - n_hold)` triples regardless of which labels it drew, so training
+needs no padding. Evaluation episodes are `(L + 1) * 784`.
 
 **During training**, no triple whose `(label, position)` is in `H` is ever
 emitted. When label `l` is assigned to an image, the positions `p` with
-`(l, p) in H` are simply skipped — so context runs have small holes, about 49
-pixels out of 784 at the default rate.
+`(l, p) in H` are simply skipped — so context runs have 48 small holes out of
+784.
 
 **At evaluation**, target-half pixels are split by whether their pairing is in
 `H`:
