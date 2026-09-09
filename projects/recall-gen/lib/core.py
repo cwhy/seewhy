@@ -39,6 +39,17 @@ class Cfg(NamedTuple):
     # is ordinary quadratic attention over the same tokens. Last field, and
     # defaulted, so every Cfg already written still rebuilds through Cfg(**row).
     mixer: str = "kda"
+    # The KDA paper's neural parameterisation (arXiv:2510.26692 section 4):
+    # low-rank decay projection, head-wise RMSNorm, data-dependent output gate.
+    # Default off, so the RNG split count and every stored row are untouched.
+    kda_full: bool = False
+    # Short-convolution kernel on q/k/v, 0 = none. Kept SEPARATE from kda_full
+    # because the paper's setting is language, where adjacent tokens are locally
+    # related. Here one token is a whole image and context images are in random
+    # order, so a short convolution blends unrelated items — plausibly harmful
+    # rather than merely unnecessary. Off even when kda_full is on, unless a run
+    # asks for it, so the two can be told apart.
+    conv_k: int = 0
 
     @property
     def state_floats(self) -> int:
@@ -56,7 +67,10 @@ def _decay_bias(H: float) -> float:
 def init_params(key, cfg: Cfg):
     D, H, P = cfg.d_model, cfg.dk * cfg.n_heads, cfg.d_in
     assert H == D, f"n_heads*dk ({H}) must equal d_model ({D})"
-    g = jax.random.split(key, 6 + cfg.n_layers * 10)
+    # The split COUNT decides every key, so it must not change for a
+    # configuration that already has stored rows: the four extra keys are taken
+    # only when `kda_full` asks for them.
+    g = jax.random.split(key, 6 + cfg.n_layers * (10 + (4 if cfg.kda_full else 0)))
     i = iter(g)
     lin = lambda k, s: jax.random.normal(k, s) * (1.0 / s[0] ** 0.5)
 
@@ -84,6 +98,21 @@ def init_params(key, cfg: Cfg):
             # leaving them idle keeps `n_params` an honest count.
             for k in ("Wa", "ba", "Wb", "bb"):
                 L.pop(k)
+        elif cfg.kda_full:
+            # Low-rank decay projection (rank = head dimension, as the paper),
+            # head-wise RMSNorm, and the low-rank output gate. `Wa` goes: the
+            # full-rank decay is what these replace.
+            R = cfg.dk
+            L.pop("Wa")
+            L |= dict(Wa_down=lin(next(i), (D, R)), Wa_up=lin(next(i), (R, D)),
+                      Wg_down=lin(next(i), (D, R)), Wg_up=lin(next(i), (R, D)),
+                      rms_g=jnp.ones(D))
+        if cfg.conv_k:
+            # Identity tap on the CURRENT token (index 0), so the layer starts
+            # equivalent to no convolution. A tap at the other end is a shift,
+            # which leaves the first tokens with an exactly-zero q and k.
+            c0 = jnp.zeros((cfg.conv_k, D)).at[0].set(1.0)
+            L |= dict(conv_q=c0, conv_k=c0, conv_v=c0)
         p["layers"].append(L)
     p["lnf_g"] = jnp.ones(D)
     p["lnf_b"] = jnp.zeros(D)
@@ -100,6 +129,34 @@ def ln(x, g, b, eps=1e-5):
     m = x.mean(-1, keepdims=True)
     v = x.var(-1, keepdims=True)
     return g * (x - m) / jnp.sqrt(v + eps) + b
+
+
+def _short_conv(x, W):
+    """Depthwise causal convolution, `y[t] = sum_i W[i] x[t-i]`, so `W[0]` taps
+    the current token. `W` is (kernel, d_model)."""
+    K, N = W.shape[0], x.shape[1]
+    xp = jnp.pad(x, ((0, 0), (K - 1, 0), (0, 0)))
+    return sum(W[i] * jax.lax.dynamic_slice_in_dim(xp, K - 1 - i, N, 1)
+               for i in range(K))
+
+
+def _l2norm(t, eps=1e-6):
+    """Row-wise L2 normalisation with a finite gradient at zero.
+
+    `t / (norm(t) + eps)` is not safe: `jnp.linalg.norm` has a NaN gradient at
+    exactly zero and an epsilon added afterwards does not repair it. A zero row
+    is reachable once a causal short convolution is in front, and it costs
+    nothing to be safe when it is not.
+    """
+    return t * jax.lax.rsqrt(jnp.sum(t * t, axis=-1, keepdims=True) + eps)
+
+
+def _rms_headwise(o, g, H, DK):
+    """Head-wise RMSNorm on (B, N, H*DK), normalising within each head."""
+    B, N, _ = o.shape
+    h = o.reshape(B, N, H, DK)
+    h = h * jax.lax.rsqrt(jnp.mean(h ** 2, axis=-1, keepdims=True) + 1e-6)
+    return h.reshape(B, N, H * DK) * g
 
 
 def kda(x, Lp, is_ctx, cfg: Cfg):
@@ -119,12 +176,17 @@ def kda(x, Lp, is_ctx, cfg: Cfg):
     H, DK = cfg.n_heads, cfg.dk
     sh = lambda t: t.reshape(B, N, H, DK).transpose(0, 2, 1, 3)     # (B,H,N,DK)
 
-    q = sh(x @ Lp["Wq"])
-    k = sh(x @ Lp["Wk"])
-    v = sh(x @ Lp["Wv"])
-    q = q / (jnp.linalg.norm(q, axis=-1, keepdims=True) + 1e-6)     # DeltaNet convention
-    k = k / (jnp.linalg.norm(k, axis=-1, keepdims=True) + 1e-6)
-    alpha = jax.nn.sigmoid(sh(x @ Lp["Wa"] + Lp["ba"]))             # (B,H,N,DK)
+    if "conv_q" in Lp:
+        # q, k = L2Norm(Swish(ShortConv(W x))), v = Swish(ShortConv(W_v x))
+        pq, pk, pv = (_short_conv(x @ Lp[w], Lp[c]) for w, c in
+                      (("Wq", "conv_q"), ("Wk", "conv_k"), ("Wv", "conv_v")))
+        q, k, v = (sh(jax.nn.silu(t)) for t in (pq, pk, pv))
+    else:
+        q, k, v = sh(x @ Lp["Wq"]), sh(x @ Lp["Wk"]), sh(x @ Lp["Wv"])
+    q, k = _l2norm(q), _l2norm(k)                                   # DeltaNet convention
+    a_pre = (x @ Lp["Wa_down"] @ Lp["Wa_up"] if "Wa_down" in Lp
+             else x @ Lp["Wa"]) + Lp["ba"]
+    alpha = jax.nn.sigmoid(sh(a_pre))                               # (B,H,N,DK)
     beta = jax.nn.sigmoid(x @ Lp["Wb"] + Lp["bb"]).transpose(0, 2, 1)  # (B,H,N)
 
     gate = is_ctx[:, None, :]                                       # (B,1,N)
@@ -142,7 +204,12 @@ def kda(x, Lp, is_ctx, cfg: Cfg):
            v.transpose(2, 0, 1, 3), beta.transpose(2, 0, 1))
     S, _ = jax.lax.scan(step, jnp.zeros((B, H, DK, DK)), seq)
     o = jnp.einsum("bhvk,bhnk->bhnv", S, q) / DK ** 0.5
-    return o.transpose(0, 2, 1, 3).reshape(B, N, D) @ Lp["Wo"]
+    o = o.transpose(0, 2, 1, 3).reshape(B, N, D)
+    if "Wg_down" in Lp:
+        # o_t = W_o( Sigmoid(W_g^up W_g^down x_t) * RMSNorm(KDA(...)) )
+        o = _rms_headwise(o, Lp["rms_g"], H, DK)
+        o = o * jax.nn.sigmoid(x @ Lp["Wg_down"] @ Lp["Wg_up"])
+    return o @ Lp["Wo"]
 
 
 def attn(x, Lp, is_ctx, cfg: Cfg):
