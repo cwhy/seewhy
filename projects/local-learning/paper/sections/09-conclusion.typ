@@ -21,6 +21,14 @@ variables are what keep a local rule aligned with backpropagation as the network
 gets deeper, worth 24 points of accuracy at 32 layers and a gradient cosine of
 0.89 against 0.81.
 
+The two arms we added to the original three answer a question it could not.
+Plain predictive coding is the ablation that isolates PC-ALM's dual variables,
+and EGGROLL — which never differentiates anything — reaches 0.9025 in one epoch
+with an update whose cosine to the true gradient is 0.094, and is the only rule
+here whose accuracy is unchanged from 2 to 64 layers. A method with no notion of
+a layer has no credit-assignment problem to fail at, which is what makes the
+other three rules' depth curves interesting rather than inevitable.
+
 Two findings were not on the list of things we set out to measure.
 Forward-Forward's deep failure is a readout failure rather than a representation
 failure — a linear probe on the 31-layer network's own activations reaches
@@ -53,6 +61,11 @@ per-epoch curve and final metrics. The headline numbers come from:
   [Wall-clock curves, figure 6], [`exp4_*` — 15 cells, 10 epochs each],
   [Depth sweep, figures 7-8], [`exp5_*` — 84 cells],
   [Fashion-MNIST check], [`exp6_*` (9 cells), `exp8_*` (6 cells)],
+  [EGGROLL configuration], [`exp10_*` (24), `exp11_*` (4), `exp15_*` (12 cells)],
+  [EGGROLL population, figures 9-10], [`exp12_*` — 12 cells],
+  [EGGROLL table rows], [`exp13_*` (15 cells), `exp16_*` (5 cells)],
+  [EGGROLL depth and wall-clock], [`exp14_*` — 21 cells],
+  [Shared-GPU timing calibration], [`exp17_*` — 9 cells],
 )
 
 Each experiment file's module docstring states the hypothesis it was written to

@@ -96,3 +96,29 @@
 0.7956       # mean over seeds of test_acc_probe for ff (default) in exp4
 11.5         # train_s_ratio of bp/lr0.001 over bp/L2
 0.00005      # median accuracy difference between duplicate runs of the same cell
+90.25        # mean over seeds of test_acc for eggroll tuned in exp13 (percent)
+0.4473       # mean over seeds of test_acc for eggroll default in exp13
+0.0695       # sd over seeds of test_acc for eggroll default in exp13
+1.981        # mean over seeds of train_s for eggroll default in exp13
+0.00211      # mean over seeds of infer_s for eggroll default in exp13
+0.00103      # train_s_ratio of ff/default over pc/L64
+0.9025       # mean over seeds of test_acc for eggroll tuned in exp13
+0.0026       # sd over seeds of test_acc for eggroll p128 in exp12
+0.8272       # mean over seeds of test_acc for eggroll_plain tuned in exp16
+45.5         # train_s_ratio of pc/default over ff/L8
+0.8990       # mean over seeds of test_acc for eggroll L2 in exp14
+0.9017       # mean over seeds of test_acc for eggroll L64 in exp14
+0.7939       # mean over seeds of test_acc for eggroll p32 in exp12
+0.8668       # mean over seeds of test_acc for eggroll p128 in exp12
+0.0448       # mean over seeds of grad_cos_to_bp for eggroll p128 in exp12
+0.0478       # train_s_ratio of bp/L64 over pcalm/default
+0.9028       # mean over seeds of test_acc for eggroll p512 in exp12
+0.0939       # mean over seeds of grad_cos_to_bp for eggroll p512 in exp12
+0.0955       # train_s_ratio of bp/lr0.03 over eggroll/default
+0.9219       # mean over seeds of test_acc for eggroll p2048 in exp12
+0.0057       # sd over seeds of train_s for ff tuned_deep in exp9
+0.1883       # mean over seeds of grad_cos_to_bp for eggroll p2048 in exp12
+0.1910       # train_s_ratio of bp/lr0.001 over eggroll/L8
+0.8713       # mean over seeds of epoch1_acc for bp (default) in exp4
+17.612       # mean over seeds of train_s for pcalm sharedgpu in exp17
+0.4552       # difference of two logged means: EGGROLL tuned minus EGGROLL at the shared rate

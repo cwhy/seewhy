@@ -10,17 +10,32 @@
   [exp3], [Is any method being held back by a learning rate chosen for another?], [`experiments3.py`],
   [exp4], [At equal training wall-clock rather than equal epochs, what is the ordering?], [`experiments4.py`],
   [exp5], [How does each rule behave as depth grows from 2 to 64 layers?], [`experiments5.py`],
+  [exp6, exp8], [Does our reimplementation of PC and PC-ALM reproduce the authors' own published cell?], [`experiments6.py`, `experiments8.py`],
+  [exp3, exp7, exp9], [What does each arm do at its own best learning rate rather than a shared one?], [`experiments3.py`, `experiments7.py`, `experiments9.py`],
+  [exp10, exp11], [What does EGGROLL need — perturbation scale, population size, outer rate — before it can be compared at all?], [`experiments10.py`, `experiments11.py`],
+  [exp12], [How does EGGROLL's gradient estimate improve with population size, and does it follow the predicted $sqrt(P slash d)$ law?], [`experiments12.py`],
+  [exp13], [Where does EGGROLL land in the table, on both architectures?], [`experiments13.py`],
+  [exp14], [Does a rule with no notion of a layer care about depth, and what does it cost per unit of accuracy?], [`experiments14.py`],
 )
 
 Every cell is one (rule, architecture, seed) run, written to `results.jsonl`
 with its full hyperparameters, timings and per-epoch curve. Cells are skipped if
 already present, so a crashed sweep resumes rather than restarting.
 
-The five arms of the headline comparison are: the three rules on the residual
-network at $N = 32$, $L = 32$ (56,128 parameters), Forward-Forward on its own
-two-layer network at 66 units (56,232), and two arms the comparison being
-replicated does not have — backpropagation on Forward-Forward's architecture
-(56,902) and Forward-Forward on a 31-layer stack of 32 units (56,800).
+The arms of the headline comparison are: backpropagation, PC, PC-ALM and
+EGGROLL on the residual network at $N = 32$, $L = 32$ (56,128 parameters);
+Forward-Forward on its own two-layer network at 66 units (56,232); and two arms
+the comparison being replicated does not have — backpropagation on
+Forward-Forward's architecture (56,902) and Forward-Forward on a 31-layer stack
+of 32 units (56,800).
+
+Two of these are ours rather than the original's. PC is the ablation that
+isolates PC-ALM's contribution, and it is a method in its own right — the one
+the source paper is written against. EGGROLL @sarkar2026eggroll is the
+gradient-free arm: it belongs here because it is the other well-known way to
+train a network without backpropagation, and because it is the only rule in the
+set that is indifferent to how the network is wired, which makes it a useful
+probe of how much the architecture is doing.
 
 == Controls
 
@@ -36,6 +51,13 @@ identical $T$, $eta_h$, architecture and seed, differing from PC-ALM only in
 $alpha = 0$. Any accuracy difference between the two is attributable to the
 Lagrange multipliers and to nothing else. Had PC matched PC-ALM here, the
 paper's mechanism would have no support at this scale.
+
+*The control that isolates the population size.* EGGROLL's gradient estimate is
+an average of $P$ random directions in 56,128-dimensional space, so its quality
+is a function of $P$ and of nothing else in the method. Sweeping $P$ over two
+orders of magnitude, and comparing the measured alignment against the
+$sqrt(P slash d)$ that random-projection geometry predicts, separates "this
+estimator works" from "this estimator was lucky at one setting".
 
 *The control that isolates architecture from learning rule.* The comparison
 being replicated matches parameter counts across three rows whose architectures

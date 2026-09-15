@@ -45,6 +45,28 @@ obvious way to buy PC accuracy, and it would make PC-ALM's wall-clock
 disadvantage worse rather than better, so the trade-off is not neutral; we did
 not map it.
 
+*EGGROLL's numbers were measured on a shared GPU.* Every EGGROLL cell ran while
+an unrelated job held part of the same device, which costs a factor of 2.0 in
+wall-clock (§6.8 measures it on three arms with known idle timings, getting
+2.01, 2.17 and 2.01). Accuracy is unaffected. We report EGGROLL's raw times and
+the halved equivalents rather than silently mixing the two, but a single
+calibration factor is cruder than re-running the arm on an idle device would be.
+
+*EGGROLL's depth sweep is not a like-for-like schedule.* It ran at a fixed rate
+of 3e-2 at every depth, while the three backprop-derived arms follow the source
+paper's rule $10^(-3) sqrt(N slash L)$, which shrinks with depth by design. The
+flatness of EGGROLL's curve is a property of the method; the point where it
+crosses backpropagation is partly a property of that rule. A depth-tuned
+backpropagation arm would settle it and was not run.
+
+*EGGROLL has knobs we swept coarsely and knobs we did not sweep at all.* Its
+population, perturbation scale and outer rate were gridded on the residual
+network (exp10, exp11, exp12) and its scale and rate re-gridded on the plain
+network (exp15), each on one seed at three-fold spacing. The perturbation rank
+was fixed at 1 throughout and never varied, and the same single $sigma$ was
+applied to every layer, which §7 argues is the likely reason the plain network
+underperforms.
+
 *Timings are one machine, one framework, one execution style.* All arms are
 compiled by XLA into a single scanned loop on one RTX 4090, which is why our
 absolute numbers are faster than the ones we are replicating by factors between

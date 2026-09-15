@@ -14,7 +14,8 @@ sys.path.insert(0, str(PROJECT))
 sys.path.append(str(PROJECT.parents[1]))          # repo root LAST — see workflow.md
 
 from lib.figures import (accuracy_vs_depth, accuracy_vs_tweet, accuracy_vs_walltime,  # noqa: E402
-                         ff_readouts, learning_rate_grid, tuned_vs_default)
+                         es_cosine_law, es_population, ff_readouts,
+                         learning_rate_grid, tuned_vs_default)
 from shared_lib.results import load_results                                            # noqa: E402
 from shared_lib.report import save_report                                              # noqa: E402
 from shared_lib.typst_report import save_figure                                        # noqa: E402
@@ -44,6 +45,8 @@ def main():
         ("walltime", accuracy_vs_walltime(ROWS)),
         ("lr", learning_rate_grid(ROWS)),
         ("ffread", ff_readouts(ROWS)),
+        ("espop", es_population(ROWS)),
+        ("escos", es_cosine_law(ROWS)),
     )}
 
     bp = cells("exp1", method="bp", tag="")
@@ -114,6 +117,14 @@ one arm: Forward-Forward's. Re-run at each arm's own best rate, 5 seeds:
         d = cells("exp1" if method in ("bp", "pc", "pcalm") else "exp2",
                   method=method, tag="deep" if tag == "tuned_deep" else "")
         md += f"| {label} | {t[0]['lr']:g} | {pm(t)} | {stat(t)[0]-stat(d)[0]:+.4f} |\n"
+    for rs, d, label in ((cells("exp13", method="eggroll", tag="tuned"),
+                          cells("exp13", method="eggroll", tag="default"),
+                          "EGGROLL 32x32 res"),
+                         (cells("exp16", method="eggroll_plain", tag="tuned"), None,
+                          "EGGROLL 2x66")):
+        if rs:
+            delta = f"{stat(rs)[0]-stat(d)[0]:+.4f}" if d else "—"
+            md += f"| {label} | {rs[0]['lr']:g} | {pm(rs)} | {delta} |\n"
 
     md += f"""
 The posted order was FF > backprop > PC-ALM. Tuned, it is backprop > PC-ALM > FF
@@ -137,19 +148,61 @@ same seeds.
 
 ![accuracy vs depth]({urls['depth']})
 
-| layers | backprop | PC | PC-ALM | cos(PC) | cos(PC-ALM) |
-|---:|---:|---:|---:|---:|---:|
+| layers | backprop | PC | PC-ALM | EGGROLL | cos(PC) | cos(PC-ALM) |
+|---:|---:|---:|---:|---:|---:|---:|
 """
     for L in (2, 4, 8, 16, 32, 64):
         r_bp = cells("exp5", method="bp", tag=f"L{L}")
         r_pc = cells("exp5", method="pc", tag=f"L{L}")
         r_al = cells("exp5", method="pcalm", tag=f"L{L}")
+        r_eg = cells("exp14", method="eggroll", tag=f"L{L}")
         md += (f"| {L} | {stat(r_bp)[0]:.4f} | {stat(r_pc)[0]:.4f} | {stat(r_al)[0]:.4f} | "
+               f"{stat(r_eg)[0]:.4f} | "
                f"{stat(r_pc,'grad_cos_to_bp')[0]:.3f} | {stat(r_al,'grad_cos_to_bp')[0]:.3f} |\n")
 
     f_bp, f_pc, f_al = (cells("exp6", method=m) for m in ("bp", "pc", "pcalm"))
+    eg_d = cells("exp13", method="eggroll", tag="default")
+    eg_t = cells("exp13", method="eggroll", tag="tuned")
+    eg_p = cells("exp16", method="eggroll_plain", tag="tuned")
     md += f"""
-## 6. Is our reimplementation faithful?
+## 6. EGGROLL: a gradient estimate made of random directions
+
+The gradient-free arm (low-rank evolution strategies, ported from this repo's
+`es` project). No backward pass: the update is an average of P paired weight
+perturbations. Everything about it follows from how good an average of P random
+directions can be in d = 56,128 dimensions.
+
+| P | accuracy | cosine to backprop | sqrt(P/d) | train s* |
+|---:|---|---:|---:|---:|
+"""
+    for P in (32, 128, 512, 2048):
+        rs = [r for r in cells("exp12") if r["n_pop"] == P]
+        if not rs:
+            continue
+        d = rs[0]["n_params"]
+        md += (f"| {P} | {pm(rs)} | {stat(rs,'grad_cos_to_bp')[0]:.4f} | "
+               f"{(P/d)**0.5:.4f} | {stat(rs,'train_s')[0]:.3f} |\n")
+
+    md += f"""
+![cosine vs the sqrt(P/d) law]({urls['escos']})
+
+The measured alignment matches sqrt(P/d) to within 5% everywhere — the estimator
+is doing what it claims. And yet at P=512 an update almost orthogonal to the
+true gradient (cosine 0.094) trains the net to **{pm(eg_t)}**, above backprop at
+the shared default rate. It is unbiased, and 937 steps of averaging do the rest.
+
+![accuracy vs population]({urls['espop']})
+
+Two more: EGGROLL is the only arm whose accuracy is flat with depth (0.8990 at
+2 layers, 0.9017 at 64, see §5), and the only one that prefers the deep-narrow
+net — tuned separately on each, {stat(eg_t)[0]:.4f} on the 32-layer residual against
+{stat(eg_p)[0]:.4f} on the 2x66 plain one. At the shared 1e-3 rate it is at {stat(eg_d)[0]:.4f}.
+
+\* EGGROLL cells were measured while another job shared the GPU; a calibration
+run on three arms with known idle timings puts that at 2.0x (exp17), so halve
+these to compare with the times above.
+
+## 7. Is our reimplementation faithful?
 
 Written from the paper's equations, then checked against the authors' published
 reference run on their Fashion-MNIST cell (their numbers are single runs):

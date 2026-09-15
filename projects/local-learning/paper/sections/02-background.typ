@@ -58,7 +58,19 @@ labels go together. There is no backward pass and no settling; there is also no
 output layer, so classification is done by trying all ten labels and keeping
 whichever the network is most enthusiastic about.
 
-All three rules are compared here at a fixed budget of one #gloss[epoch][one
+*EGGROLL* @sarkar2026eggroll is the odd one out, and is included because it is
+the other well-known way to train a network without backpropagation. It is not a
+local rule at all: it is an #gloss[evolution strategy][optimisation by perturbing
+the parameters at random and keeping what improves the loss] @salimans2017es. It
+jitters every weight, measures what that did to the loss, and averages the
+jitters in proportion to how much they helped. With enough samples that average
+points along the true gradient — it is a gradient estimate bought with forward
+passes instead of a backward pass. The EGGROLL contribution is making the
+jitters low-rank, which cuts the random numbers a perturbation needs from
+$m times n$ to $(m + n) r$ and lets a whole population run as one batched
+matrix multiply.
+
+All four rules are compared here at a fixed budget of one #gloss[epoch][one
 pass through the 60,000 training images], the budget under which the numbers
 being replicated were produced.
 

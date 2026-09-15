@@ -12,7 +12,11 @@ from information available in its own neighbourhood, with no backward sweep —
 an idea taken seriously because the brain plainly does something local, and
 backpropagation is not a candidate for what @rao1999predictive. One was PC-ALM,
 published the same week by Sakana AI @seely2026pcalm; the other was
-Forward-Forward, proposed by Hinton in 2022 @hinton2022ff.
+Forward-Forward, proposed by Hinton in 2022 @hinton2022ff. We add two arms of
+our own: plain predictive coding, which is what PC-ALM modifies and therefore
+the only control that isolates what PC-ALM contributes, and EGGROLL
+@sarkar2026eggroll, a gradient-free evolution strategy that is the other
+well-known way to train a network without backpropagation.
 
 The table showed backpropagation at 87.39% accuracy in 0.324 seconds of
 training, PC-ALM at 86.28% in 13.485 seconds, and Forward-Forward at 88.83% in
@@ -51,6 +55,15 @@ moved the number.
 + *At equal wall-clock, the gap is not close.* Backpropagation passes PC-ALM's
   one-epoch accuracy after 0.4 seconds of training and reaches 94.6% in the time
   PC-ALM needs for one epoch.
+
++ *A gradient-free method is competitive here, and is the only arm indifferent
+  to depth.* EGGROLL @sarkar2026eggroll, which estimates the gradient from
+  random weight perturbations rather than computing it, reaches 90.25% ± 0.26 in
+  one epoch — above backpropagation at the rate the original comparison used —
+  while its update has a cosine of only 0.094 with the true gradient. Its
+  accuracy is flat from 2 to 64 layers where every other rule falls away, and
+  the alignment of its estimate follows the $sqrt(P slash d)$ law to within 5%
+  across a 64-fold range of population sizes.
 
 + *The source paper's central claim holds where we can test it.* Standard
   predictive coding — PC-ALM with its dual variables switched off, everything

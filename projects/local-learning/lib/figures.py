@@ -19,18 +19,29 @@ TWEET = {
     "Forward-Forward 2x66": {"acc": 0.8883, "params": 56232, "train_s": 0.549, "infer_s": 0.0781},
 }
 
-# Display order and labels for the five arms of the one-epoch comparison.
+# Display order for the one-epoch comparison. Each arm names where its
+# shared-default-rate run lives and where its own-best-rate rerun lives.
 ARMS = [
-    ("exp1", "bp", "", "backprop 32x32 res"),
-    ("exp1", "pc", "", "PC 32x32 res"),
-    ("exp1", "pcalm", "", "PC-ALM 32x32 res"),
-    ("exp2", "ff", "", "Forward-Forward 2x66"),
-    ("exp2", "bp_plain", "", "backprop 2x66"),
-    ("exp2", "ff", "deep", "Forward-Forward 31x32"),
+    ("backprop 32x32 res", ("exp1", "bp", ""), ("exp9", "bp", "tuned")),
+    ("PC 32x32 res", ("exp1", "pc", ""), ("exp9", "pc", "tuned")),
+    ("PC-ALM 32x32 res", ("exp1", "pcalm", ""), ("exp9", "pcalm", "tuned")),
+    ("EGGROLL 32x32 res", ("exp13", "eggroll", "default"), ("exp13", "eggroll", "tuned")),
+    ("Forward-Forward 2x66", ("exp2", "ff", ""), ("exp9", "ff", "tuned")),
+    ("backprop 2x66", ("exp2", "bp_plain", ""), ("exp9", "bp_plain", "tuned")),
+    ("Forward-Forward 31x32", ("exp2", "ff", "deep"), ("exp9", "ff", "tuned_deep")),
 ]
+ARM_LABELS = [label for label, _, _ in ARMS]
 
 METHOD_LABEL = {"bp": "backprop", "pc": "PC", "pcalm": "PC-ALM",
-                "ff": "Forward-Forward", "bp_plain": "backprop (plain)"}
+                "ff": "Forward-Forward", "bp_plain": "backprop (plain)",
+                "eggroll": "EGGROLL", "eggroll_plain": "EGGROLL (plain)"}
+
+DEPTH_METHODS = ("bp", "pc", "pcalm", "eggroll", "ff", "bp_plain")
+
+
+def arm_cells(rows: dict[str, dict], locator) -> list[dict]:
+    exp, method, tag = locator
+    return cells(rows, exp, method=method, tag=tag)
 
 
 # ── row selection ────────────────────────────────────────────────────────────
@@ -60,8 +71,8 @@ def spread(values) -> float:
 def accuracy_vs_tweet(rows: dict[str, dict], name: str = "accuracy_vs_tweet") -> Figure:
     """Our five arms against the three numbers the tweet reports."""
     labels, accs, source = [], [], []
-    for exp, method, tag, label in ARMS:
-        got = cells(rows, exp, method=method, tag=tag)
+    for label, default, _ in ARMS:
+        got = arm_cells(rows, default)
         if not got:
             continue
         labels.append(label)
@@ -74,7 +85,7 @@ def accuracy_vs_tweet(rows: dict[str, dict], name: str = "accuracy_vs_tweet") ->
     return bar_chart(
         name, {"arm": labels, "accuracy": accs, "source": source},
         x="arm", y="accuracy", fill="source", position="dodge", horizontal=True,
-        x_order=[label for _, _, _, label in ARMS][::-1],
+        x_order=ARM_LABELS[::-1],
         x_label="", y_label="test accuracy after one epoch",
         fill_label="", y_limits=(0.0, 1.0), hlines=[(0.1, "chance")],
         width=cm(14), height=cm(8),
@@ -86,8 +97,8 @@ def accuracy_vs_tweet(rows: dict[str, dict], name: str = "accuracy_vs_tweet") ->
 
 def cost_by_method(rows: dict[str, dict], field: str, name: str, y_label: str) -> Figure:
     labels, values = [], []
-    for exp, method, tag, label in ARMS:
-        got = cells(rows, exp, method=method, tag=tag)
+    for label, default, _ in ARMS:
+        got = arm_cells(rows, default)
         if got:
             labels.append(label)
             values.append(mean(c[field] for c in got))
@@ -103,8 +114,9 @@ def cost_by_method(rows: dict[str, dict], field: str, name: str, y_label: str) -
 def accuracy_vs_walltime(rows: dict[str, dict], name: str = "accuracy_vs_walltime") -> Figure:
     """Test accuracy against cumulative training seconds, ten epochs per method."""
     series: dict[str, tuple[list[float], list[float]]] = {}
-    for exp, method, tag, label in ARMS:
-        got = cells(rows, "exp4", method=method, tag=tag)
+    for label, (_, method, tag), _ in ARMS:
+        got = (cells(rows, "exp14", method="eggroll", tag="walltime")
+               if method == "eggroll" else cells(rows, "exp4", method=method, tag=tag))
         if not got:
             continue
         n_epochs = min(len(c["history"]) for c in got)
@@ -129,11 +141,11 @@ def accuracy_vs_walltime(rows: dict[str, dict], name: str = "accuracy_vs_walltim
 
 
 def accuracy_vs_depth(rows: dict[str, dict], name: str = "accuracy_vs_depth") -> Figure:
-    got = cells(rows, "exp5")
-    depths = sorted({r["depth"] if r["method"] in ("bp", "pc", "pcalm")
+    got = cells(rows, "exp5") + cells(rows, "exp14")
+    depths = sorted({r["depth"] if r["method"] in ("bp", "pc", "pcalm", "eggroll")
                      else len(r["hidden"]) + 1 for r in got})
     series: dict[str, list[float]] = {}
-    for method in ("bp", "pc", "pcalm", "ff", "bp_plain"):
+    for method in DEPTH_METHODS:
         ys = []
         for L in depths:
             sel = [r for r in got if r["method"] == method and r.get("tag") == f"L{L}"]
@@ -154,16 +166,18 @@ def accuracy_vs_depth(rows: dict[str, dict], name: str = "accuracy_vs_depth") ->
 
 
 def grad_cosine_vs_depth(rows: dict[str, dict], name: str = "grad_cosine_vs_depth") -> Figure:
-    got = cells(rows, "exp5")
+    got = cells(rows, "exp5") + cells(rows, "exp14")
     depths = sorted({r["depth"] for r in got if r["method"] in ("pc", "pcalm")})
     series = {}
-    for method in ("pc", "pcalm"):
+    for method in ("pc", "pcalm", "eggroll"):
         ys = []
         for L in depths:
             sel = [r for r in got if r["method"] == method and r["depth"] == L
+                   and r.get("tag", "").startswith("L")
                    and r.get("grad_cos_to_bp") is not None]
             ys.append(mean(r["grad_cos_to_bp"] for r in sel) if sel else float("nan"))
-        series[METHOD_LABEL[method]] = ys
+        if any(y == y for y in ys):
+            series[METHOD_LABEL[method]] = ys
     data = long_form(depths, series, x_name="depth", y_name="cosine", series_name="method")
     return line_chart(
         name, data, x="depth", y="cosine", colour="method", points=True,
@@ -200,18 +214,10 @@ def learning_rate_grid(rows: dict[str, dict], name: str = "learning_rate_grid") 
 
 def tuned_vs_default(rows: dict[str, dict], name: str = "tuned_vs_default") -> Figure:
     """Each arm at the shared default rate, and at its own best rate."""
-    tuned_arms = [
-        ("bp", "tuned", "backprop 32x32 res"),
-        ("pc", "tuned", "PC 32x32 res"),
-        ("pcalm", "tuned", "PC-ALM 32x32 res"),
-        ("ff", "tuned", "Forward-Forward 2x66"),
-        ("bp_plain", "tuned", "backprop 2x66"),
-        ("ff", "tuned_deep", "Forward-Forward 31x32"),
-    ]
     labels, accs, which = [], [], []
-    for (exp, method, tag, label), (_, ttag, _) in zip(ARMS, tuned_arms):
-        default = cells(rows, exp, method=method, tag=tag)
-        tuned = cells(rows, "exp9", method=method, tag=ttag)
+    for label, default_loc, tuned_loc in ARMS:
+        default = arm_cells(rows, default_loc)
+        tuned = arm_cells(rows, tuned_loc)
         if not default or not tuned:
             continue
         labels += [label, label]
@@ -220,7 +226,7 @@ def tuned_vs_default(rows: dict[str, dict], name: str = "tuned_vs_default") -> F
     return bar_chart(
         name, {"arm": labels, "accuracy": accs, "rate": which},
         x="arm", y="accuracy", fill="rate", position="dodge", horizontal=True,
-        x_order=[label for _, _, _, label in ARMS][::-1],
+        x_order=ARM_LABELS[::-1],
         x_label="", y_label="test accuracy after one epoch", fill_label="",
         y_limits=(0.0, 1.0), hlines=[(0.1, "chance")],
         width=cm(14), height=cm(8),
@@ -255,6 +261,45 @@ def ff_readouts(rows: dict[str, dict], name: str = "ff_readouts") -> Figure:
     )
 
 
+def es_population(rows: dict[str, dict], name: str = "es_population") -> Figure:
+    """EGGROLL accuracy against the number of antithetic pairs per update."""
+    got = cells(rows, "exp12")
+    pops = sorted({r["n_pop"] for r in got})
+    accs = [mean(r["test_acc"] for r in got if r["n_pop"] == P) for P in pops]
+    tuned_bp = cells(rows, "exp9", method="bp", tag="tuned")
+    lines = [(0.1, "chance")]
+    if tuned_bp:
+        lines.append((mean(c["test_acc"] for c in tuned_bp), "backprop, tuned"))
+    return line_chart(
+        name, {"pairs": pops, "accuracy": accs}, x="pairs", y="accuracy", points=True,
+        log_x=True, x_label="antithetic pairs per weight update (log scale)",
+        y_label="test accuracy after one epoch", y_limits=(0.0, 1.0), hlines=lines,
+        width=cm(13), height=cm(7),
+        alt="EGGROLL one-epoch accuracy against population size on a log axis, "
+            "with dashed reference lines at chance and at tuned backprop.",
+    )
+
+
+def es_cosine_law(rows: dict[str, dict], name: str = "es_cosine_law") -> Figure:
+    """Measured alignment of the ES estimate against the sqrt(P/d) prediction."""
+    got = [r for r in cells(rows, "exp12") if r.get("grad_cos_to_bp") is not None]
+    pops = sorted({r["n_pop"] for r in got})
+    d = got[0]["n_params"]
+    measured = [mean(r["grad_cos_to_bp"] for r in got if r["n_pop"] == P) for P in pops]
+    predicted = [(P / d) ** 0.5 for P in pops]
+    data = long_form(pops, {"measured": measured, "sqrt(P/d)": predicted},
+                     x_name="pairs", y_name="cosine", series_name="series")
+    return line_chart(
+        name, data, x="pairs", y="cosine", colour="series", points=True, log_x=True,
+        x_label="antithetic pairs per weight update (log scale)",
+        y_label="cosine to the backprop gradient", colour_label="",
+        width=cm(13), height=cm(6.5),
+        alt="Cosine between EGGROLL's gradient estimate and the true gradient "
+            "against population size, beside the square-root-of-P-over-d "
+            "prediction from random-projection geometry.",
+    )
+
+
 def build_figures(rows: dict[str, dict]) -> list[Figure]:
     """Every figure the paper needs, guarded on what results exist so far."""
     figures: list[Figure] = []
@@ -270,6 +315,9 @@ def build_figures(rows: dict[str, dict]) -> list[Figure]:
         figures.append(learning_rate_grid(rows))
     if cells(rows, "exp9"):
         figures.append(tuned_vs_default(rows))
+    if cells(rows, "exp12"):
+        figures.append(es_population(rows))
+        figures.append(es_cosine_law(rows))
     if cells(rows, "exp4"):
         figures.append(accuracy_vs_walltime(rows))
     if cells(rows, "exp5"):

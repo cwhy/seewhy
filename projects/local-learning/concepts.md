@@ -50,7 +50,7 @@ of 66 units is 784*66 + 66 + 66*66 + 66 = **56,232** parameters, the tweet's
 third row exactly. The backprop control on the same stack adds a 10-unit output
 layer (56,902) and trains on the same squared-error loss.
 
-## The three learning rules
+## The four learning rules
 
 **Backprop** — `jax.grad` of the loss. One global backward pass.
 
@@ -90,6 +90,21 @@ through the network and takes the argmax of goodness summed over layers 2..n,
 which costs ten forward passes. A linear softmax probe on detached activations
 is trained alongside and reported as a secondary readout.
 
+**EGGROLL** — evolution strategies with low-rank perturbations
+([arXiv:2511.16652](https://arxiv.org/abs/2511.16652)), ported from this repo's
+`es` project. No derivative anywhere: the update is an average of P antithetic
+perturbation pairs,
+
+    eps_i = sigma * A_i B_i^T      (A_i: m x r, B_i: n x r, standard normal)
+    f_i   = L(theta + eps_i) - L(theta - eps_i)
+    g-hat = 1/(P sigma^2) * sum_i f_i eps_i
+
+fed to Adam as if it were a gradient. Vectors get a dense Gaussian perturbation.
+Rank r = 1 throughout. The perturbed loss is whichever loss the arm under test
+uses, so the estimated quantity is exactly backprop's gradient. Defaults after
+tuning: P = 512, sigma = 3e-3 (residual net) or 3e-4 (plain net), outer rate
+3e-2 / 1e-2. Cost is 2P forward passes per weight update and no backward pass.
+
 ## Metrics
 
 - **test_acc** — top-1 accuracy on the 10,000 test images. For FF this is the
@@ -127,10 +142,23 @@ is trained alongside and reported as a secondary readout.
 7. **Forward-Forward degrades with training.** 0.901 at two epochs, 0.860 at
    ten, and its linear probe falls further, 0.9102 to 0.7956 — the features
    themselves get less separable.
-8. **The reimplementation checks out against the authors' own run.** On their
+8. **EGGROLL trains well with an almost-orthogonal gradient estimate.** At
+   P = 512 the cosine between its update and the true gradient is 0.094, and it
+   reaches 0.9025 ± 0.0026 in one epoch — above backprop at the shared default
+   rate. The measured cosine tracks sqrt(P/d) to within 5% across P = 32..2048.
+9. **EGGROLL is the only arm indifferent to depth**: 0.8990 at 2 layers,
+   0.9017 at 64, flat within seed spread, where backprop declines (0.9054 →
+   0.8518 under the paper's depth-dependent rate rule) and PC collapses. It is
+   also the only arm that prefers the deep-narrow net to the short-wide one
+   (0.9025 vs 0.8272), tuned separately on each.
+10. **Contention calibration.** EGGROLL's cells were measured while another job
+   shared the GPU; re-measuring three arms with known idle timings gives a
+   factor of 2.01, 2.17, 2.01 with accuracies unchanged, so EGGROLL's times
+   halve for comparison.
+11. **The reimplementation checks out against the authors' own run.** On their
    Fashion-MNIST cell, backprop 0.7770 vs 0.7866 and PC-ALM 0.7687 vs 0.7775,
    PC-ALM cosine 0.901 vs 0.909. PC is 4.7 points low and unexplained; their
    tabulated activity step does not account for it.
 
-Report: <https://media.tanh.xyz/seewhy/26-09-15/local-learning_report_replication.html>
+Report: <https://media.tanh.xyz/seewhy/26-09-16/local-learning_report_replication.html>
 Paper: <https://media.tanh.xyz/seewhy/paper/local-learning_paper.html>

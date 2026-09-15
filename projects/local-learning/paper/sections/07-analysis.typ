@@ -79,6 +79,61 @@ backpropagation and still tracking it, PC 30 points behind and falling — is
 consistent with their result, and is as far as a 56K-parameter replication can
 speak to it.
 
+== Why a nearly-orthogonal gradient estimate trains anything
+
+EGGROLL's update at 512 pairs has a cosine of 0.094 with the true gradient, and
+it trains the network to 0.9025 in one epoch — better than backpropagation
+managed at the rate the original comparison used. That looks paradoxical and is
+not, for two reasons that are worth separating.
+
+The estimate is *unbiased*, not merely correlated. Averaging antithetic pairs of
+isotropic perturbations gives an estimator whose expectation is the gradient; the
+0.094 is not the quality of the direction it is aiming at, but the noise in one
+sample of it. Over an epoch the weights take 937 such steps, and the noise
+averages down across steps at the same rate it would across a larger population:
+what matters is roughly $P$ times the number of steps, not $P$ alone. Adam helps
+further, because its per-coordinate normalisation is insensitive to the scale of
+the estimate — which is also why the perturbation size $sigma$ barely mattered
+in exp10, varying accuracy by under a point across a thirty-fold range.
+
+The second reason is that $sqrt(P slash d)$ is a statement about the *whole*
+parameter vector. An update can be almost orthogonal to the gradient overall and
+still carry most of the signal in the few directions that matter for the loss,
+which is the usual situation in an over-parameterised network. This is testable
+and we did not test it: projecting the ES estimate onto the top curvature
+directions of the loss and measuring the cosine there would say whether the
+useful part of the estimate is concentrated where the loss actually moves.
+
+== Why EGGROLL does not care about depth
+
+EGGROLL's accuracy is flat from 2 to 64 layers where every other rule here
+declines. The mechanism is that it has no credit assignment problem to fail at:
+it never propagates a signal through the layers, forwards or backwards. Depth
+enters its estimator in exactly one place — through $d$, the parameter count,
+which grows with depth and therefore lowers the cosine, from 0.136 at two layers
+to 0.074 at 64, precisely as $sqrt(P slash d)$ says it should. That the accuracy
+does not follow the cosine down is the same point as above: the per-step
+alignment is not what determines the epoch's progress.
+
+Two things this does not show. It does not show EGGROLL beating backpropagation:
+tuned backpropagation at 32 layers is 0.9374 against EGGROLL's 0.9025, and the
+depth sweep's backprop arm follows the source paper's rate rule
+$10^(-3) sqrt(N slash L)$, which deliberately shrinks the step with depth, so
+part of the crossover at 16 layers is a schedule rather than a method. And it
+does not show depth-independence in general — at some depth the *network* stops
+being trainable in one epoch regardless of the rule, and 64 layers with skip
+connections is evidently not that depth.
+
+The architecture result points the same way. EGGROLL is the only arm that does
+better on the deep-narrow network (0.9025) than on the short-wide one (0.8272),
+even after tuning each separately, and the likely reason is not depth at all but
+uniformity: the residual network's weights are all unit normal by construction,
+with the scale factors outside them, so a single perturbation scale $sigma$ fits
+every layer. The plain network is He-initialised, so its layers differ in
+magnitude and any single $sigma$ is wrong somewhere. That predicts a per-layer
+$sigma$ proportional to each layer's weight RMS should close the gap, which is
+the obvious next experiment and one we did not run.
+
 == Forward-Forward gets worse with training
 
 One arm in the wall-clock experiment moves backwards: Forward-Forward peaks at

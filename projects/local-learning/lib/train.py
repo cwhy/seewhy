@@ -30,13 +30,15 @@ import numpy as np
 import optax
 
 from lib import ff as ffmod
+from lib.es import es_gradient, make_es_epoch
 from lib.data import Data, overlay_label
 from lib.methods import bp_loss, grad_cosine, method_grad
 from lib.model import (Params, mlp_forward, mlp_init, n_params, relu, res_init,
                        res_logits, res_scales, res_skips)
 
 JSONL = Path(__file__).parent.parent / "results.jsonl"
-RESIDUAL_METHODS = ("bp", "pc", "pcalm")
+RESIDUAL_METHODS = ("bp", "pc", "pcalm", "eggroll")
+ES_METHODS = ("eggroll", "eggroll_plain")
 
 
 @dataclass(frozen=True)
@@ -61,6 +63,10 @@ class Cell:
     state_lr: float | None = None # None -> 1 / lambda_max, measured
     # forward-forward
     theta: float = 2.0
+    # eggroll (evolution strategies)
+    sigma: float = 3e-3           # perturbation scale
+    n_pop: int = 32               # antithetic pairs per weight update
+    rank: int = 1                 # rank of each perturbation
     # data
     n_train: int = 60000
     n_test: int = 10000
@@ -182,17 +188,24 @@ def train_residual(cell: Cell, data: Data) -> dict:
     opt = optax.adam(lr)
     opt_state = opt.init(params)
 
-    def step(carry, batch):
-        p, s = carry
-        x, y = batch
-        g = method_grad(p, scales, skips, x, y, method=cell.method, alpha=cell.alpha,
-                        rho=cell.rho, state_lr=state_lr, budget=budget, phi=relu)
-        updates, s = opt.update(g, s, p)
-        return (optax.apply_updates(p, updates), s), 0.0
+    def loss_of(p, x, y):
+        return bp_loss(p, scales, skips, x, y, relu)
 
-    def epoch(p, s, xb, yb):
-        (p, s), _ = jax.lax.scan(step, (p, s), (xb, yb))
-        return p, s
+    if cell.method == "eggroll":
+        epoch = make_es_epoch(loss_of, opt, sigma=cell.sigma, n_pop=cell.n_pop,
+                              rank=cell.rank)
+    else:
+        def step(carry, batch):
+            p, s = carry
+            x, y = batch
+            g = method_grad(p, scales, skips, x, y, method=cell.method, alpha=cell.alpha,
+                            rho=cell.rho, state_lr=state_lr, budget=budget, phi=relu)
+            updates, s = opt.update(g, s, p)
+            return (optax.apply_updates(p, updates), s), 0.0
+
+        def epoch(p, s, key, xb, yb):
+            (p, s), _ = jax.lax.scan(step, (p, s), (xb, yb))
+            return p, s, key
 
     def accuracy(p, x, labels):
         return jnp.mean(jnp.argmax(res_logits(p, scales, skips, x, relu), axis=-1) == labels)
@@ -201,7 +214,8 @@ def train_residual(cell: Cell, data: Data) -> dict:
     xb = batched(np.asarray(data.x_train)[perm], cell.batch)
     yb = batched(np.asarray(data.y_train)[perm], cell.batch)
 
-    compile_s, epoch_fn = _time_compiled(epoch, params, opt_state, xb, yb)
+    es_key = jax.random.fold_in(key, 99)
+    compile_s, epoch_fn = _time_compiled(epoch, params, opt_state, es_key, xb, yb)
     _, acc_fn = _time_compiled(accuracy, params, data.x_test, data.l_test)
 
     history, train_s = [], 0.0
@@ -211,7 +225,7 @@ def train_residual(cell: Cell, data: Data) -> dict:
             xb = batched(np.asarray(data.x_train)[perm], cell.batch)
             yb = batched(np.asarray(data.y_train)[perm], cell.batch)
         t0 = time.perf_counter()
-        params, opt_state = epoch_fn(params, opt_state, xb, yb)
+        params, opt_state, es_key = epoch_fn(params, opt_state, es_key, xb, yb)
         jax.block_until_ready(params)
         train_s += time.perf_counter() - t0
         acc = float(acc_fn(params, data.x_test, data.l_test))
@@ -224,9 +238,14 @@ def train_residual(cell: Cell, data: Data) -> dict:
     train_acc = float(acc_fn(params, data.x_train[:n_eval], data.l_train[:n_eval]))
 
     xb0, yb0 = data.x_train[: cell.batch], data.y_train[: cell.batch]
-    g_method = method_grad(params, scales, skips, xb0, yb0, method=cell.method,
-                           alpha=cell.alpha, rho=cell.rho, state_lr=state_lr,
-                           budget=budget, phi=relu)
+    if cell.method == "eggroll":
+        g_method = es_gradient(jax.random.fold_in(key, 7), params,
+                               lambda p: loss_of(p, xb0, yb0),
+                               sigma=cell.sigma, n_pop=cell.n_pop, rank=cell.rank)
+    else:
+        g_method = method_grad(params, scales, skips, xb0, yb0, method=cell.method,
+                               alpha=cell.alpha, rho=cell.rho, state_lr=state_lr,
+                               budget=budget, phi=relu)
     g_bp = jax.grad(lambda p: bp_loss(p, scales, skips, xb0, yb0, relu))(params)
 
     return {
@@ -280,18 +299,23 @@ def train_plain(cell: Cell, data: Data) -> dict:
     else:
         opt_state = opt.init(params)
 
-        def step(carry, batch):
-            p, s = carry
-            x, y = batch
-            def loss(p_):
-                return 0.5 * jnp.mean(jnp.sum((mlp_forward(p_, x) - y) ** 2, axis=-1))
-            g = jax.grad(loss)(p)
-            updates, s = opt.update(g, s, p)
-            return (optax.apply_updates(p, updates), s), 0.0
+        def plain_loss(p_, x, y):
+            return 0.5 * jnp.mean(jnp.sum((mlp_forward(p_, x) - y) ** 2, axis=-1))
 
-        def epoch(p, s, xb, yb):
-            (p, s), _ = jax.lax.scan(step, (p, s), (xb, yb))
-            return p, s
+        if cell.method == "eggroll_plain":
+            epoch = make_es_epoch(plain_loss, opt, sigma=cell.sigma,
+                                  n_pop=cell.n_pop, rank=cell.rank)
+        else:
+            def step(carry, batch):
+                p, s = carry
+                x, y = batch
+                g = jax.grad(plain_loss)(p, x, y)
+                updates, s = opt.update(g, s, p)
+                return (optax.apply_updates(p, updates), s), 0.0
+
+            def epoch(p, s, key_, xb, yb):
+                (p, s), _ = jax.lax.scan(step, (p, s), (xb, yb))
+                return p, s, key_
 
         def accuracy(p, x, labels):
             return jnp.mean(jnp.argmax(mlp_forward(p, x), axis=-1) == labels)
@@ -308,12 +332,13 @@ def train_plain(cell: Cell, data: Data) -> dict:
         return xb, yb, batched(np.asarray(neg), cell.batch)
 
     args = epoch_data(0)
+    es_key = jax.random.fold_in(key, 99)
     if is_ff:
         compile_s, epoch_fn = _time_compiled(epoch, params, head, opt_state, *args)
         _, acc_fn = _time_compiled(accuracy, params, data.x_test, data.l_test)
         _, probe_fn = _time_compiled(accuracy_probe, params, head, data.x_test, data.l_test)
     else:
-        compile_s, epoch_fn = _time_compiled(epoch, params, opt_state, *args)
+        compile_s, epoch_fn = _time_compiled(epoch, params, opt_state, es_key, *args)
         _, acc_fn = _time_compiled(accuracy, params, data.x_test, data.l_test)
 
     history, train_s = [], 0.0
@@ -325,7 +350,7 @@ def train_plain(cell: Cell, data: Data) -> dict:
             params, head, opt_state = epoch_fn(params, head, opt_state, *args)
             jax.block_until_ready(params)
         else:
-            params, opt_state = epoch_fn(params, opt_state, *args)
+            params, opt_state, es_key = epoch_fn(params, opt_state, es_key, *args)
             jax.block_until_ready(params)
         train_s += time.perf_counter() - t0
         acc = float(acc_fn(params, data.x_test, data.l_test))
@@ -338,12 +363,21 @@ def train_plain(cell: Cell, data: Data) -> dict:
     train_acc = float(acc_fn(params, data.x_train[:n_eval], data.l_train[:n_eval]))
     probe_acc = float(probe_fn(params, head, data.x_test, data.l_test)) if is_ff else None
 
+    cos = None
+    if cell.method == "eggroll_plain":
+        xb0, yb0 = data.x_train[: cell.batch], data.y_train[: cell.batch]
+        g_es = es_gradient(jax.random.fold_in(key, 7), params,
+                           lambda p: plain_loss(p, xb0, yb0),
+                           sigma=cell.sigma, n_pop=cell.n_pop, rank=cell.rank)
+        g_true = jax.grad(plain_loss)(params, xb0, yb0)
+        cos = float(grad_cosine(g_es, g_true))
+
     return {
         "n_params": n_params(params),
         "n_params_head": n_params(head) if is_ff else 0,
         "test_acc": test_acc, "test_acc_probe": probe_acc, "train_acc": train_acc,
         "train_s": train_s, "compile_s": compile_s, "infer_s": infer_s,
-        "grad_cos_to_bp": None,
+        "grad_cos_to_bp": cos,
         "lr": float(lr), "state_lr": None, "budget": None,
         "history": history,
     }

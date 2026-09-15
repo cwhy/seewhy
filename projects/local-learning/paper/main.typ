@@ -30,7 +30,11 @@
     57.51%, and giving each method its own best rate reverses the order against
     chance level 10%. The source paper's own claim survives both corrections:
     with the dual variables switched off, the same code loses 24 points of
-    accuracy at 32 layers and nothing at 2.
+    accuracy at 32 layers and nothing at 2. We add two arms the table lacks — plain
+    predictive coding, the ablation that isolates PC-ALM's contribution, and
+    EGGROLL, a gradient-free evolution strategy that reaches 90.25% with an
+    update almost orthogonal to the true gradient and is the only rule here
+    whose accuracy is flat from 2 to 64 layers.
   ],
 )
 

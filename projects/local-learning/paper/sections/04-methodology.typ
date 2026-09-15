@@ -155,6 +155,37 @@ At two hidden layers of 66 units the FF network has $784 times 66 + 66 + 66^2 +
 66 = 56232$ weights. Adding a ten-way output layer for the backpropagation
 control brings that to 56,902.
 
+== EGGROLL
+
+EGGROLL @sarkar2026eggroll never differentiates anything. It estimates the
+gradient of the same loss from paired perturbations of the weights:
+
+$ epsilon_i &= sigma dot A_i B_i^top, quad A_i in RR^(m times r), B_i in RR^(n times r),
+  quad (A_i)_(j k), (B_i)_(j k) ~ cal(N)(0, 1)   f_i &= cal(L)_"sup" (theta + epsilon_i) - cal(L)_"sup" (theta - epsilon_i)   hat(g) &= 1/(P sigma^2) sum_(i=1)^P f_i epsilon_i $
+
+with $P$ antithetic pairs per weight update. $hat(g)$ is an unbiased estimate of
+the true gradient up to a constant that Adam absorbs, and is then fed to Adam
+exactly as a real gradient would be. Bias vectors, having no matrix structure,
+get an ordinary Gaussian perturbation.
+
+The low-rank part is the paper's contribution and is what makes this cheap on a
+GPU: each $epsilon_i$ needs $(m + n) r$ random numbers rather than $m n$, and a
+whole population of them runs as one batched matrix multiply. Each individual
+perturbation has rank $r$, but the update is a weighted sum of $P$ of them, so
+the aggregate update has rank up to $P r$. We use $r = 1$ throughout.
+
+The cost per weight update is $2 P$ forward passes and no backward pass. Note
+what this arm is *not*: it is not layer-local, and it is not biologically
+motivated. It is here because it is the other well-known way to train a network
+without backpropagation, and because — unlike PC, PC-ALM and Forward-Forward —
+it is completely indifferent to the architecture it is applied to, which makes
+it the cleanest test of how much the architecture in this comparison matters.
+
+Our implementation is a port of the one in this repository's `es` project, which
+had already been validated on MNIST; the estimator is unchanged, and the loss it
+perturbs is whichever loss the arm under test uses, so the quantity being
+estimated is exactly the gradient backprop computes.
+
 == Training setup
 
 #table(

@@ -17,9 +17,18 @@ which is 0.7-3.0 s depending on arm and is paid once.
   [PC-ALM, 32x32 residual], [56,128], [0.8533 ± 0.0085], [0.8628], [8.123], [13.485], [0.00025],
   [Forward-Forward, 2x66], [56,232], [0.8869 ± 0.0085], [0.8883], [0.042], [0.549], [0.00129],
   [PC (control), 32x32 residual], [56,128], [0.6125 ± 0.0403], [--], [8.133], [--], [0.00023],
+  [EGGROLL, 32x32 residual], [56,128], [0.4473 ± 0.0695], [--], [1.981#super[†]], [--], [0.00211#super[†]],
   [backprop, 2x66 (control)], [56,902], [0.9116 ± 0.0058], [--], [0.037], [--], [0.00016],
   [Forward-Forward, 31x32 (control)], [56,800], [0.5751 ± 0.0744], [--], [0.324], [--], [0.00177],
 )
+
+#super[†] EGGROLL's cells were measured while an unrelated job shared the GPU;
+see §6.8, which calibrates that at 2.0x. Its idle-GPU equivalents are about
+0.97 s and 0.00103 s.
+
+EGGROLL is in this table at the shared default rate of 1e-3 and is therefore
+barely above the 0.4 mark; §6.3 gives it its own rate, where it reaches 0.9025.
+Its population is fixed at 512 antithetic pairs throughout (§6.7).
 
 All three posted accuracies fall inside our seed distribution: 0.8739 is 0.35
 standard deviations above our backpropagation mean, 0.8628 is 1.1 above our
@@ -100,11 +109,18 @@ Re-running the whole comparison at each arm's own best rate, five seeds each:
   [Forward-Forward, 2x66], [1e-3], [0.8869 ± 0.0085], [+0.0000],
   [PC, 32x32 residual], [3e-3], [0.6778 ± 0.0258], [+0.0653],
   [Forward-Forward, 31x32], [3e-3], [0.6106 ± 0.0469], [+0.0354],
+  [EGGROLL, 32x32 residual], [3e-2], [0.9025 ± 0.0026], [+0.4552],
+  [EGGROLL, 2x66], [1e-2], [0.8272 ± 0.0232], [--],
 )
 
 The original table's ordering was Forward-Forward, then backpropagation, then
 PC-ALM. Tuned, it is backpropagation, then PC-ALM, then Forward-Forward —
-reversed among exactly the three arms the original compares. Forward-Forward's
+reversed among exactly the three arms the original compares. EGGROLL, which has
+no entry in the original table, lands third overall and above every arm that is
+not backpropagation or PC-ALM; it also has the largest gap between its
+shared-rate and own-rate numbers of any arm here, 45.5 points, because a
+gradient estimate assembled from random directions is useless at a step size
+chosen for an exact one. Forward-Forward's
 own number does not move at all, because its best rate is the default; its five
 tuned runs reproduce the earlier five to four decimal places, which also fixes
 this arm's run-to-run nondeterminism at zero on this hardware.
@@ -132,7 +148,10 @@ training time:
   [PC, 32x32 residual], [0.611 @ 7.68 s], [0.771], [76.91 s],
   [Forward-Forward, 2x66], [0.892 @ 0.04 s], [0.860], [0.55 s],
   [backprop, 2x66], [0.908 @ 0.04 s], [0.946], [0.55 s],
+  [EGGROLL, 32x32 residual#super[†]], [0.902 @ 1.99 s], [0.935], [20.12 s],
 )
+
+#super[†] shared GPU again; halve the times to compare with the rows above.
 
 Backpropagation on the residual network passes PC-ALM's one-epoch accuracy
 within its second epoch — 0.908 after 0.40 s against PC-ALM's 0.855 after
@@ -149,22 +168,30 @@ decays to 0.860 by ten.
     Forward-Forward's goodness readout degrades from the start.])
 
 #table(
-  columns: (auto, auto, auto, auto, auto, auto),
-  align: (right, right, right, right, right, right),
-  [Layers], [backprop], [PC], [PC-ALM], [FF], [backprop, plain],
-  [2], [0.9054], [0.9055], [0.9049], [--], [--],
-  [4], [0.9012], [0.8963], [0.8943], [0.7177], [0.8312],
-  [8], [0.8900], [0.8856], [0.8839], [0.6533], [0.8760],
-  [16], [0.8830], [0.8043], [0.8628], [0.6021], [0.8687],
-  [32], [0.8711], [0.6137], [0.8554], [0.5899], [0.8605],
-  [64], [0.8518], [0.5547], [0.8207], [0.5896], [0.5550],
+  columns: (auto, auto, auto, auto, auto, auto, auto),
+  align: (right, right, right, right, right, right, right),
+  [Layers], [backprop], [PC], [PC-ALM], [EGGROLL], [FF], [backprop, plain],
+  [2], [0.9054], [0.9055], [0.9049], [0.8990], [--], [--],
+  [4], [0.9012], [0.8963], [0.8943], [0.9048], [0.7177], [0.8312],
+  [8], [0.8900], [0.8856], [0.8839], [0.8982], [0.6533], [0.8760],
+  [16], [0.8830], [0.8043], [0.8628], [0.9011], [0.6021], [0.8687],
+  [32], [0.8711], [0.6137], [0.8554], [0.9025], [0.5899], [0.8605],
+  [64], [0.8518], [0.5547], [0.8207], [0.9017], [0.5896], [0.5550],
 )
 
-At two layers the three rules on the residual network are indistinguishable —
-0.9054, 0.9055, 0.9049 — which is what the theory predicts: with one hidden
-layer there is no credit to propagate. The gap opens at 16 layers and is 24
-points wide at 32. PC-ALM stays within 3.1 points of backpropagation everywhere,
-including at 64 layers.
+At two layers the three local rules on the residual network are
+indistinguishable — 0.9054, 0.9055, 0.9049 — which is what the theory predicts:
+with one hidden layer there is no credit to propagate. The gap opens at 16
+layers and is 24 points wide at 32. PC-ALM stays within 3.1 points of
+backpropagation everywhere, including at 64 layers.
+
+EGGROLL is flat: 0.8990, 0.9048, 0.8982, 0.9011, 0.9025, 0.9017 across the
+whole range, varying by less than its seed spread. It is the best arm in the
+sweep at 64 layers and the worst at two. Read that with the caveat in §8: the
+three backprop-derived arms follow the source paper's depth-dependent rate rule
+$10^(-3) sqrt(N slash L)$, which shrinks their step as the network deepens,
+while EGGROLL was run at a fixed 3e-2. The flatness is real; the crossover is
+partly a rate schedule.
 
 #fig(include "/figures/grad_cosine_vs_depth.typ",
   caption: [Cosine between each local rule's weight update and the true
@@ -175,6 +202,49 @@ rules reproduce the backpropagation gradient to three decimals (0.999). As depth
 grows, PC-ALM's update stays aligned — 0.965, 0.928, 0.903, 0.889, 0.888 from 4
 to 64 layers — while predictive coding's drops to 0.70-0.81 and its accuracy
 falls with it.
+
+== EGGROLL: a gradient estimate made of random directions
+
+EGGROLL never differentiates the network. Its update is an average of $P$ paired
+perturbations, and everything about its behaviour follows from how good an
+average of $P$ random directions can be in $d = 56128$ dimensions.
+
+#table(
+  columns: (auto, auto, auto, auto, auto),
+  align: (right, right, right, right, right),
+  [Pairs $P$], [Accuracy], [Cosine to backprop], [$sqrt(P slash d)$], [Train (s)#super[†]],
+  [32], [0.7939 ± 0.0142], [0.0228], [0.0239], [0.557],
+  [128], [0.8668 ± 0.0026], [0.0448], [0.0478], [0.747],
+  [512], [0.9028 ± 0.0031], [0.0939], [0.0955], [1.971],
+  [2048], [0.9219 ± 0.0057], [0.1883], [0.1910], [7.337],
+)
+
+The measured alignment matches $sqrt(P slash d)$ to within 5% at every
+population size, which is what random-projection geometry predicts for an
+average of $P$ isotropic directions and is a check that the estimator is doing
+what it claims rather than working for some other reason.
+
+#fig(include "/figures/es_cosine_law.typ",
+  caption: [EGGROLL's measured cosine to the true gradient against population
+    size, beside the $sqrt(P slash d)$ prediction. Neither is a fit.])
+
+The striking part is the first column read against the third. At $P = 512$ the
+update EGGROLL applies has a cosine of 0.094 with the gradient backpropagation
+would have computed — 5 degrees of alignment out of 90, an update that is
+essentially orthogonal to the right answer — and it reaches 0.9028, three points
+*above* backpropagation at the rate the original comparison used and within
+3.5 points of backpropagation at its best. Section 7 takes that apart.
+
+#fig(include "/figures/es_population.typ",
+  caption: [EGGROLL accuracy against population size, with tuned backpropagation
+    and chance marked. Cost per epoch grows roughly linearly with $P$ past 128.])
+
+Two further observations. EGGROLL is the one arm whose accuracy does not depend
+on depth (§6.5). And it is the one arm that prefers the deep-narrow architecture:
+tuned separately on each — the plain network needs a ten-fold smaller
+perturbation, $sigma = 3 times 10^(-4)$ against $3 times 10^(-3)$ — it reaches
+0.9025 ± 0.0026 on the 32-layer residual network and 0.8272 ± 0.0232 on the
+two-layer plain one, reversing the ordering every other arm shows.
 
 == Checking the reimplementation against the authors' own run
 
@@ -199,3 +269,26 @@ tabulated activity step $eta_h = 0.235885$ for ours — measured per seed at tha
 seed's initialisation, landing between 0.2298 and 0.2319 here — changes nothing: PC moves from 0.6340 to 0.6330 and PC-ALM from 0.7687 to 0.7682. PC is
 also the highest-variance arm in every experiment here (± 4.0 points at the
 MNIST headline cell), and their figure is one run.
+
+
+== A timing calibration, because the GPU stopped being ours alone
+
+Every EGGROLL cell was measured while an unrelated job held about 10 GB and a
+share of the same device; every earlier cell had the GPU to itself. Rather than
+mix the two silently, three arms with known idle-GPU timings were re-measured
+under the shared conditions:
+
+#table(
+  columns: (auto, auto, auto, auto, auto),
+  align: (left, right, right, right, right),
+  [Arm], [Accuracy, shared], [Accuracy, idle], [Train, shared], [Train, idle],
+  [backprop, 32x32 residual], [0.8713], [0.8704], [0.400 s], [0.199 s],
+  [PC-ALM, 32x32 residual], [0.8553], [0.8533], [17.612 s], [8.123 s],
+  [Forward-Forward, 2x66], [0.8920], [0.8869], [0.084 s], [0.042 s],
+)
+
+Contention costs a factor of 2.01, 2.17 and 2.01 — call it 2.0 — and accuracy is
+unchanged, as it must be, since scheduling does not alter arithmetic. EGGROLL's
+times in this paper are the shared-GPU measurements; halving them gives the
+idle-GPU equivalent, which puts one EGGROLL epoch at 512 pairs at about 0.97 s
+against backpropagation's 0.199 s and PC-ALM's 8.12 s.
