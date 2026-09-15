@@ -1,0 +1,20 @@
+{
+ "network": [
+  "Forward-Forward 2x66",
+  "Forward-Forward 2x66",
+  "Forward-Forward 31x32",
+  "Forward-Forward 31x32"
+ ],
+ "accuracy": [
+  0.8869199872016906,
+  0.9102399706840515,
+  0.5751399993896484,
+  0.8918799877166748
+ ],
+ "readout": [
+  "goodness sweep (10 passes)",
+  "linear probe on the features",
+  "goodness sweep (10 passes)",
+  "linear probe on the features"
+ ]
+}

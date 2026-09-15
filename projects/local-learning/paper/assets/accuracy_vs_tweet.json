@@ -1,0 +1,35 @@
+{
+ "arm": [
+  "backprop 32x32 res",
+  "backprop 32x32 res",
+  "PC 32x32 res",
+  "PC-ALM 32x32 res",
+  "PC-ALM 32x32 res",
+  "Forward-Forward 2x66",
+  "Forward-Forward 2x66",
+  "backprop 2x66",
+  "Forward-Forward 31x32"
+ ],
+ "accuracy": [
+  0.8703799843788147,
+  0.8739,
+  0.612499988079071,
+  0.8532599806785583,
+  0.8628,
+  0.8869199872016906,
+  0.8883,
+  0.9115599751472473,
+  0.5751399993896484
+ ],
+ "source": [
+  "this replication",
+  "the tweet",
+  "this replication",
+  "this replication",
+  "the tweet",
+  "this replication",
+  "the tweet",
+  "this replication",
+  "this replication"
+ ]
+}

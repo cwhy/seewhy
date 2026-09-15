@@ -1,0 +1,18 @@
+{
+ "arm": [
+  "backprop 32x32 res",
+  "PC 32x32 res",
+  "PC-ALM 32x32 res",
+  "Forward-Forward 2x66",
+  "backprop 2x66",
+  "Forward-Forward 31x32"
+ ],
+ "training seconds (one epoch)": [
+  0.19887495860457421,
+  8.132776971161366,
+  8.123199220001698,
+  0.04154973104596138,
+  0.03686329573392868,
+  0.32373444363474846
+ ]
+}
