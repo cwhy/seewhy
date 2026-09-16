@@ -11,7 +11,7 @@
     geom-hline(yintercept: 1.0, linetype: "dashed", colour: luma(130), stroke: 0.6pt),
     geom-text(data: (x: (56.56,), y: (1.0,), label: ("backprop",)), mapping: aes(x: "x", y: "y", label: "label"), size: 7pt, colour: luma(110), nudge-y: 0.029400000000000003, inherit-aes: false),
   ),
-  scales: scales(x: scale-log10(), y: scale-continuous(limits: (0.0, 1.05)), colour: scale-discrete(limits: ("PC", "PC-ALM"), palette: (rgb("#0072b2"), rgb("#d55e00"))), fill: scale-discrete(limits: ("PC", "PC-ALM"), palette: (rgb("#0072b2"), rgb("#d55e00")))),
+  scales: scales(x: scale-log10(), y: scale-continuous(limits: (0.0, 1.05)), colour: scale-discrete(limits: ("PC", "PC-ALM", "EGGROLL"), palette: (rgb("#0072b2"), rgb("#d55e00"), rgb("#009e73"))), fill: scale-discrete(limits: ("PC", "PC-ALM", "EGGROLL"), palette: (rgb("#0072b2"), rgb("#d55e00"), rgb("#009e73")))),
   labels: labels(x: "layers", y: "cosine to the backprop gradient", colour: "", fill: ""),
   theme: theme-minimal(),
   width: 14cm,

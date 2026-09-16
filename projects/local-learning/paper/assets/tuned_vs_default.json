@@ -6,6 +6,8 @@
   "PC 32x32 res",
   "PC-ALM 32x32 res",
   "PC-ALM 32x32 res",
+  "EGGROLL 32x32 res",
+  "EGGROLL 32x32 res",
   "Forward-Forward 2x66",
   "Forward-Forward 2x66",
   "backprop 2x66",
@@ -20,6 +22,8 @@
   0.6778399825096131,
   0.8532599806785583,
   0.9277199864387512,
+  0.44733999371528627,
+  0.9025399804115295,
   0.8869199872016906,
   0.8869199872016906,
   0.9115599751472473,
@@ -28,6 +32,8 @@
   0.6105599761009216
  ],
  "rate": [
+  "shared default rate",
+  "its own best rate",
   "shared default rate",
   "its own best rate",
   "shared default rate",

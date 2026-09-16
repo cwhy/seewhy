@@ -11,7 +11,7 @@
     geom-hline(yintercept: 0.1, linetype: "dashed", colour: luma(130), stroke: 0.6pt),
     geom-text(data: (x: (67.68890474170446,), y: (0.1,), label: ("chance",)), mapping: aes(x: "x", y: "y", label: "label"), size: 7pt, colour: luma(110), nudge-y: 0.028, inherit-aes: false),
   ),
-  scales: scales(x: scale-log10(), y: scale-continuous(limits: (0.0, 1.0)), colour: scale-discrete(limits: ("backprop 32x32 res", "PC 32x32 res", "PC-ALM 32x32 res", "Forward-Forward 2x66", "backprop 2x66"), palette: (rgb("#0072b2"), rgb("#d55e00"), rgb("#009e73"), rgb("#cc79a7"), rgb("#e69f00"))), fill: scale-discrete(limits: ("backprop 32x32 res", "PC 32x32 res", "PC-ALM 32x32 res", "Forward-Forward 2x66", "backprop 2x66"), palette: (rgb("#0072b2"), rgb("#d55e00"), rgb("#009e73"), rgb("#cc79a7"), rgb("#e69f00")))),
+  scales: scales(x: scale-log10(), y: scale-continuous(limits: (0.0, 1.0)), colour: scale-discrete(limits: ("backprop 32x32 res", "PC 32x32 res", "PC-ALM 32x32 res", "EGGROLL 32x32 res", "Forward-Forward 2x66", "backprop 2x66"), palette: (rgb("#0072b2"), rgb("#d55e00"), rgb("#009e73"), rgb("#cc79a7"), rgb("#e69f00"), rgb("#56b4e9"))), fill: scale-discrete(limits: ("backprop 32x32 res", "PC 32x32 res", "PC-ALM 32x32 res", "EGGROLL 32x32 res", "Forward-Forward 2x66", "backprop 2x66"), palette: (rgb("#0072b2"), rgb("#d55e00"), rgb("#009e73"), rgb("#cc79a7"), rgb("#e69f00"), rgb("#56b4e9")))),
   labels: labels(x: "cumulative training time (s, log scale)", y: "test accuracy", colour: "", fill: ""),
   theme: theme-minimal(),
   width: 14cm,

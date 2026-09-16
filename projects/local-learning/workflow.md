@@ -75,6 +75,45 @@ These apply to every session without exception:
 
 ---
 
+## Syncing with the box
+
+Three kinds of file in this tree are **generated on the box** and must only ever
+travel box → Mac, exactly like `results.jsonl`:
+
+```
+paper/assets/*.json     # figure data, written by scripts/gen_report.py
+paper/figures/*.typ     # figure specs, written by the same script
+paper/.build.json       # publish state, written by shared_lib.publish
+```
+
+A blanket `rsync -az projects/local-learning/ box:...` from the Mac silently
+overwrites all three with whatever the Mac last had, because rsync only sees a
+differing file. That happened twice here: once reverting `.build.json` so
+`--status` reported a publish that had already happened as pending, and once
+reverting every figure asset, so the paper published with figures that predated
+the EGGROLL arm while its tables carried the new numbers. Nothing errors; the
+figures are simply a version behind the prose.
+
+```bash
+# push code up — never the generated three
+rsync -az --exclude 'logs/' --exclude '__pycache__/' --exclude 'results.jsonl' \
+  --exclude 'paper/assets/' --exclude 'paper/figures/' --exclude 'paper/.build.json' \
+  projects/local-learning/ 195.133.135.186:Projects/seewhy/projects/local-learning/
+
+# then regenerate and publish ON THE BOX, and only then pull
+ssh box 'cd Projects/seewhy && uv run --no-sync python projects/local-learning/scripts/gen_report.py'
+ssh box 'cd Projects/seewhy && uv run --no-sync python -m shared_lib.publish projects/local-learning/paper --stable'
+rsync -az 195.133.135.186:Projects/seewhy/projects/local-learning/paper/ projects/local-learning/paper/
+rsync -az 195.133.135.186:Projects/seewhy/projects/local-learning/results.jsonl projects/local-learning/
+```
+
+The ordering matters as much as the excludes: regenerate **after** the last
+push, publish after that, pull immediately. Verify with
+`--status`, which should say "no changes since last publish", and by opening a
+figure asset and checking the series list contains every arm the prose mentions.
+
+---
+
 ## Running Experiments
 
 ```bash
