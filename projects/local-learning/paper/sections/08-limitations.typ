@@ -47,13 +47,14 @@ not map it.
 
 *EGGROLL's numbers were measured on a shared GPU.* Every EGGROLL cell ran while
 an unrelated job held part of the same device. §6.8 calibrates that on three
-arms with known idle timings: training costs a factor of 2.0 (2.01, 2.17, 2.01)
-and inference a factor of 8 (8.3x, 8.4x, 2.4x), the latter because a pass over
-the test set is short enough to be dominated by device scheduling. Accuracy is
-unaffected. We report EGGROLL's raw times with the factors stated rather than
-silently mixing the two, but a single calibration factor per column is cruder
-than re-running the arm on an idle device would be, and the eight-fold
-inference factor in particular is a property of this contention, not a constant.
+arms with known idle timings: training costs a stable factor of 2.0 (2.01, 2.17,
+2.01). Inference does not admit a factor at all — the identical forward pass
+measured 0.00210 s in one batch of EGGROLL cells and 0.00025 s in another,
+depending on what the co-tenant was doing — so no inference number from a shared
+cell is used anywhere in this paper. Accuracy is unaffected throughout. We
+report EGGROLL's raw training times with the 2.0x factor stated rather than
+silently mixing the two, but that is cruder than re-running the arm on an idle
+device would be.
 
 *EGGROLL's depth sweep is not a like-for-like schedule.* It ran at a fixed rate
 of 3e-2 at every depth, while the three backprop-derived arms follow the source

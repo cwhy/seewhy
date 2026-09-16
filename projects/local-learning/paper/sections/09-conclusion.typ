@@ -66,6 +66,7 @@ per-epoch curve and final metrics. The headline numbers come from:
   [EGGROLL table rows], [`exp13_*` (15 cells), `exp16_*` (5 cells)],
   [EGGROLL depth and wall-clock], [`exp14_*` — 21 cells],
   [Shared-GPU timing calibration], [`exp17_*` — 9 cells],
+  [EGGROLL on the shared rate grid], [`exp18_*` — 10 cells],
 )
 
 Each experiment file's module docstring states the hypothesis it was written to

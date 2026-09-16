@@ -1,6 +1,6 @@
 {
   "name": "local-learning_paper",
-  "published_at": "2026-09-16 04:09 UTC",
+  "published_at": "2026-09-16 04:29 UTC",
   "stable": true,
   "urls": {
     "page": "https://media.tanh.xyz/seewhy/paper/local-learning_paper.html",
@@ -15,7 +15,7 @@
     "assets/ff_readouts.json": "52796d0d21762c98",
     "assets/grad_cosine_vs_depth.json": "7b15a17bf49ea3c9",
     "assets/infer_time_by_method.json": "50dc2b19127a80cd",
-    "assets/learning_rate_grid.json": "6ed128e9a1cd0a9c",
+    "assets/learning_rate_grid.json": "20cac13f500064da",
     "assets/train_time_by_method.json": "e1eeab1a6f69a241",
     "assets/tuned_vs_default.json": "e3a3742551c9809a",
     "figures/accuracy_vs_depth.typ": "a58b39dd3cf8aed7",
@@ -26,7 +26,7 @@
     "figures/ff_readouts.typ": "c1c586440d86148c",
     "figures/grad_cosine_vs_depth.typ": "50d3b1ab775f0237",
     "figures/infer_time_by_method.typ": "7dd95e1e938f26c5",
-    "figures/learning_rate_grid.typ": "3bafdefe5f5c9d2d",
+    "figures/learning_rate_grid.typ": "9a4adaf5a8d26c40",
     "figures/train_time_by_method.typ": "bcf374e25c709904",
     "figures/tuned_vs_default.typ": "634e834594a5a130",
     "main.typ": "9ca1e680f69e35c4",
@@ -34,11 +34,11 @@
     "sections/02-background.typ": "7918d2ef6794ccdc",
     "sections/03-task.typ": "813cf464612378c1",
     "sections/04-methodology.typ": "f2db772300fb15af",
-    "sections/05-experiments.typ": "39403fd5f90c581f",
-    "sections/06-results.typ": "62329bdc9c690dab",
+    "sections/05-experiments.typ": "c1cf4e201a2b6510",
+    "sections/06-results.typ": "ca29fe94ccd00bf0",
     "sections/07-analysis.typ": "abfd12995bfdd020",
-    "sections/08-limitations.typ": "9fa46c3b959cb1f5",
-    "sections/09-conclusion.typ": "458e8b293ecb6a48",
+    "sections/08-limitations.typ": "f05313c561d0dae2",
+    "sections/09-conclusion.typ": "08d3bd511744f894",
     "template.typ": "b5ac382cce4cfec4"
   }
 }

@@ -123,3 +123,6 @@
 17.612       # mean over seeds of train_s for pcalm sharedgpu in exp17
 0.4552       # difference of two logged means: EGGROLL tuned minus EGGROLL at the shared rate
 0.00307      # mean over seeds of infer_s for ff sharedgpu in exp17
+0.4796       # mean over 2 seeds of test_acc for eggroll on the shared rate grid in exp18
+0.7312       # mean over 2 seeds of test_acc for eggroll on the shared rate grid in exp18
+0.8705       # mean over 2 seeds of test_acc for eggroll on the shared rate grid in exp18

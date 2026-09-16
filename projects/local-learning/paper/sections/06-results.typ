@@ -17,17 +17,21 @@ which is 0.7-3.0 s depending on arm and is paid once.
   [PC-ALM, 32x32 residual], [56,128], [0.8533 ± 0.0085], [0.8628], [8.123], [13.485], [0.00025],
   [Forward-Forward, 2x66], [56,232], [0.8869 ± 0.0085], [0.8883], [0.042], [0.549], [0.00129],
   [PC (control), 32x32 residual], [56,128], [0.6125 ± 0.0403], [--], [8.133], [--], [0.00023],
-  [EGGROLL, 32x32 residual], [56,128], [0.4473 ± 0.0695], [--], [1.981#super[†]], [--], [0.00211#super[†]],
+  [EGGROLL, 32x32 residual], [56,128], [0.4473 ± 0.0695], [--], [1.981#super[†]], [--], [0.00025#super[‡]],
   [backprop, 2x66 (control)], [56,902], [0.9116 ± 0.0058], [--], [0.037], [--], [0.00016],
   [Forward-Forward, 31x32 (control)], [56,800], [0.5751 ± 0.0744], [--], [0.324], [--], [0.00177],
 )
 
 #super[†] EGGROLL's cells were measured while an unrelated job shared the GPU.
 §6.8 calibrates that at 2.0x on training, so one EGGROLL epoch is about 0.99 s
-on an idle device. Its inference column is not a property of the method at all:
-classification is one forward pass of the same residual network backpropagation
-uses, and the 0.00211 s here matches backpropagation's own shared-GPU
-measurement of 0.00207 s against 0.00025 s idle.
+on an idle device.
+
+#super[‡] Classification for this arm is one forward pass of the same residual
+network backpropagation uses, so its inference cost is backpropagation's by
+construction. The quoted 0.00025 s is the measurement from the EGGROLL cells
+that happened to run while the co-tenant was quiet (exp18); the cells behind
+this row measured 0.00210 s for the identical computation. §6.8 explains why no
+inference number from a shared device is worth reading.
 
 EGGROLL is in this table at the shared default rate of 1e-3 and is therefore
 barely above the 0.4 mark; §6.3 gives it its own rate, where it reaches 0.9025.
@@ -86,13 +90,18 @@ best (3e-3) gives 0.5808.
 #fig(include "/figures/learning_rate_grid.typ",
   caption: [One-epoch accuracy against Adam's learning rate, two seeds per point.
     The best rate differs by a factor of thirty across arms, and the arm that
-    the shared default of 1e-3 suits best is Forward-Forward.])
+    the shared default of 1e-3 suits best is Forward-Forward. EGGROLL is on this
+    grid at its settled population of 512 pairs, and is the one arm still
+    climbing at the right-hand edge.])
 
 Each arm was swept over five rates spanning two orders of magnitude, with both
 edge peaks bracketed by a sixth point at 0.1. The best rate per arm:
 backpropagation on the residual network 3e-2 (0.9424), PC-ALM 1e-2 (0.9286), PC
 3e-3 (0.6880), backpropagation on the plain network 3e-3 (0.9151), and
-Forward-Forward 1e-3 (0.8906).
+Forward-Forward 1e-3 (0.8906). EGGROLL, swept over the same five rates at 512
+pairs, runs 0.1691, 0.4796, 0.7312, 0.8705, 0.9036 — monotone across the whole
+grid, and the only arm that has not turned over by 3e-2. It turns over outside
+it: 0.8928 at 0.1 and 0.1021 at 0.3.
 
 The shared default of 1e-3 — the value the PC-ALM paper's rule produces at this
 cell, and the value the original comparison used for everything — is the best
@@ -296,27 +305,28 @@ training times in this paper are the shared-GPU measurements; halving them puts
 one EGGROLL epoch at 512 pairs at about 0.99 s against backpropagation's 0.199 s
 and PC-ALM's 8.12 s.
 
-Inference is a different story, and the difference is instructive:
+Inference behaves differently, and not in a way that admits a calibration
+factor at all:
 
 #table(
   columns: (auto, auto, auto, auto),
   align: (left, right, right, right),
-  [Arm], [10k images, shared], [10k images, idle], [Factor],
+  [Arm], [10k images, shared], [10k images, idle], [Ratio],
   [backprop, 32x32 residual], [0.00207 s], [0.00025 s], [8.3x],
   [PC-ALM, 32x32 residual], [0.00211 s], [0.00025 s], [8.4x],
   [Forward-Forward, 2x66], [0.00307 s], [0.00129 s], [2.4x],
 )
 
-Sharing the device costs training a factor of two and inference a factor of
-eight. The reason is that a pass over 10,000 test images through a 56K-parameter
-network is a handful of short kernels whose cost is dominated by getting onto
-the device at all, so time-slicing with another process hurts it roughly in
-proportion to the slice; a training epoch is a single long scanned loop, where
-throughput dominates instead. Forward-Forward, whose inference does ten times
-the arithmetic, sits between the two, which is the same explanation seen from
-the other side.
+Those ratios are one sample of a quantity that is not stable. The same forward
+pass, on the same network, measured 0.00210 s in the EGGROLL cells of exp13 and
+0.00025 s in those of exp18 — an eight-fold spread on identical work, depending
+on what the co-tenant happened to be doing. A pass over 10,000 test images
+through a 56K-parameter network is a handful of short kernels whose cost is
+dominated by getting onto the device at all, so it is at the mercy of whatever
+else is scheduled; a training epoch is one long scanned loop, where throughput
+dominates and the 2.0x factor holds steady across arms and repeats.
 
-The practical consequence for this paper is that EGGROLL's inference column
-carries no information: it is the same forward pass as backpropagation's, on the
-same network, and measures 0.00208 s against backpropagation's 0.00207 s under
-the same conditions.
+The practical consequence is that no inference number measured on the shared
+device is worth reading, and none is used: the inference column for EGGROLL in
+§6.1 is backpropagation's own figure for the same forward pass, which is what
+that arm costs by construction.

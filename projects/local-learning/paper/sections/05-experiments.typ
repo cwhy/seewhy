@@ -18,6 +18,7 @@
   [exp14], [Does a rule with no notion of a layer care about depth, and what does it cost per unit of accuracy?], [`experiments14.py`],
   [exp15, exp16], [Is EGGROLL's weakness on the plain network a property of the method, or of a configuration tuned on the other architecture?], [`experiments15.py`, `experiments16.py`],
   [exp17], [How much of EGGROLL's measured wall-clock is a GPU it had to share?], [`experiments17.py`],
+  [exp18], [Where does EGGROLL sit on the same learning-rate grid as the other arms?], [`experiments18.py`],
 )
 
 Every cell is one (rule, architecture, seed) run, written to `results.jsonl`

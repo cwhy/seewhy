@@ -190,10 +190,12 @@ def grad_cosine_vs_depth(rows: dict[str, dict], name: str = "grad_cosine_vs_dept
 
 
 def learning_rate_grid(rows: dict[str, dict], name: str = "learning_rate_grid") -> Figure:
-    got = cells(rows, "exp3")
-    rates = sorted({r["lr"] for r in got})
+    # exp3 swept five rates for the four backprop-derived arms; exp18 ran
+    # EGGROLL over the same five at its settled population of 512 pairs.
+    got = cells(rows, "exp3") + cells(rows, "exp18")
+    rates = sorted({r["lr"] for r in cells(rows, "exp3")})
     series = {}
-    for method in ("bp", "pc", "pcalm", "ff", "bp_plain"):
+    for method in ("bp", "pc", "pcalm", "eggroll", "ff", "bp_plain"):
         ys = []
         for lr in rates:
             sel = [r for r in got if r["method"] == method and abs(r["lr"] - lr) < 1e-12]
