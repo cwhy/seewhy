@@ -11,7 +11,7 @@
     geom-hline(yintercept: 0.1, linetype: "dashed", colour: luma(130), stroke: 0.6pt),
     geom-text(data: (x: (56.56,), y: (0.1,), label: ("chance",)), mapping: aes(x: "x", y: "y", label: "label"), size: 7pt, colour: luma(110), nudge-y: 0.028, inherit-aes: false),
   ),
-  scales: scales(x: scale-log10(), y: scale-continuous(limits: (0.0, 1.0)), colour: scale-discrete(limits: ("backprop", "PC", "PC-ALM", "EGGROLL", "Forward-Forward", "backprop (plain)"), palette: (rgb("#0072b2"), rgb("#d55e00"), rgb("#009e73"), rgb("#cc79a7"), rgb("#e69f00"), rgb("#56b4e9"))), fill: scale-discrete(limits: ("backprop", "PC", "PC-ALM", "EGGROLL", "Forward-Forward", "backprop (plain)"), palette: (rgb("#0072b2"), rgb("#d55e00"), rgb("#009e73"), rgb("#cc79a7"), rgb("#e69f00"), rgb("#56b4e9")))),
+  scales: scales(x: scale-log10(), y: scale-continuous(limits: (0.0, 1.0)), colour: scale-discrete(limits: ("backprop", "PC", "PC-ALM", "EGGROLL", "feedback alignment", "Forward-Forward", "backprop (plain)"), palette: (rgb("#0072b2"), rgb("#d55e00"), rgb("#009e73"), rgb("#cc79a7"), rgb("#e69f00"), rgb("#56b4e9"), rgb("#f0e442"))), fill: scale-discrete(limits: ("backprop", "PC", "PC-ALM", "EGGROLL", "feedback alignment", "Forward-Forward", "backprop (plain)"), palette: (rgb("#0072b2"), rgb("#d55e00"), rgb("#009e73"), rgb("#cc79a7"), rgb("#e69f00"), rgb("#56b4e9"), rgb("#f0e442")))),
   labels: labels(x: "layers", y: "test accuracy after one epoch", colour: "", fill: ""),
   theme: theme-minimal(),
   width: 14cm,

@@ -26,9 +26,10 @@
     parameters is a 32-layer residual network, 56,232 is a two-layer plain one —
     and one shared learning rate that is optimal for exactly one of them.
     Backpropagation on Forward-Forward's own architecture reaches 91.16% against
-    Forward-Forward's 88.69%, Forward-Forward on the deep network falls to
-    57.51%, and giving each method its own best rate reverses the order against
-    chance level 10%. The source paper's own claim survives both corrections:
+    Forward-Forward's 90.39% — a margin inside the seed spread, once
+    Forward-Forward is given the hard negative samples an audit of our own
+    implementation showed it needs — and giving each method its own best rate
+    reverses the order against chance level 10%. The source paper's own claim survives both corrections:
     with the dual variables switched off, the same code loses 24 points of
     accuracy at 32 layers and nothing at 2. We add two arms the table lacks — plain
     predictive coding, the ablation that isolates PC-ALM's contribution, and

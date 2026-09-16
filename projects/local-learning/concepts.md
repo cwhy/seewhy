@@ -171,6 +171,23 @@ tuning: P = 512, sigma = 3e-3 (residual net) or 3e-4 (plain net), outer rate
    (0.597, 0.806, 0.902, 0.905, 0.901). Finding 7 above is corrected by this.
    The deep FF stack still degrades with training (0.6106 -> 0.5596).
 
+14. **The Forward-Forward arm was audited, and two findings were withdrawn.**
+   Mechanics verified (locality exactly zero across layers, chance accuracy when
+   image and label are shuffled, loss and readout as specified). But uniform
+   negative labels are too easy: with Hinton's hard negatives the arm gains
+   1.7 points on 784-66-66 (0.9039 ± 0.0030) and 28.2 on the 31x32 stack
+   (0.8570 ± 0.0183). So backprop's margin on FF's own architecture is 0.8
+   points, not 2.5 — inside the spread — and finding 4 above (the deep collapse
+   as a readout failure) is withdrawn: it was a training-signal failure of ours.
+15. **Feedback alignment works at shallow depth and dies at depth.** Verified by
+   B = W reproducing backprop exactly, and by matching backprop on the networks
+   Lillicrap et al. use (1x800: 0.9685 vs 0.9732; 2x800 tanh: 0.9685 vs 0.9766).
+   On the residual net: 0.8925 at 2 layers, 0.8791 at 4, 0.5343 at 8, 0.1879 at
+   16, 0.0873 at 32, diverged at 64 — with the B-to-W alignment falling 0.303 to
+   0.000 in step. With ReLU it fails by killing units (21% dead at 3e-4, 76% at
+   3e-3); with tanh it does not.
+
 Report: <https://media.tanh.xyz/seewhy/26-09-16/local-learning_report_replication.html>
+Forward-Forward audit: <https://media.tanh.xyz/seewhy/26-09-16/local-learning_report_ff_audit.html>
 Five-epoch report: <https://media.tanh.xyz/seewhy/26-09-16/local-learning_report_five_epochs.html>
 Paper: <https://media.tanh.xyz/seewhy/paper/local-learning_paper.html>

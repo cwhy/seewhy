@@ -40,11 +40,18 @@ moved the number.
   figure, and we reproduce the 40x training-time gap between PC-ALM and
   backpropagation (41x here). The comparison is sound as arithmetic.
 
-+ *Forward-Forward's advantage is its architecture, not its learning rule.*
-  Backpropagation on Forward-Forward's own two-layer network reaches
-  91.16% ± 0.58 — two and a half points above Forward-Forward itself. Moving
-  Forward-Forward onto the deep-narrow network the other two rules use drops it
-  to 57.51%.
++ *Forward-Forward's advantage is its architecture, not its learning rule —
+  but the margin is small.* Backpropagation on Forward-Forward's own two-layer
+  network reaches 91.16% ± 0.58 against Forward-Forward's 90.39% ± 0.30 on that
+  same network: 0.8 points, inside the seed spread. What separates the two is
+  which architecture each is run on, not which wins when they share one.
+
++ *An audit of our own Forward-Forward implementation withdrew two earlier
+  claims.* Sampling negative labels uniformly, as we first did, hands every
+  layer above the first a task already solved; with the hard negatives Hinton
+  uses, the same arm gains 1.7 points on the two-layer network and 28.2 on the
+  deep stack — which is where the "2.5 point" margin and the "Forward-Forward
+  collapses at depth" claim above came from. @res-audit reports the audit.
 
 + *The ranking is an artifact of one shared learning rate.* Sweeping the rate
   per method over two orders of magnitude, the best rate differs by a factor of

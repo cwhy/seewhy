@@ -1,6 +1,6 @@
 #import "/template.typ": *
 
-= Limitations and negative results
+= Limitations and negative results <sec-limitations>
 
 *One dataset, one width, mostly one epoch.* Everything here is MNIST at width
 32, plus one Fashion-MNIST cell used as a check against the authors' own numbers.
@@ -21,16 +21,31 @@ PC appears here only as the control that isolates PC-ALM's duals, and it is
 *worse* in our hands than in theirs, the conclusion it supports is if anything
 conservative.
 
-*Forward-Forward is our reading of the method, not Hinton's exact recipe.* Four
-deviations, each defensible and each a confound: we normalise each layer's input
-to unit mean square rather than unit L2 norm (the same direction, a constant
-apart); we sample negative labels uniformly rather than mining hard negatives
-from the network's own predictions; we train all layers simultaneously rather
-than greedily layer by layer; and we fix the goodness threshold at 2.0 without
-sweeping it. Hinton's reported MNIST error rates come from a longer schedule,
+*Forward-Forward is our reading of the method, not Hinton's exact recipe*, and
+one of the deviations turned out to matter more than any other choice in this
+paper. We first sampled negative labels uniformly rather than mining hard ones
+from the network's own predictions; @res-audit measures that at 1.7 points on the
+two-layer network and 28.2 on the deep stack, and it cost us two claims. The
+remaining deviations are now the bounded ones: unit mean-square normalisation
+rather than unit L2 (measured, no difference at this scale), simultaneous rather
+than greedy layer training, a goodness threshold fixed at 2.0 and never swept,
+and no peer normalisation. Corrected, the arm still sits 2.4 points below
+Hinton's reported result at his own scale, so more of his recipe is load-bearing
+than we implement. Hinton's reported MNIST error rates come from a longer schedule,
 wider layers and hard negatives, and we do not claim to reproduce those — only
 the arm of this particular comparison, which our numbers match to within 0.2
 points.
+
+*Feedback alignment was tested with ReLU units, which is close to its worst
+case.* @res-fa shows the same method reaching backpropagation's accuracy on tanh
+units and dying on ReLU by killing them. We did not sweep the nonlinearity for
+any other arm, so the comparison holds the architecture fixed at the one the
+other rules use rather than the one feedback alignment would prefer, and its
+result here should be read as "on this network" rather than as a verdict on the
+method. Its first grid also ran before we found and fixed a scale bug in the
+feedback matrices, so the rates it picked were re-checked afterwards; the
+conclusion did not move, but the rate for the headline cell comes from the
+pre-fix grid.
 
 *The learning-rate sweep used two seeds.* The best rate per arm is therefore
 picked with about a percentage point of noise on each grid point. The spacing is
@@ -46,7 +61,7 @@ disadvantage worse rather than better, so the trade-off is not neutral; we did
 not map it.
 
 *EGGROLL's numbers were measured on a shared GPU.* Every EGGROLL cell ran while
-an unrelated job held part of the same device. §6.8 calibrates that on three
+an unrelated job held part of the same device. @res-calibration calibrates that on three
 arms with known idle timings: training costs a stable factor of 2.0 (2.01, 2.17,
 2.01). Inference does not admit a factor at all — the identical forward pass
 measured 0.00210 s in one batch of EGGROLL cells and 0.00025 s in another,
@@ -68,7 +83,7 @@ population, perturbation scale and outer rate were gridded on the residual
 network (exp10, exp11, exp12) and its scale and rate re-gridded on the plain
 network (exp15), each on one seed at three-fold spacing. The perturbation rank
 was fixed at 1 throughout and never varied, and the same single $sigma$ was
-applied to every layer, which §7 argues is the likely reason the plain network
+applied to every layer, which @sec-analysis argues is the likely reason the plain network
 underperforms.
 
 *Timings are one machine, one framework, one execution style.* All arms are

@@ -2,6 +2,8 @@
  "arm": [
   "backprop 32x32 res",
   "backprop 32x32 res",
+  "feedback alignment 32x32 res",
+  "feedback alignment 32x32 res",
   "PC 32x32 res",
   "PC 32x32 res",
   "PC-ALM 32x32 res",
@@ -18,6 +20,8 @@
  "accuracy": [
   0.8703799843788147,
   0.9373799920082092,
+  0.10023999661207199,
+  0.08733333150545756,
   0.612499988079071,
   0.6778399825096131,
   0.8532599806785583,
@@ -32,6 +36,8 @@
   0.6105599761009216
  ],
  "rate": [
+  "shared default rate",
+  "its own best rate",
   "shared default rate",
   "its own best rate",
   "shared default rate",

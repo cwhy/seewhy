@@ -126,3 +126,31 @@
 0.4796       # mean over 2 seeds of test_acc for eggroll on the shared rate grid in exp18
 0.7312       # mean over 2 seeds of test_acc for eggroll on the shared rate grid in exp18
 0.8705       # mean over 2 seeds of test_acc for eggroll on the shared rate grid in exp18
+28.2         # train_s_ratio of pcalm/L32 over ff/hard_5ep
+0.8570       # mean over seeds of test_acc for ff hard_deep in exp25
+0.1002       # mean over seeds of test_acc for fa headline in exp26
+0.0306       # sd over seeds of test_acc for fa headline in exp26
+0.303        # train_s_ratio of bp/lr0.0003 over ff/L64
+0.1879       # mean over seeds of test_acc for fa L16 in exp26
+0.0873       # mean over seeds of test_acc for fa L32 in exp26
+0.9685       # infer_s_ratio of eggroll/s0.001p128lr0.03 over pc/L32
+0.9732       # train_s_ratio of eggroll/s0.001p32lr0.001 over eggroll/s0.01p32lr0.03
+0.8366       # infer_s_ratio of bp/lr0.01 over pcalm/lr0.003
+0.1325       # infer_s_ratio of bp/lr0.03 over pcalm/L8
+0.981        # infer_s_ratio of pc/default over pcalm/lr0.01
+0.974        # infer_s_ratio of pc/default over fa/L32
+0.9530       # infer_s_ratio of bp/lr0.1 over pc/etatable
+0.484        # infer_s_ratio of bp_plain/lr0.001 over eggroll/lr0.1
+0.0183       # sd over seeds of compile_s for ff harddeep_lr0.001 in exp24
+0.9045       # mean over seeds of test_acc for ff 5ep in exp22
+0.9058       # mean over seeds of test_acc for ff hard_5ep in exp25
+0.5596       # mean over seeds of test_acc for ff 5ep_deep in exp22
+0.0561       # sd over seeds of test_acc for ff 5ep_deep in exp22
+0.8215       # mean over seeds of test_acc for ff hard_deep_5ep in exp25
+0.2619       # train_s_ratio of ff/hard_lr0.003 over bp_plain/lr0.003
+0.9100       # mean over seeds of epoch3_acc for pcalm (default) in exp4
+0.9621       # infer_s_ratio of pcalm/lr0.003 over pcalm/tuned
+0.0521       # infer_s_ratio of bp/L2 over eggroll/L64
+0.418        # train_s_ratio of bp/default over ff/harddeep_lr0.0003
+0.120        # mean over seeds of test_acc for fa_plain lr0.03 in exp23
+0.2819       # difference of two logged means: FF deep with hard negatives minus with uniform ones

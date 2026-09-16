@@ -6,7 +6,7 @@
   data: json("/assets/infer_time_by_method.json"),
   mapping: aes(x: "arm", y: "seconds to classify 10,000 images"),
   layers: (geom-col(width: 0.72, stroke: none, fill: rgb("#0072b2")),),
-  scales: scales(y: scale-continuous(), x: scale-discrete(limits: ("Forward-Forward 31x32", "backprop 2x66", "Forward-Forward 2x66", "EGGROLL 32x32 res", "PC-ALM 32x32 res", "PC 32x32 res", "backprop 32x32 res"))),
+  scales: scales(y: scale-continuous(), x: scale-discrete(limits: ("Forward-Forward 31x32", "backprop 2x66", "Forward-Forward 2x66", "EGGROLL 32x32 res", "PC-ALM 32x32 res", "PC 32x32 res", "feedback alignment 32x32 res", "backprop 32x32 res"))),
   labels: labels(x: "arm", y: "seconds to classify 10,000 images"),
   theme: theme-minimal(),
   width: 14cm,

@@ -2,6 +2,7 @@
  "arm": [
   "backprop 32x32 res",
   "backprop 32x32 res",
+  "feedback alignment 32x32 res",
   "PC 32x32 res",
   "PC-ALM 32x32 res",
   "PC-ALM 32x32 res",
@@ -14,6 +15,7 @@
  "accuracy": [
   0.8703799843788147,
   0.8739,
+  0.10023999661207199,
   0.612499988079071,
   0.8532599806785583,
   0.8628,
@@ -26,6 +28,7 @@
  "source": [
   "this replication",
   "the tweet",
+  "this replication",
   "this replication",
   "this replication",
   "the tweet",

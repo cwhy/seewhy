@@ -1,6 +1,7 @@
 {
  "arm": [
   "backprop 32x32 res",
+  "feedback alignment 32x32 res",
   "PC 32x32 res",
   "PC-ALM 32x32 res",
   "EGGROLL 32x32 res",
@@ -10,6 +11,7 @@
  ],
  "seconds to classify 10,000 images": [
   0.0002531759440898895,
+  0.0002706974744796753,
   0.00023129358887672425,
   0.0002464465796947479,
   0.002111790329217911,

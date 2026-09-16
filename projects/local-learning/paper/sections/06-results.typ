@@ -7,7 +7,7 @@ for the headline comparison and three for the sweeps, with the standard
 deviation across seeds beside it. Wall-clock figures exclude XLA compilation,
 which is 0.7-3.0 s depending on arm and is paid once.
 
-== The table replicates
+== The table replicates <res-table>
 
 #table(
   columns: (auto, auto, auto, auto, auto, auto, auto),
@@ -23,19 +23,19 @@ which is 0.7-3.0 s depending on arm and is paid once.
 )
 
 #super[†] EGGROLL's cells were measured while an unrelated job shared the GPU.
-§6.8 calibrates that at 2.0x on training, so one EGGROLL epoch is about 0.99 s
+@res-calibration calibrates that at 2.0x on training, so one EGGROLL epoch is about 0.99 s
 on an idle device.
 
 #super[‡] Classification for this arm is one forward pass of the same residual
 network backpropagation uses, so its inference cost is backpropagation's by
 construction. The quoted 0.00025 s is the measurement from the EGGROLL cells
 that happened to run while the co-tenant was quiet (exp18); the cells behind
-this row measured 0.00210 s for the identical computation. §6.8 explains why no
+this row measured 0.00210 s for the identical computation. @res-calibration explains why no
 inference number from a shared device is worth reading.
 
 EGGROLL is in this table at the shared default rate of 1e-3 and is therefore
-barely above the 0.4 mark; §6.3 gives it its own rate, where it reaches 0.9025.
-Its population is fixed at 512 antithetic pairs throughout (§6.6).
+barely above the 0.4 mark; @res-rate gives it its own rate, where it reaches 0.9025.
+Its population is fixed at 512 antithetic pairs throughout (@res-eggroll).
 
 All three posted accuracies fall inside our seed distribution: 0.8739 is 0.35
 standard deviations above our backpropagation mean, 0.8628 is 1.1 above our
@@ -60,17 +60,23 @@ here is one RTX 4090 with the epoch compiled into a single scanned loop, and our
 absolute numbers are 1.6x to 90x faster across the arms. The ratios between arms
 are the comparable quantity, and those hold.
 
-== Backprop on Forward-Forward's architecture
+== Backprop on Forward-Forward's architecture <res-arch>
 
 The two rows the original table does not contain are the ones that separate the
 learning rule from the shape of the network it was run on.
 
 Backpropagation on Forward-Forward's own 784-66-66 stack reaches 0.9116 ±
-0.0058, which is 2.5 points above Forward-Forward on that same stack and 4.1
-points above backpropagation on the deep-narrow residual network. Forward-Forward
-moved the other way — onto a 31-layer stack of 32 units, matched in parameters —
-falls to 0.5751 ± 0.0744, the worst arm in the table and the one with by far the
-largest seed variance.
+0.0058, 4.1 points above backpropagation on the deep-narrow residual network.
+Forward-Forward on that same stack reaches 0.9039 ± 0.0030 — the two are 0.8
+points apart, which is inside the seed spread. On the shared architecture the
+learning rules are level; what differs between the table's rows is which
+architecture each was run on.
+
+Those Forward-Forward numbers are the corrected ones, with the hard negative
+samples @res-audit explains. With the uniformly sampled negatives we first used, the
+same arm scores 0.8869 ± 0.0085 here and 0.5751 ± 0.0744 on the 31-layer stack,
+and both of those figures say more about our negatives than about the method:
+the corrected deep stack reaches 0.8570 ± 0.0183.
 
 #fig(include "/figures/ff_readouts.typ",
   caption: [Forward-Forward read out two ways. The goodness sweep is the method's
@@ -78,14 +84,16 @@ largest seed variance.
     detached activations. On the deep stack the features survive and the
     readout does not.])
 
-The deep collapse is a failure of the readout, not of the features. A linear
-probe on the 31-layer network's own activations reaches 0.8919 — within two
-points of the two-layer network's probe accuracy of 0.9102 — while the goodness
-sweep on those same activations gets 0.5751. It is not a learning-rate artifact
-either: sweeping Forward-Forward's rate on the deep stack over four values, the
-best (3e-3) gives 0.5808.
+Under the uniform negatives, the deep stack's failure looked like a failure of
+the readout rather than of the features: a linear probe on the 31-layer
+network's own activations reached 0.8919 while the goodness sweep on those same
+activations got 0.5751, and no learning rate recovered it (the best of four gives
+0.5808). The probe measurement was right and the conclusion drawn from it was
+wrong. With hard negatives the goodness sweep reaches 0.8570 on that network,
+close to what the probe was already extracting, so there is no readout failure
+to explain — there was a training signal failure, and it was ours.
 
-== One shared learning rate is doing a lot of the work
+== One shared learning rate is doing a lot of the work <res-rate>
 
 #fig(include "/figures/learning_rate_grid.typ",
   caption: [One-epoch accuracy against Adam's learning rate, two seeds per point.
@@ -172,7 +180,7 @@ thirty-eight epochs' worth of wall clock. Forward-Forward is the only arm whose
 accuracy *falls* with more training: it peaks at 0.901 after two epochs and
 decays to 0.860 by ten.
 
-== Depth: the source paper's claim
+== Depth: the source paper's claim <res-depth>
 
 #fig(include "/figures/accuracy_vs_depth.typ",
   caption: [One-epoch accuracy against depth at width 32, three seeds. PC-ALM
@@ -199,7 +207,7 @@ backpropagation everywhere, including at 64 layers.
 
 EGGROLL is flat: 0.8990, 0.9048, 0.8982, 0.9011, 0.9025, 0.9017 across the
 whole range, varying by less than its seed spread. It is the best arm in the
-sweep at 64 layers and the worst at two. Read that with the caveat in §8: the
+sweep at 64 layers and the worst at two. Read that with the caveat in @sec-limitations: the
 three backprop-derived arms follow the source paper's depth-dependent rate rule
 $10^(-3) sqrt(N slash L)$, which shrinks their step as the network deepens,
 while EGGROLL was run at a fixed 3e-2. The flatness is real; the crossover is
@@ -215,7 +223,7 @@ grows, PC-ALM's update stays aligned — 0.965, 0.928, 0.903, 0.889, 0.888 from 
 to 64 layers — while predictive coding's drops to 0.70-0.81 and its accuracy
 falls with it.
 
-== EGGROLL: a gradient estimate made of random directions
+== EGGROLL: a gradient estimate made of random directions <res-eggroll>
 
 EGGROLL never differentiates the network. Its update is an average of $P$ paired
 perturbations, and everything about its behaviour follows from how good an
@@ -252,7 +260,7 @@ essentially orthogonal to the right answer — and it reaches 0.9028, three poin
     and chance marked. Cost per epoch grows roughly linearly with $P$ past 128.])
 
 Two further observations. EGGROLL is the one arm whose accuracy does not depend
-on depth (§6.5). And it is the one arm that prefers the deep-narrow architecture:
+on depth (@res-depth). And it is the one arm that prefers the deep-narrow architecture:
 tuned separately on each — the plain network needs a ten-fold smaller
 perturbation, $sigma = 3 times 10^(-4)$ against $3 times 10^(-3)$ — it reaches
 0.9025 ± 0.0026 on the 32-layer residual network and 0.8272 ± 0.0232 on the
@@ -283,7 +291,106 @@ also the highest-variance arm in every experiment here (± 4.0 points at the
 MNIST headline cell), and their figure is one run.
 
 
-== A timing calibration, because the GPU stopped being ours alone
+== Feedback alignment, and the depth where it stops <res-fa>
+
+Feedback alignment fails at this paper's headline cell, and the way it fails is
+the interesting part. At width 32 and depth 32 it sits at 0.1002 ± 0.0306 over
+five seeds — chance is 0.10 — and no rate in the grid moves it (0.087 to 0.126
+across five rates spanning two orders of magnitude). On the two-layer plain
+network it reaches 0.1606 ± 0.0515.
+
+Sweeping depth at width 32 shows where it goes:
+
+#table(
+  columns: (auto, auto, auto, auto),
+  align: (right, right, right, right),
+  [Layers], [Feedback alignment], [Alignment of $B$ to $W$], [backprop],
+  [2], [0.8925], [0.303], [0.9054],
+  [4], [0.8791], [0.160], [0.9012],
+  [8], [0.5343], [0.045], [0.8900],
+  [16], [0.1879], [0.011], [0.8830],
+  [32], [0.0873], [-0.001], [0.8711],
+  [64], [diverged], [--], [0.8518],
+)
+
+At two and four layers it is within 1.3 and 2.2 points of backpropagation. By
+eight it has lost a third of its accuracy, by sixteen it is near chance, and at
+64 it diverges to NaN. The third column is the method's own mechanism failing in
+step: the forward weights align with the random feedback at shallow depth (0.303
+at two layers) and not at all past sixteen.
+
+This is not our implementation giving out. Setting $B = W$ reproduces
+backpropagation exactly (@meth-fa), and on the networks where the original paper
+demonstrates the method we reproduce it: one hidden layer of 800 units gives
+0.9685 against backpropagation's 0.9732, and two hidden layers of 800 *tanh*
+units give 0.9685 against 0.9766.
+
+The word *tanh* is load-bearing. With ReLU units the same two-layer network
+gives 0.8366 at a rate of 3e-4 and 0.1325 at 3e-3, and the reason is visible in
+the units: 21% of the second layer is dead at the lower rate and 76% at the
+higher one. A random feedback matrix pushes a ReLU unit's pre-activation
+negative as readily as positive, and a unit pushed below zero for every input
+receives no gradient ever again. Backpropagation avoids this because the error it
+sends down is the one that would actually reduce the loss; feedback alignment
+has no such protection, and the deep-narrow residual network — 32 units wide,
+where losing a quarter of them matters — is close to the worst case for it.
+
+== Auditing our own Forward-Forward <res-audit>
+
+Every arm here was implemented from its paper rather than taken from its
+authors' code, so each is a claim about our reading of a method. We audited the
+Forward-Forward arm, and it is the one that moved.
+
+What checks out: the gradient is exactly layer-local (the derivative of layer
+$i$'s loss with respect to any other layer's weights is 0.000e+00, not merely
+small); shuffling images against labels drops the goodness readout to 0.1135,
+i.e. chance, so it is reading the label-image relationship and not the image;
+both layers separate positive from negative data (P(g⁺ > g⁻) of 0.981 and
+0.974); and goodness straddles the threshold rather than saturating it.
+
+What did not: at Hinton's own scale we fell short of his reported result, and
+adding layers made it *worse* — 0.9530 with two hidden layers of 2000 units at
+20 epochs, 0.9376 with four. On the four-layer network the per-layer accuracies
+run 0.971, 0.953, 0.654, 0.484: the deeper layers were contributing noise.
+
+The cause was our negative samples. We drew the negative label uniformly among
+the nine wrong ones; Hinton draws the wrong label the network currently finds
+plausible. A uniformly random wrong label is rejected by the first layer on the
+label pixels alone, so every layer above it is handed a task that is already
+solved. Switching to hard negatives:
+
+#table(
+  columns: (auto, auto, auto, auto),
+  align: (left, right, right, right),
+  [Network], [Uniform negatives], [Hard negatives], [Change],
+  [784-66-66, one epoch], [0.8869 ± 0.0085], [0.9039 ± 0.0030], [+0.0170],
+  [31x32 stack, one epoch], [0.5751 ± 0.0744], [0.8570 ± 0.0183], [+0.2819],
+  [784-66-66, five epochs], [0.9045 ± 0.0029], [0.9058 ± 0.0025], [+0.0013],
+  [31x32 stack, five epochs], [0.5596 ± 0.0561], [0.8215 ± 0.0193], [+0.2619],
+  [4x2000, ten epochs], [0.9100], [0.9621], [+0.0521],
+)
+
+The per-layer profile confirms the mechanism: on the four-layer network the
+layers go from 0.959, 0.936, 0.590, 0.418 under uniform negatives to 0.968,
+0.969, 0.809, 0.670 under hard ones. The deeper layers were starved, not broken.
+
+Two earlier claims of ours do not survive this, and are withdrawn in @res-arch: that
+backpropagation beats Forward-Forward by 2.5 points on Forward-Forward's own
+architecture (it is 0.8 points, inside the spread), and that Forward-Forward
+collapses on the deep-narrow stack (it does not; 0.8570).
+
+One hypothesis we tested and rejected on the way, recorded because a reader
+might have the same one: that ReLU's non-negative activations leave a constant
+component dominating the direction passed upward. The measured cosine between
+two different examples' normalised activity is 0.120, and mean-subtracting
+before normalising makes every case worse.
+
+Even corrected we reach 0.9621 at four layers of 2000 against Hinton's reported
+0.9864. The rest of his recipe — peer normalisation, his rate schedule, 60
+epochs — is not implemented here, and this project needs a fair Forward-Forward
+at 56K parameters and one epoch rather than a reproduction of his headline.
+
+== A timing calibration, because the GPU stopped being ours alone <res-calibration>
 
 Every EGGROLL cell was measured while an unrelated job held about 10 GB and a
 share of the same device; every earlier cell had the GPU to itself. Rather than
@@ -328,5 +435,5 @@ dominates and the 2.0x factor holds steady across arms and repeats.
 
 The practical consequence is that no inference number measured on the shared
 device is worth reading, and none is used: the inference column for EGGROLL in
-§6.1 is backpropagation's own figure for the same forward pass, which is what
+@res-table is backpropagation's own figure for the same forward pass, which is what
 that arm costs by construction.

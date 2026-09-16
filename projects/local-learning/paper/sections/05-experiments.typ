@@ -19,6 +19,9 @@
   [exp15, exp16], [Is EGGROLL's weakness on the plain network a property of the method, or of a configuration tuned on the other architecture?], [`experiments15.py`, `experiments16.py`],
   [exp17], [How much of EGGROLL's measured wall-clock is a GPU it had to share?], [`experiments17.py`],
   [exp18], [Where does EGGROLL sit on the same learning-rate grid as the other arms?], [`experiments18.py`],
+  [exp19-exp22], [How much of the ranking is the one-epoch budget? (Re-tuned per arm for five epochs.)], [`experiments19.py`-`experiments22.py`],
+  [exp23, exp26], [Does feedback alignment work here, and at what depth does it stop?], [`experiments23.py`, `experiments26.py`],
+  [exp24, exp25], [What does our Forward-Forward arm cost by sampling negatives uniformly?], [`experiments24.py`, `experiments25.py`],
 )
 
 Every cell is one (rule, architecture, seed) run, written to `results.jsonl`
@@ -54,6 +57,12 @@ identical $T$, $eta_h$, architecture and seed, differing from PC-ALM only in
 $alpha = 0$. Any accuracy difference between the two is attributable to the
 Lagrange multipliers and to nothing else. Had PC matched PC-ALM here, the
 paper's mechanism would have no support at this scale.
+
+*The control that isolates the backward weights.* Feedback alignment differs
+from backpropagation in exactly one place — the matrix carrying the error down —
+so any difference between them is attributable to that and nothing else. Setting
+its feedback matrices equal to the forward weights must reproduce backpropagation
+exactly, and does, which is the check that the arm is what it claims.
 
 *The control that isolates the population size.* EGGROLL's gradient estimate is
 an average of $P$ random directions in 56,128-dimensional space, so its quality

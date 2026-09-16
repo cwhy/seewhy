@@ -156,6 +156,36 @@ At two hidden layers of 66 units the FF network has $784 times 66 + 66 + 66^2 +
 66 = 56232$ weights. Adding a ten-way output layer for the backpropagation
 control brings that to 56,902.
 
+== Feedback alignment <meth-fa>
+
+Feedback alignment @lillicrap2016 keeps the forward pass, the loss and the
+weight update rule of backpropagation, and changes only the matrix that carries
+the error downward. For a layer computing $y = x W^top$:
+
+$ "backprop:" quad & partial cal(L) slash partial W = g^top x, quad
+    partial cal(L) slash partial x = g W   "feedback alignment:" quad & partial cal(L) slash partial W = g^top x, quad
+    partial cal(L) slash partial x = g B $
+
+with $B$ of the same shape as $W$, drawn once at initialisation and never
+updated. The weight update is unchanged; only what the layer below is told
+differs.
+
+$B$ is drawn from the same distribution as $W$ at initialisation, scaled to $W$'s
+standard deviation. That scaling is not cosmetic: the claim is about the
+*direction* of the feedback, and a $B$ twenty times larger than the $W$ it
+replaces is an enormous per-layer learning rate wearing a theory's clothes. We
+had that bug and fixed it; @sec-limitations reports what it cost.
+
+The diagnostic that goes with the method is the *alignment* itself, the mean
+cosine between each $B$ and the $W$ it stands in for. It starts at zero by
+construction and rises if the forward weights are accommodating the feedback —
+which is the mechanism the method is named after, and the thing to watch when it
+fails.
+
+We verify the implementation by setting $B = W$, which must reproduce backprop
+exactly, and does: maximum absolute difference 0.00e+00 across every layer, and
+the forward pass is bit-identical in both modes.
+
 == EGGROLL
 
 EGGROLL @sarkar2026eggroll never differentiates anything. It estimates the

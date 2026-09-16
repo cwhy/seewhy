@@ -31,13 +31,14 @@ import optax
 
 from lib import ff as ffmod
 from lib.es import es_gradient, make_es_epoch
+from lib.fa import alignment, init_feedback, plain_mm, residual_mm
 from lib.data import Data, overlay_label
 from lib.methods import bp_loss, grad_cosine, method_grad
 from lib.model import (Params, mlp_forward, mlp_init, n_params, relu, res_init,
                        res_logits, res_scales, res_skips)
 
 JSONL = Path(__file__).parent.parent / "results.jsonl"
-RESIDUAL_METHODS = ("bp", "pc", "pcalm", "eggroll")
+RESIDUAL_METHODS = ("bp", "pc", "pcalm", "eggroll", "fa")
 ES_METHODS = ("eggroll", "eggroll_plain")
 
 
@@ -63,6 +64,7 @@ class Cell:
     state_lr: float | None = None # None -> 1 / lambda_max, measured
     # forward-forward
     theta: float = 2.0
+    hard_negatives: bool = False  # sample the wrong label the net finds plausible
     # eggroll (evolution strategies)
     sigma: float = 3e-3           # perturbation scale
     n_pop: int = 32               # antithetic pairs per weight update
@@ -188,8 +190,11 @@ def train_residual(cell: Cell, data: Data) -> dict:
     opt = optax.adam(lr)
     opt_state = opt.init(params)
 
+    feedback = init_feedback(jax.random.fold_in(key, 5), params) if cell.method == "fa" else None
+    mm = residual_mm(feedback) if feedback is not None else None
+
     def loss_of(p, x, y):
-        return bp_loss(p, scales, skips, x, y, relu)
+        return bp_loss(p, scales, skips, x, y, relu, mm)
 
     if cell.method == "eggroll":
         epoch = make_es_epoch(loss_of, opt, sigma=cell.sigma, n_pop=cell.n_pop,
@@ -198,8 +203,13 @@ def train_residual(cell: Cell, data: Data) -> dict:
         def step(carry, batch):
             p, s = carry
             x, y = batch
-            g = method_grad(p, scales, skips, x, y, method=cell.method, alpha=cell.alpha,
-                            rho=cell.rho, state_lr=state_lr, budget=budget, phi=relu)
+            if cell.method == "fa":
+                # the only difference from bp: the gradient comes back through
+                # fixed random matrices rather than the forward weights
+                g = jax.grad(loss_of)(p, x, y)
+            else:
+                g = method_grad(p, scales, skips, x, y, method=cell.method, alpha=cell.alpha,
+                                rho=cell.rho, state_lr=state_lr, budget=budget, phi=relu)
             updates, s = opt.update(g, s, p)
             return (optax.apply_updates(p, updates), s), 0.0
 
@@ -242,6 +252,8 @@ def train_residual(cell: Cell, data: Data) -> dict:
         g_method = es_gradient(jax.random.fold_in(key, 7), params,
                                lambda p: loss_of(p, xb0, yb0),
                                sigma=cell.sigma, n_pop=cell.n_pop, rank=cell.rank)
+    elif cell.method == "fa":
+        g_method = jax.grad(loss_of)(params, xb0, yb0)
     else:
         g_method = method_grad(params, scales, skips, xb0, yb0, method=cell.method,
                                alpha=cell.alpha, rho=cell.rho, state_lr=state_lr,
@@ -253,6 +265,8 @@ def train_residual(cell: Cell, data: Data) -> dict:
         "test_acc": test_acc, "test_acc_probe": None, "train_acc": train_acc,
         "train_s": train_s, "compile_s": compile_s, "infer_s": infer_s,
         "grad_cos_to_bp": float(grad_cosine(g_method, g_bp)),
+        "feedback_alignment": (float(alignment(params, feedback))
+                               if feedback is not None else None),
         "lr": float(lr), "state_lr": float(state_lr), "budget": int(budget),
         "history": history,
     }
@@ -277,19 +291,24 @@ def train_plain(cell: Cell, data: Data) -> dict:
         opt_state = opt.init((params, head))
 
         def step(carry, batch):
-            (p, hd), s = carry
-            x, y, yneg = batch
+            (p, hd), s, k = carry
+            x, y, yneg, labels = batch
+            # hard negatives depend on the current weights, so they cannot be
+            # drawn ahead of the epoch the way uniform ones can
+            k, sub = jax.random.split(k)
+            yneg = ffmod.hard_negatives(p, x, labels, sub) if cell.hard_negatives else yneg
+
             def loss(ph):
                 p_, h_ = ph
                 return (ffmod.ff_loss(p_, overlay_label(x, y), overlay_label(x, yneg), cell.theta)
                         + ffmod.probe_loss(h_, p_, ffmod.neutral_input(x), y))
             g = jax.grad(loss)((p, hd))
             updates, s = opt.update(g, s, (p, hd))
-            return (optax.apply_updates((p, hd), updates), s), 0.0
+            return (optax.apply_updates((p, hd), updates), s, k), 0.0
 
-        def epoch(p, hd, s, xb, yb, nb):
-            ((p, hd), s), _ = jax.lax.scan(step, ((p, hd), s), (xb, yb, nb))
-            return p, hd, s
+        def epoch(p, hd, s, key_, xb, yb, nb, lb):
+            ((p, hd), s, key_), _ = jax.lax.scan(step, ((p, hd), s, key_), (xb, yb, nb, lb))
+            return p, hd, s, key_
 
         def accuracy(p, x, labels):
             return jnp.mean(ffmod.predict_goodness(p, x) == labels)
@@ -299,8 +318,11 @@ def train_plain(cell: Cell, data: Data) -> dict:
     else:
         opt_state = opt.init(params)
 
+        fb = init_feedback(jax.random.fold_in(key, 5), params) if cell.method == "fa_plain" else None
+        pmm = plain_mm(fb) if fb is not None else None
+
         def plain_loss(p_, x, y):
-            return 0.5 * jnp.mean(jnp.sum((mlp_forward(p_, x) - y) ** 2, axis=-1))
+            return 0.5 * jnp.mean(jnp.sum((mlp_forward(p_, x, mm=pmm) - y) ** 2, axis=-1))
 
         if cell.method == "eggroll_plain":
             epoch = make_es_epoch(plain_loss, opt, sigma=cell.sigma,
@@ -327,14 +349,14 @@ def train_plain(cell: Cell, data: Data) -> dict:
         yb = batched(np.asarray(data.y_train)[perm], cell.batch)
         if not is_ff:
             return xb, yb
-        neg = ffmod.make_negatives(jax.random.fold_in(k_neg, ep),
-                                   jnp.asarray(np.asarray(data.l_train)[perm]))
-        return xb, yb, batched(np.asarray(neg), cell.batch)
+        labels = np.asarray(data.l_train)[perm]
+        neg = ffmod.make_negatives(jax.random.fold_in(k_neg, ep), jnp.asarray(labels))
+        return xb, yb, batched(np.asarray(neg), cell.batch), batched(labels, cell.batch)
 
     args = epoch_data(0)
     es_key = jax.random.fold_in(key, 99)
     if is_ff:
-        compile_s, epoch_fn = _time_compiled(epoch, params, head, opt_state, *args)
+        compile_s, epoch_fn = _time_compiled(epoch, params, head, opt_state, es_key, *args)
         _, acc_fn = _time_compiled(accuracy, params, data.x_test, data.l_test)
         _, probe_fn = _time_compiled(accuracy_probe, params, head, data.x_test, data.l_test)
     else:
@@ -347,7 +369,7 @@ def train_plain(cell: Cell, data: Data) -> dict:
             args = epoch_data(ep)
         t0 = time.perf_counter()
         if is_ff:
-            params, head, opt_state = epoch_fn(params, head, opt_state, *args)
+            params, head, opt_state, es_key = epoch_fn(params, head, opt_state, es_key, *args)
             jax.block_until_ready(params)
         else:
             params, opt_state, es_key = epoch_fn(params, opt_state, es_key, *args)
@@ -364,6 +386,7 @@ def train_plain(cell: Cell, data: Data) -> dict:
     probe_acc = float(probe_fn(params, head, data.x_test, data.l_test)) if is_ff else None
 
     cos = None
+    align = float(alignment(params, fb)) if cell.method == "fa_plain" else None
     if cell.method == "eggroll_plain":
         xb0, yb0 = data.x_train[: cell.batch], data.y_train[: cell.batch]
         g_es = es_gradient(jax.random.fold_in(key, 7), params,
@@ -378,6 +401,7 @@ def train_plain(cell: Cell, data: Data) -> dict:
         "test_acc": test_acc, "test_acc_probe": probe_acc, "train_acc": train_acc,
         "train_s": train_s, "compile_s": compile_s, "infer_s": infer_s,
         "grad_cos_to_bp": cos,
+        "feedback_alignment": align,
         "lr": float(lr), "state_lr": None, "budget": None,
         "history": history,
     }

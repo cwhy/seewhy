@@ -59,23 +59,31 @@ def res_init(key: Array, *, depth: int, width: int,
 
 
 def res_block(W: Array, scale: float, skip: bool, z_prev: Array,
-              phi: Callable[[Array], Array], *, is_first: bool) -> Array:
-    """One block's prediction of the next activation, given the previous one."""
+              phi: Callable[[Array], Array], *, is_first: bool,
+              mm: Callable[[Array, Array], Array] | None = None) -> Array:
+    """One block's prediction of the next activation, given the previous one.
+
+    `mm` replaces the matrix product, and exists for feedback alignment, which
+    needs a different gradient through it but the same forward value. The
+    default path is the ordinary `inp @ W.T`.
+    """
     inp = z_prev if is_first else phi(z_prev)
-    pred = scale * (inp @ W.T)
+    pred = scale * (mm(inp, W) if mm is not None else inp @ W.T)
     return pred + z_prev if skip else pred
 
 
-def res_forward(params: Params, scales, skips, x: Array, phi) -> list[Array]:
+def res_forward(params: Params, scales, skips, x: Array, phi, mm=None) -> list[Array]:
+    """`mm(layer_index, inp, W)` overrides the matmul when given."""
     acts, z = [], x
     for i, W in enumerate(params):
-        z = res_block(W, scales[i], skips[i], z, phi, is_first=(i == 0))
+        layer_mm = (lambda inp, w, i=i: mm(i, inp, w)) if mm is not None else None
+        z = res_block(W, scales[i], skips[i], z, phi, is_first=(i == 0), mm=layer_mm)
         acts.append(z)
     return acts
 
 
-def res_logits(params: Params, scales, skips, x: Array, phi) -> Array:
-    return res_forward(params, scales, skips, x, phi)[-1]
+def res_logits(params: Params, scales, skips, x: Array, phi, mm=None) -> Array:
+    return res_forward(params, scales, skips, x, phi, mm)[-1]
 
 
 # ── Plain MLP (Forward-Forward, and its backprop control) ────────────────────
@@ -95,11 +103,13 @@ def mlp_init(key: Array, sizes: list[int]) -> Params:
     return params
 
 
-def mlp_forward(params: Params, x: Array, *, final_relu: bool = False) -> Array:
+def mlp_forward(params: Params, x: Array, *, final_relu: bool = False, mm=None) -> Array:
+    """`mm(layer_index, inp, W)` overrides the matmul — see `res_forward`."""
     n_layers = len(params) // 2
     h = x
     for i in range(n_layers):
-        h = h @ params[2 * i].T + params[2 * i + 1]
+        W = params[2 * i]
+        h = (mm(i, h, W) if mm is not None else h @ W.T) + params[2 * i + 1]
         if final_relu or i < n_layers - 1:
             h = relu(h)
     return h

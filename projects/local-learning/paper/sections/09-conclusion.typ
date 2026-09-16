@@ -29,14 +29,16 @@ here whose accuracy is unchanged from 2 to 64 layers. A method with no notion of
 a layer has no credit-assignment problem to fail at, which is what makes the
 other three rules' depth curves interesting rather than inevitable.
 
-Two findings were not on the list of things we set out to measure.
-Forward-Forward's deep failure is a readout failure rather than a representation
-failure — a linear probe on the 31-layer network's own activations reaches
-0.8919 where its goodness sweep gets 0.5751 — which suggests the method's
-classifier, not its learning rule, is what does not scale with depth. And
-Forward-Forward is the only arm here that gets *worse* with more training, on
-both readouts, which makes its one-epoch showing in the original table a
-best-case number in a way the other rows' are not.
+Auditing our own implementations changed two of those conclusions, which is
+worth recording as a result in its own right. Forward-Forward's apparent
+collapse on the deep-narrow network — 0.5751, against a linear probe on the same
+activations reaching 0.8919 — was not a property of the method but of our
+negative samples: drawing the wrong label uniformly leaves every layer above the
+first with nothing to learn. With the hard negatives Hinton specifies, the same
+network reaches 0.8570, and backpropagation's margin over Forward-Forward on
+Forward-Forward's own architecture shrinks from 2.5 points to 0.8, inside the
+seed spread. A local rule can look like it has a depth problem when what it has
+is a training-signal problem.
 
 = Appendix: reproduction <appendix-repro>
 
@@ -67,9 +69,12 @@ per-epoch curve and final metrics. The headline numbers come from:
   [EGGROLL depth and wall-clock], [`exp14_*` — 21 cells],
   [Shared-GPU timing calibration], [`exp17_*` — 9 cells],
   [EGGROLL on the shared rate grid], [`exp18_*` — 10 cells],
+  [Five-epoch re-tune and head-to-head], [`exp19_*`-`exp22_*` — 55 cells],
+  [Feedback alignment], [`exp23_*` (20 cells), `exp26_*` (26 cells)],
+  [Forward-Forward audit and correction], [`exp24_*` (16 cells), `exp25_*` (16 cells)],
 )
 
 Each experiment file's module docstring states the hypothesis it was written to
 test. `lib/methods.py` contains backpropagation, PC and PC-ALM, `lib/ff.py`
-Forward-Forward and `lib/es.py` EGGROLL; `lib/train.py` holds the timing
+Forward-Forward, `lib/es.py` EGGROLL and `lib/fa.py` feedback alignment; `lib/train.py` holds the timing
 protocol, and `lib/model.py` the two architectures.

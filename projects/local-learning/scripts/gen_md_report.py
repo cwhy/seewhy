@@ -58,6 +58,14 @@ def main():
 
     md = f"""# Local learning vs backprop — replicating a "quick MNIST test"
 
+> **Superseded in part.** The Forward-Forward numbers here use uniformly sampled
+> negative labels. An [audit](https://media.tanh.xyz/seewhy/26-09-16/local-learning_report_ff_audit.html)
+> later showed that costs the method 1.7 points on the two-layer network and 28.2
+> on the deep stack, which withdraws two conclusions below: that backprop beats
+> Forward-Forward on its own architecture by 2.5 points (it is 0.8, inside the
+> spread), and that Forward-Forward collapses at depth (it does not). Sections 2
+> and 5 are affected; the rest stands.
+
 Replicates [@mayfer's table](https://x.com/mayfer/status/2099541904241385615)
 (2026-09-14): backprop, PC-ALM and Forward-Forward on MNIST at ~56K parameters,
 one epoch. Five seeds per arm, one RTX 4090, JAX.

@@ -24,6 +24,7 @@ TWEET = {
 # shared-default-rate run lives and where its own-best-rate rerun lives.
 ARMS = [
     ("backprop 32x32 res", ("exp1", "bp", ""), ("exp9", "bp", "tuned")),
+    ("feedback alignment 32x32 res", ("exp26", "fa", "headline"), ("exp26", "fa", "L32")),
     ("PC 32x32 res", ("exp1", "pc", ""), ("exp9", "pc", "tuned")),
     ("PC-ALM 32x32 res", ("exp1", "pcalm", ""), ("exp9", "pcalm", "tuned")),
     ("EGGROLL 32x32 res", ("exp13", "eggroll", "default"), ("exp13", "eggroll", "tuned")),
@@ -35,9 +36,10 @@ ARM_LABELS = [label for label, _, _ in ARMS]
 
 METHOD_LABEL = {"bp": "backprop", "pc": "PC", "pcalm": "PC-ALM",
                 "ff": "Forward-Forward", "bp_plain": "backprop (plain)",
-                "eggroll": "EGGROLL", "eggroll_plain": "EGGROLL (plain)"}
+                "eggroll": "EGGROLL", "eggroll_plain": "EGGROLL (plain)",
+                "fa": "feedback alignment", "fa_plain": "feedback alignment (plain)"}
 
-DEPTH_METHODS = ("bp", "pc", "pcalm", "eggroll", "ff", "bp_plain")
+DEPTH_METHODS = ("bp", "pc", "pcalm", "eggroll", "fa", "ff", "bp_plain")
 
 
 def arm_cells(rows: dict[str, dict], locator) -> list[dict]:
@@ -58,7 +60,13 @@ def cells(rows: dict[str, dict], exp: str, **match) -> list[dict]:
 
 
 def mean(values) -> float:
-    values = list(values)
+    """Mean over finite values only.
+
+    A diverged run writes NaN rather than a number — feedback alignment does this
+    at depth 64 — and one NaN would otherwise erase a whole series from a figure
+    instead of just its own point.
+    """
+    values = [v for v in values if v is not None and v == v and abs(v) != float("inf")]
     return sum(values) / len(values) if values else float("nan")
 
 
@@ -142,8 +150,8 @@ def accuracy_vs_walltime(rows: dict[str, dict], name: str = "accuracy_vs_walltim
 
 
 def accuracy_vs_depth(rows: dict[str, dict], name: str = "accuracy_vs_depth") -> Figure:
-    got = cells(rows, "exp5") + cells(rows, "exp14")
-    depths = sorted({r["depth"] if r["method"] in ("bp", "pc", "pcalm", "eggroll")
+    got = cells(rows, "exp5") + cells(rows, "exp14") + cells(rows, "exp26")
+    depths = sorted({r["depth"] if r["method"] in ("bp", "pc", "pcalm", "eggroll", "fa")
                      else len(r["hidden"]) + 1 for r in got})
     series: dict[str, list[float]] = {}
     for method in DEPTH_METHODS:

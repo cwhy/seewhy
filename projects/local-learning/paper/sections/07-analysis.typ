@@ -1,6 +1,6 @@
 #import "/template.typ": *
 
-= Analysis
+= Analysis <sec-analysis>
 
 == What the original table was measuring
 
@@ -31,30 +31,30 @@ rank them, and that a parameter-matched comparison across different
 architectures at a shared learning rate mostly measures which architecture and
 which rate you picked.
 
-== Why Forward-Forward collapses with depth
+== What the deep Forward-Forward stack was actually telling us
 
-The obvious reading of 0.5751 on a 31-layer stack is that the local objective
-stops carrying useful information deep in the network. That reading is wrong
-here, and the probe is what rules it out: a linear classifier on the same
-network's own activations gets 0.8919, within two points of what the same probe
-gets on the two-layer network. The features are there. What fails is
-Forward-Forward's own way of reading them out.
+Under our first implementation, Forward-Forward scored 0.5751 on the 31-layer
+stack while a linear probe on that same network's activations reached 0.8919,
+and we read that as a readout failure: goodness summed over thirty layers adds
+thirty layers' worth of variance to a signal that does not grow with depth.
 
-The mechanism is visible in the readout's arithmetic. Classification sums
-goodness over the 30 layers above the first and picks the largest total. Each
-layer contributes a quantity trained only to sit above a threshold for correct
-labels and below it for wrong ones — a per-layer margin, not a calibrated score.
-Summing thirty of them adds thirty layers' worth of variance to a signal that
-does not grow with depth, and the argmax over ten candidate labels degrades
-accordingly. A two-layer network sums one such term.
+The reading was wrong, and the audit (@res-audit) says why. With hard negatives the
+goodness sweep reaches 0.8570 on the same network — close to what the probe was
+already extracting — so there was no readout to blame. What the probe had
+detected was that the features were fine while the *training signal* was not:
+uniformly random wrong labels are separable at the first layer, so the layers
+above it had nothing to learn from, and their goodness was noise that the sum
+then accumulated.
 
-This is falsifiable, and one test has been run: if the collapse were an
-optimisation failure rather than a readout failure, a different learning rate
-should recover it, and it does not — the best of four rates on the deep stack
-gives 0.5808. A second test we did not run would settle it: weighting or
-normalising each layer's goodness contribution before the sum, or reading out
-from the top layers only. If the collapse is the sum, those should recover most
-of the probe's 0.8919.
+This is worth stating plainly because the failure mode is general. A local
+learning rule can look like it has a depth problem when what it has is a
+negative-sampling problem, and the two are distinguishable only by testing the
+training signal rather than the architecture. The probe was the right
+measurement; we drew the wrong conclusion from it.
+
+What survives: Forward-Forward is still the weakest arm at five epochs, its deep
+stack is still 8 points below its shallow one, and it still gains least from
+extra training. What does not: any claim that its readout does not scale.
 
 == Why PC-ALM survives depth and PC does not
 
@@ -103,6 +103,33 @@ which is the usual situation in an over-parameterised network. This is testable
 and we did not test it: projecting the ES estimate onto the top curvature
 directions of the loss and measuring the cosine there would say whether the
 useful part of the estimate is concentrated where the loss actually moves.
+
+== Why feedback alignment dies where the other rules survive
+
+Feedback alignment and PC-ALM are both answers to the same objection — that
+backpropagation needs the forward weights to carry the error backwards — and
+they fail and succeed in opposite places. PC-ALM holds within 3.1 points of
+backpropagation at 64 layers; feedback alignment is at chance by 16.
+
+The difference is what each does with depth. PC-ALM's duals accumulate a
+quantity that converges to the backprop credit signal, so every settling step
+brings each layer's estimate closer to the right one. Feedback alignment's error
+passes through one random matrix per layer, and the layers do not correct each
+other: the estimate at layer $i$ is the product of $L - i$ random projections
+applied to a signal that was correct only at the output. The method works by the
+forward weights adapting to the feedback, and that adaptation is itself driven by
+the feedback — at depth, the signal that would drive alignment has already been
+scrambled by the layers above. The alignment column in @res-fa measures exactly
+this: 0.303 at two layers, 0.045 at eight, zero at 32.
+
+Two things make it worse here specifically. The network is narrow, so a random
+projection into 32 dimensions loses more than one into 800 would. And the units
+are ReLU, so a misdirected update can kill a unit permanently — 76% of a layer,
+at the rates that train fastest. The same architecture with tanh units, which
+cannot die, recovers the literature's result. None of this rescues the method at
+depth 32, but it does locate the failure: not in the idea that random feedback
+can teach, which works at two and four layers here, but in what happens to a
+random signal after it has been re-randomised thirty times.
 
 == Why EGGROLL does not care about depth
 

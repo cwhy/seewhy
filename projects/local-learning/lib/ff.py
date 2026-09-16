@@ -112,3 +112,24 @@ def make_negatives(key: Array, labels: Array) -> Array:
     """A uniformly sampled wrong label for every example."""
     offset = jax.random.randint(key, labels.shape, 1, 10)
     return jnp.eye(10, dtype=jnp.float32)[(labels + offset) % 10]
+
+
+def hard_negatives(params: Params, x: Array, labels: Array, key: Array) -> Array:
+    """A wrong label the network currently finds plausible, not a random one.
+
+    Hinton generates negative data the network gets wrong, and this is what makes
+    the method work past its first layer: a uniformly random wrong label is
+    rejected by layer 1 on the label pixels alone, so layers above it see a task
+    that is already solved and learn little. Sampling the negative label from the
+    goodness the network currently assigns keeps the task hard all the way up.
+
+    The true label is excluded by construction.
+    """
+    eye = jnp.eye(10, dtype=jnp.float32)
+
+    def score(onehot):
+        acts = layer_activations(params, overlay_label(x, onehot[None, :]))
+        return sum(goodness(h) for h in acts[1:])
+
+    logits = jax.vmap(score)(eye).T - 1e9 * eye[labels]
+    return eye[jax.random.categorical(key, logits, axis=-1)]

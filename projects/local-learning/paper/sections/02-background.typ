@@ -60,6 +60,20 @@ labels go together. There is no backward pass and no settling; there is also no
 output layer, so classification is done by trying all ten labels and keeping
 whichever the network is most enthusiastic about.
 
+*Feedback alignment* @lillicrap2016 attacks a different objection to
+backpropagation than predictive coding does. Backprop sends the error back down
+through $W^top$ — the transpose of the very matrix the forward pass used. For a
+synapse to do that, it would have to know the strength of a different synapse,
+in another neuron, pointing the other way. This is the #gloss[weight transport
+problem][the requirement that the backward pass reuse the forward weights, which
+no known biological mechanism provides]. Feedback alignment replaces $W^top$
+with a *fixed random matrix*, chosen once and never trained, and the surprising
+result is that learning still happens: the forward weights drift into partial
+alignment with the random feedback, so the network ends up making its own
+gradient estimate useful rather than being handed a correct one. It changes
+exactly one thing about backpropagation, which makes it the narrowest of the
+alternatives here.
+
 *EGGROLL* @sarkar2026eggroll is the odd one out, and is included because it is
 the other well-known way to train a network without backpropagation. It is not a
 local rule at all: it is an #gloss[evolution strategy][optimisation by perturbing
@@ -72,7 +86,7 @@ jitters low-rank, which cuts the random numbers a perturbation needs from
 $m times n$ to $(m + n) r$ and lets a whole population run as one batched
 matrix multiply.
 
-All four rules are compared here at a fixed budget of one #gloss[epoch][one
+All five rules are compared here at a fixed budget of one #gloss[epoch][one
 pass through the 60,000 training images], the budget under which the numbers
 being replicated were produced.
 

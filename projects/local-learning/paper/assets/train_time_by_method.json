@@ -1,6 +1,7 @@
 {
  "arm": [
   "backprop 32x32 res",
+  "feedback alignment 32x32 res",
   "PC 32x32 res",
   "PC-ALM 32x32 res",
   "EGGROLL 32x32 res",
@@ -10,6 +11,7 @@
  ],
  "training seconds (one epoch)": [
   0.19887495860457421,
+  0.20059382691979408,
   8.132776971161366,
   8.123199220001698,
   1.9809747487306595,

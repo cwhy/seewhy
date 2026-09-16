@@ -9,7 +9,7 @@
     geom-col(width: 0.72, stroke: none, position: "dodge"),
     geom-hline(yintercept: 0.1, linetype: "dashed", colour: luma(130), stroke: 0.6pt),
   ),
-  scales: scales(y: scale-continuous(limits: (0.0, 1.0)), x: scale-discrete(limits: ("Forward-Forward 31x32", "backprop 2x66", "Forward-Forward 2x66", "EGGROLL 32x32 res", "PC-ALM 32x32 res", "PC 32x32 res", "backprop 32x32 res")), fill: scale-discrete(limits: ("shared default rate", "its own best rate"), palette: (rgb("#0072b2"), rgb("#d55e00")))),
+  scales: scales(y: scale-continuous(limits: (0.0, 1.0)), x: scale-discrete(limits: ("Forward-Forward 31x32", "backprop 2x66", "Forward-Forward 2x66", "EGGROLL 32x32 res", "PC-ALM 32x32 res", "PC 32x32 res", "feedback alignment 32x32 res", "backprop 32x32 res")), fill: scale-discrete(limits: ("shared default rate", "its own best rate"), palette: (rgb("#0072b2"), rgb("#d55e00")))),
   labels: labels(x: "arm", y: "test accuracy after one epoch", fill: ""),
   theme: theme-minimal(),
   width: 14cm,

@@ -45,8 +45,10 @@ def supervised_loss(params: Params, scales, skips, y: Array, free: list[Array], 
     return 0.5 * jnp.mean(jnp.sum((y_pred - y) ** 2, axis=-1))
 
 
-def bp_loss(params: Params, scales, skips, x: Array, y: Array, phi) -> Array:
-    y_pred = res_forward(params, scales, skips, x, phi)[-1]
+def bp_loss(params: Params, scales, skips, x: Array, y: Array, phi, mm=None) -> Array:
+    """`mm` overrides the matmul; feedback alignment uses it to change the
+    backward pass without touching the forward value."""
+    y_pred = res_forward(params, scales, skips, x, phi, mm)[-1]
     return 0.5 * jnp.mean(jnp.sum((y_pred - y) ** 2, axis=-1))
 
 
