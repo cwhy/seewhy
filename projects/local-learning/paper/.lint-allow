@@ -154,3 +154,18 @@
 0.418        # train_s_ratio of bp/default over ff/harddeep_lr0.0003
 0.120        # mean over seeds of test_acc for fa_plain lr0.03 in exp23
 0.2819       # difference of two logged means: FF deep with hard negatives minus with uniform ones
+0.999982     # PC-ALM's cosine to backprop at T=2048, linear net — scripts/tmp/check_pcalm.py
+1.0004       # PC-ALM gradient norm ratio at T=2048, linear net — scripts/tmp/check_pcalm.py
+0.9977       # PC-ALM's cosine to backprop at T=1024, ReLU — scripts/tmp/check_pcalm.py
+0.1891       # EGGROLL cosine at effective P=2048 — scripts/tmp/check_eggroll.py
+0.3541       # EGGROLL cosine at effective P=8192 — scripts/tmp/check_eggroll.py
+0.0938       # EGGROLL rank-1 and dense cosine at P=512 — scripts/tmp/check_eggroll.py
+0.0463       # EGGROLL antithetic cosine at 256 forward passes — scripts/tmp/check_eggroll.py
+0.0633       # EGGROLL one-sided cosine at 256 forward passes — scripts/tmp/check_eggroll.py
+0.1311       # EGGROLL one-sided cosine at 1024 forward passes — scripts/tmp/check_eggroll.py
+0.7764       # backprop mean over 3 seeds of the authors' own code, run on our data
+0.7683       # PC-ALM mean over 3 seeds of the authors' own code
+0.0075       # PC-ALM seed spread of the authors' own code
+0.6159       # lowest of the authors' three PC seeds
+0.6426       # highest of the authors' three PC seeds
+0.490        # lowest gradient cosine among the authors' three PC seeds

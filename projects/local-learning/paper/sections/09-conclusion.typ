@@ -10,8 +10,9 @@ arithmetic about three particular runs, the original table is correct.
 As a ranking of learning rules it is not, and the two reasons are separable and
 both measurable. The three rows use two different architectures, because
 Forward-Forward needs a short wide network and the PC-ALM benchmark is a tall
-thin one; backpropagation run on Forward-Forward's own architecture beats it by
-2.5 points, and Forward-Forward run on the tall thin one loses 31. All three
+thin one; on the shared short wide network the two rules are level (0.9116
+against 0.9039), and each loses about four points when moved to the tall thin
+one. All three
 rows use one learning rate, which is the best rate for exactly one of them —
 Forward-Forward, the winner; give each arm its own best rate and the order of
 those three rows reverses, to backpropagation 0.9374, PC-ALM 0.9277,

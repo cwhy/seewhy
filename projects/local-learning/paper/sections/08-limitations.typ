@@ -10,16 +10,14 @@ statement about 56K parameters and one epoch on MNIST; nothing here speaks to
 what any of these rules do on a task where the architecture has to be deep for
 reasons other than making predictive coding hard.
 
-*Our PC is 4.7 points below the authors' PC.* On their Fashion-MNIST cell we get
-0.6340 ± 0.0194 against their 0.6813, while backpropagation and PC-ALM land
-within a point of theirs. Substituting their tabulated activity step changes
-nothing (0.6330), so the deviation is not the one deliberate difference in our
-implementation. It could be seed variance — theirs is a single run and PC is the
-highest-variance arm we measured — or it could be a difference we have not
-found. We did not run their code, which is the test that would settle it. Since
-PC appears here only as the control that isolates PC-ALM's duals, and it is
-*worse* in our hands than in theirs, the conclusion it supports is if anything
-conservative.
+*The PC discrepancy is closed.* An earlier draft reported our PC as 4.7 points
+below the authors' repository figure and could not explain it. We have since run
+their unmodified code here: it gives 0.6294 ± 0.0135 against our 0.6340 ± 0.0194
+(@res-audit-methods). The implementations agree to within half a point on every
+arm; the repository's single seed-0 number does not reproduce on this hardware
+from their own code either. The lesson we should have applied sooner is that a
+single run of the highest-variance arm in an experiment is not a comparison
+target.
 
 *Forward-Forward is our reading of the method, not Hinton's exact recipe*, and
 one of the deviations turned out to matter more than any other choice in this

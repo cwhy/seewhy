@@ -79,6 +79,14 @@ moved the number.
   backpropagation's (cosine 0.89 at depth 32) where plain predictive coding's
   drifts (0.81).
 
++ *Every arm was audited against its own paper's claims, and one failed.*
+  PC-ALM reproduces its central theorem — in a linear network its update
+  converges on the backpropagation gradient, cosine 0.999982 — and matches the
+  authors' own code to within half a point when we run theirs beside ours.
+  EGGROLL's estimator is unbiased and its low-rank claim holds. Feedback
+  alignment reproduces its published result where that result was measured.
+  Forward-Forward did not, and fixing it cost us two claims.
+
 + *An independent reimplementation reproduces the authors' own cell.* On their
   Fashion-MNIST configuration we land within one point of their reported
   backpropagation and PC-ALM accuracies and within 0.01 of their gradient

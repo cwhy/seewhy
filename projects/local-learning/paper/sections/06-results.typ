@@ -281,14 +281,34 @@ and depth, seed 0, one epoch:
   [PC-ALM], [0.7687 ± 0.0046], [0.7775], [0.901], [0.909],
 )
 
-Backpropagation and PC-ALM land within one point of their single-run numbers and
-PC-ALM's gradient cosine within 0.008. PC is 4.7 points low and its cosine is
-higher than theirs, which is the one arm where our implementation and theirs
-disagree by more than seed noise would comfortably explain. Substituting their
-tabulated activity step $eta_h = 0.235885$ for ours — measured per seed at that
-seed's initialisation, landing between 0.2298 and 0.2319 here — changes nothing: PC moves from 0.6340 to 0.6330 and PC-ALM from 0.7687 to 0.7682. PC is
-also the highest-variance arm in every experiment here (± 4.0 points at the
-MNIST headline cell), and their figure is one run.
+Backpropagation and PC-ALM land within one point of those single-run numbers and
+PC-ALM's gradient cosine within 0.008. PC is 4.7 points low, which looked like
+the one arm where our implementation and theirs disagreed.
+
+It is not. We ran their unmodified code on this machine, against the same data
+exported to the IDX format their loader expects, three seeds per arm:
+
+#table(
+  columns: (auto, auto, auto, auto),
+  align: (left, right, right, right),
+  [], [ours (3 seeds)], [their code, same data], [their README (1 seed)],
+  [backprop], [0.7770 ± 0.0034], [0.7764 ± 0.0089], [0.7866],
+  [PC], [0.6340 ± 0.0194], [0.6294 ± 0.0135], [0.6813],
+  [PC-ALM], [0.7687 ± 0.0046], [0.7683 ± 0.0075], [0.7775],
+)
+
+The two implementations agree to 0.0046 on PC, 0.0006 on backpropagation and
+0.0004 on PC-ALM. The gap was never between implementations: it was between the
+repository's single seed-0 figure and what that same code produces here, where
+seed 0 gives 0.6297. Their three seeds span 0.6159 to 0.6426 with gradient
+cosines from 0.490 to 0.728, so a single PC run is not a quantity to compare
+against — and substituting their tabulated $eta_h = 0.235885$ for our measured
+0.2298-0.2319 moves ours by 0.001, confirming the step size was never the issue
+either.
+
+@res-audit-methods reports the rest of that audit, including the check that
+matters most: in a linear network our PC-ALM converges on the backpropagation
+gradient to a cosine of 0.999982, which is the paper's theorem.
 
 
 == Feedback alignment, and the depth where it stops <res-fa>
@@ -389,6 +409,49 @@ Even corrected we reach 0.9621 at four layers of 2000 against Hinton's reported
 0.9864. The rest of his recipe — peer normalisation, his rate schedule, 60
 epochs — is not implemented here, and this project needs a fair Forward-Forward
 at 56K parameters and one epoch rather than a reproduction of his headline.
+
+== Auditing PC-ALM and EGGROLL <res-audit-methods>
+
+Both arms were implemented from their papers, so both were audited the way
+Forward-Forward was.
+
+*PC-ALM reproduces its own theorem.* The paper proves that in a deep linear
+network the duals converge to the backpropagation credit signals. Running
+inference to convergence on a linear network, the weight update PC-ALM produces
+converges on the backpropagation gradient in both direction and magnitude —
+cosine 0.999982 and a norm ratio of 1.0004 at $T = 2048$ — while PC, which has
+no duals to accumulate, stalls at 0.968. With ReLU, where no theorem applies,
+PC-ALM still reaches 0.9977 against PC's 0.9742.
+
+Alongside: $alpha = 0$ reproduces PC to 0.000e+00, so the ablation the paper's
+mechanism rests on is exact; the settled activations return to the forward pass
+as $T$ grows (drift 1.05e-01 to 2.15e-03) while the duals carry the credit,
+which is the paper's mechanistic picture; inference descends the energy
+monotonically at our step size; and our power-iteration $lambda_max$ matches a
+dense eigendecomposition to 0.03% at depth 4 and 0.8% at depth 8.
+
+*EGGROLL's estimator is unbiased, and its low-rank claim holds.* Averaging
+independent estimates at fixed weights, alignment with the true gradient climbs
+along the $sqrt(P slash d)$ curve — 0.0964, 0.1891, 0.3541, 0.6066 at effective
+populations of 512 to 32,768. At matched population, rank-1, rank-4 and dense
+Gaussian perturbations are indistinguishable (0.0938, 0.0955, 0.0938 at
+$P = 512$), which is the paper's $O(1 slash r)$ claim at the sizes we use. The
+estimator converges to *twice* the gradient, an exact consequence of the
+antithetic difference $L(theta + epsilon) - L(theta - epsilon) approx 2 epsilon
+dot g$; Adam's normalisation absorbs the factor, which is why it never surfaced
+as a problem. And $sigma$ has a wide valid window — flat from 1e-3 to 1e-1,
+failing below it at float32 cancellation and above it at the end of the linear
+regime — so our 3e-3 sits centrally.
+
+One finding we did not act on but which a practitioner should know: antithetic
+sampling costs EGGROLL accuracy per unit of compute on this problem. A pair
+costs two forward passes for one direction; one-sided sampling against the known
+base loss costs one pass per direction, and at matched passes it wins by the
+expected $sqrt(2)$ — 0.0633 against 0.0463 at 256 passes, 0.1311 against 0.0923
+at 1024. Antithetic sampling earns its keep when the objective is noisy between
+evaluations, which is the reinforcement-learning setting these methods come
+from; here the base loss is exact on the same minibatch. We keep the published
+estimator, because the comparison is of methods as published.
 
 == A timing calibration, because the GPU stopped being ours alone <res-calibration>
 

@@ -188,6 +188,24 @@ tuning: P = 512, sigma = 3e-3 (residual net) or 3e-4 (plain net), outer rate
    3e-3); with tanh it does not.
 
 Report: <https://media.tanh.xyz/seewhy/26-09-16/local-learning_report_replication.html>
+16. **PC-ALM and EGGROLL audited; both check out.** PC-ALM reproduces the
+   paper's theorem — in a linear network its update converges on the backprop
+   gradient (cosine 0.999982, norm ratio 1.0004 at T=2048) while PC stalls at
+   0.968; alpha=0 reproduces PC bitwise; lambda_max matches a dense
+   eigendecomposition to 0.03%. EGGROLL's estimator is unbiased (cosine tracks
+   sqrt(P/d) as draws accumulate), rank-1 equals dense at matched P, and sigma
+   is valid over 1e-3..1e-1.
+17. **The PC discrepancy was never ours.** Running the authors' unmodified code
+   on our box against our data: BP 0.7764, PC 0.6294, PC-ALM 0.7683 against our
+   0.7770 / 0.6340 / 0.7687 — agreement within half a point on every arm. Their
+   README's single seed-0 PC figure (0.6813) does not reproduce from their own
+   code here (seed 0 gives 0.6297).
+18. **EGGROLL's antithetic sampling costs accuracy per unit compute here.** At
+   matched forward passes, one-sided sampling against the known base loss beats
+   antithetic by the expected sqrt(2) (0.0633 vs 0.0463 at 256 passes). Kept the
+   published estimator; noted for practitioners.
+
 Forward-Forward audit: <https://media.tanh.xyz/seewhy/26-09-16/local-learning_report_ff_audit.html>
+PC-ALM / EGGROLL audit: <https://media.tanh.xyz/seewhy/26-09-16/local-learning_report_audits.html>
 Five-epoch report: <https://media.tanh.xyz/seewhy/26-09-16/local-learning_report_five_epochs.html>
 Paper: <https://media.tanh.xyz/seewhy/paper/local-learning_paper.html>
