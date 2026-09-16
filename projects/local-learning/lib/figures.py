@@ -403,6 +403,34 @@ def five_epoch_rates(rows: dict[str, dict], name: str = "five_epoch_rates") -> F
     return replace(fig, spec=spec)
 
 
+def pc_depth(rows: dict[str, dict], name: str = "pc_depth") -> Figure:
+    """Backprop, PC and PC-ALM against depth — the slide-deck version.
+
+    The paper's depth figure carries seven series; a slide can hold three. Same
+    cells, same numbers, just the three rules the biological-plausibility story
+    is about.
+    """
+    got = cells(rows, "exp5")
+    depths = sorted({r["depth"] for r in got if r["method"] in ("bp", "pc", "pcalm")})
+    series = {}
+    for method in ("bp", "pc", "pcalm"):
+        series[METHOD_LABEL[method]] = [
+            mean(r["test_acc"] for r in got
+                 if r["method"] == method and r.get("tag") == f"L{L}")
+            for L in depths
+        ]
+    data = long_form(depths, series, x_name="depth", y_name="accuracy", series_name="rule")
+    return line_chart(
+        name, data, x="depth", y="accuracy", colour="rule", points=True, log_x=True,
+        x_label="layers", y_label="MNIST test accuracy, one epoch", colour_label="",
+        y_limits=(0.0, 1.0), hlines=[(0.1, "chance")],
+        width=cm(11), height=cm(7),
+        alt="Test accuracy against network depth for backpropagation, predictive "
+            "coding and PC-ALM; predictive coding falls away past eight layers "
+            "while PC-ALM tracks backpropagation.",
+    )
+
+
 def build_figures(rows: dict[str, dict]) -> list[Figure]:
     """Every figure the paper needs, guarded on what results exist so far."""
     figures: list[Figure] = []

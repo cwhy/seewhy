@@ -31,6 +31,11 @@ projects/local-learning/
 │   ├── assets/*.json       # Generated figure data — committed
 │   ├── .lint-allow         # Prose numbers that are legitimately not results
 │   └── .build.json         # Hashes + URLs from the last publish — committed
+├── slides/                 # 12-slide deck: PC and PC-ALM, biological plausibility
+│   ├── main.typ            # every slide, with cetz drawings
+│   ├── template.typ        # 16:9 page, slide helper, shared diagram vocabulary
+│   ├── figures/, assets/   # the one data figure, from gen_slides.py
+│   └── .gitignore
 ├── lib/
 │   ├── __init__.py
 │   ├── data.py             # MNIST / Fashion-MNIST loading, label overlay for FF

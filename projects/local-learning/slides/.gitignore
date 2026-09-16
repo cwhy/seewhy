@@ -1,0 +1,8 @@
+# Slides tree — local previews only; the published artefact lives on R2.
+out.*
+.preview.typ
+
+# These ARE tracked: the project .gitignore's `*.json` would otherwise swallow
+# the figure data, and a fresh clone could not rebuild the deck.
+!assets/*.json
+!.build.json

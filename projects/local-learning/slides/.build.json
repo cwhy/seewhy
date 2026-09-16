@@ -1,0 +1,15 @@
+{
+  "name": "local-learning_slides",
+  "published_at": "2026-09-16 09:51 UTC",
+  "stable": true,
+  "urls": {
+    "page": "https://media.tanh.xyz/seewhy/paper/local-learning_slides.html",
+    "pdf": "https://media.tanh.xyz/seewhy/paper/local-learning_slides.pdf"
+  },
+  "files": {
+    "assets/pc_depth.json": "eca516bdecb2d200",
+    "figures/pc_depth.typ": "48b02ca53d9e1f90",
+    "main.typ": "3cd5daa2c0f6fb59",
+    "template.typ": "58a304e2c169c2e0"
+  }
+}
