@@ -69,5 +69,6 @@ per-epoch curve and final metrics. The headline numbers come from:
 )
 
 Each experiment file's module docstring states the hypothesis it was written to
-test. `lib/methods.py` contains the three residual-network rules and
-`lib/ff.py` Forward-Forward; `lib/train.py` holds the timing protocol.
+test. `lib/methods.py` contains backpropagation, PC and PC-ALM, `lib/ff.py`
+Forward-Forward and `lib/es.py` EGGROLL; `lib/train.py` holds the timing
+protocol, and `lib/model.py` the two architectures.

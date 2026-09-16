@@ -77,7 +77,7 @@ moved the number.
   backpropagation and PC-ALM accuracies and within 0.01 of their gradient
   cosine, from the paper's equations rather than their code.
 
-Section 2 defines the three learning rules for a reader who has not met them,
+Section 2 defines the four learning rules for a reader who has not met them,
 section 3 the data, section 4 the exact models and hyperparameters, and section
 5 the experiments and controls. Section 6 reports the numbers, section 7 asks
 what explains them, and section 8 says where this stops.

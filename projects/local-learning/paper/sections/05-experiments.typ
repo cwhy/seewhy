@@ -16,6 +16,8 @@
   [exp12], [How does EGGROLL's gradient estimate improve with population size, and does it follow the predicted $sqrt(P slash d)$ law?], [`experiments12.py`],
   [exp13], [Where does EGGROLL land in the table, on both architectures?], [`experiments13.py`],
   [exp14], [Does a rule with no notion of a layer care about depth, and what does it cost per unit of accuracy?], [`experiments14.py`],
+  [exp15, exp16], [Is EGGROLL's weakness on the plain network a property of the method, or of a configuration tuned on the other architecture?], [`experiments15.py`, `experiments16.py`],
+  [exp17], [How much of EGGROLL's measured wall-clock is a GPU it had to share?], [`experiments17.py`],
 )
 
 Every cell is one (rule, architecture, seed) run, written to `results.jsonl`

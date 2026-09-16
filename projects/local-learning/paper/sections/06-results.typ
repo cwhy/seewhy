@@ -22,13 +22,16 @@ which is 0.7-3.0 s depending on arm and is paid once.
   [Forward-Forward, 31x32 (control)], [56,800], [0.5751 ± 0.0744], [--], [0.324], [--], [0.00177],
 )
 
-#super[†] EGGROLL's cells were measured while an unrelated job shared the GPU;
-see §6.8, which calibrates that at 2.0x. Its idle-GPU equivalents are about
-0.97 s and 0.00103 s.
+#super[†] EGGROLL's cells were measured while an unrelated job shared the GPU.
+§6.8 calibrates that at 2.0x on training, so one EGGROLL epoch is about 0.99 s
+on an idle device. Its inference column is not a property of the method at all:
+classification is one forward pass of the same residual network backpropagation
+uses, and the 0.00211 s here matches backpropagation's own shared-GPU
+measurement of 0.00207 s against 0.00025 s idle.
 
 EGGROLL is in this table at the shared default rate of 1e-3 and is therefore
 barely above the 0.4 mark; §6.3 gives it its own rate, where it reaches 0.9025.
-Its population is fixed at 512 antithetic pairs throughout (§6.7).
+Its population is fixed at 512 antithetic pairs throughout (§6.6).
 
 All three posted accuracies fall inside our seed distribution: 0.8739 is 0.35
 standard deviations above our backpropagation mean, 0.8628 is 1.1 above our
@@ -46,7 +49,7 @@ passes instead of one.
 #fig(include "/figures/accuracy_vs_tweet.typ",
   caption: [One-epoch test accuracy for each arm, our five-seed mean beside the
     posted number where one exists. The three arms with a posted number
-    replicate; the three control arms are what the original table does not have.])
+    replicate; the rest are arms the original table does not have.])
 
 Absolute times are ours and are not comparable to the original's: everything
 here is one RTX 4090 with the epoch compiled into a single scanned loop, and our
@@ -287,8 +290,33 @@ under the shared conditions:
   [Forward-Forward, 2x66], [0.8920], [0.8869], [0.084 s], [0.042 s],
 )
 
-Contention costs a factor of 2.01, 2.17 and 2.01 — call it 2.0 — and accuracy is
+Training costs a factor of 2.01, 2.17 and 2.01 — call it 2.0 — and accuracy is
 unchanged, as it must be, since scheduling does not alter arithmetic. EGGROLL's
-times in this paper are the shared-GPU measurements; halving them gives the
-idle-GPU equivalent, which puts one EGGROLL epoch at 512 pairs at about 0.97 s
-against backpropagation's 0.199 s and PC-ALM's 8.12 s.
+training times in this paper are the shared-GPU measurements; halving them puts
+one EGGROLL epoch at 512 pairs at about 0.99 s against backpropagation's 0.199 s
+and PC-ALM's 8.12 s.
+
+Inference is a different story, and the difference is instructive:
+
+#table(
+  columns: (auto, auto, auto, auto),
+  align: (left, right, right, right),
+  [Arm], [10k images, shared], [10k images, idle], [Factor],
+  [backprop, 32x32 residual], [0.00207 s], [0.00025 s], [8.3x],
+  [PC-ALM, 32x32 residual], [0.00211 s], [0.00025 s], [8.4x],
+  [Forward-Forward, 2x66], [0.00307 s], [0.00129 s], [2.4x],
+)
+
+Sharing the device costs training a factor of two and inference a factor of
+eight. The reason is that a pass over 10,000 test images through a 56K-parameter
+network is a handful of short kernels whose cost is dominated by getting onto
+the device at all, so time-slicing with another process hurts it roughly in
+proportion to the slice; a training epoch is a single long scanned loop, where
+throughput dominates instead. Forward-Forward, whose inference does ten times
+the arithmetic, sits between the two, which is the same explanation seen from
+the other side.
+
+The practical consequence for this paper is that EGGROLL's inference column
+carries no information: it is the same forward pass as backpropagation's, on the
+same network, and measures 0.00208 s against backpropagation's 0.00207 s under
+the same conditions.

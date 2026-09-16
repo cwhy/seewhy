@@ -22,8 +22,10 @@ of global timekeeping is known in cortex, which is the standing objection to
 backpropagation as a biological theory @rao1999predictive.
 
 That objection motivates *local* learning rules, where a layer updates itself
-from quantities available in its own neighbourhood. Two such rules are compared
-here against backpropagation.
+from quantities available in its own neighbourhood. Three of them are compared
+here against backpropagation — predictive coding, PC-ALM and Forward-Forward —
+along with a fourth alternative, EGGROLL, which is not local at all but is the
+other well-known way to train a network without a backward pass.
 
 *Predictive coding* (PC) treats the forward pass not as a computation but as a
 constraint to be satisfied @rao1999predictive @whittington2017approximation.

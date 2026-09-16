@@ -122,3 +122,4 @@
 0.8713       # mean over seeds of epoch1_acc for bp (default) in exp4
 17.612       # mean over seeds of train_s for pcalm sharedgpu in exp17
 0.4552       # difference of two logged means: EGGROLL tuned minus EGGROLL at the shared rate
+0.00307      # mean over seeds of infer_s for ff sharedgpu in exp17

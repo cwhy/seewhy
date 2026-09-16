@@ -145,7 +145,8 @@ There is no output layer to read at test time. The image is run through the
 network ten times, once per candidate label, and the label maximising
 $sum_(i >= 2) g(h_i)$ wins. Layer 1 is excluded from that sum because it sees the
 label pixels directly. This is why Forward-Forward's inference is the most
-expensive of the three: ten forward passes per image.
+expensive of the four: ten forward passes per image, where the other three arms
+classify with one.
 
 A linear softmax probe on the detached activations of layers $2..n$ is trained
 alongside, and reported as a secondary readout. Its 670 parameters are counted
@@ -198,7 +199,8 @@ estimated is exactly the gradient backprop computes.
   [$alpha$, $rho$], [1.0, 1.0],
   [$eta_h$], [$1 slash lambda_max$, measured per cell by power iteration],
   [$theta$], [2.0],
-  [seeds], [5 for the headline comparison, 3 for the sweeps, 2 for the learning-rate grid],
+  [$sigma$, $P$, $r$], [$3 times 10^(-3)$ (residual) or $3 times 10^(-4)$ (plain), 512 antithetic pairs, rank 1, for EGGROLL],
+  [seeds], [5 for the headline comparison, 3 for the sweeps and the wall-clock curves, 2 for the learning-rate grid, 1 for the EGGROLL configuration grids],
   [precision], [float32 throughout],
   [hardware], [one NVIDIA RTX 4090],
 )
