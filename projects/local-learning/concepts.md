@@ -160,5 +160,17 @@ tuning: P = 512, sigma = 3e-3 (residual net) or 3e-4 (plain net), outer rate
    PC-ALM cosine 0.901 vs 0.909. PC is 4.7 points low and unexplained; their
    tabulated activity step does not account for it.
 
+12. **Five epochs does not change the ordering, only the spread.** Re-tuning
+   the rate for the longer budget first (six of eight arms want a smaller one),
+   at five epochs: backprop 0.9620, PC-ALM 0.9405, backprop 2x66 0.9395, EGGROLL
+   0.9316, EGGROLL 2x66 0.9101, Forward-Forward 0.9045, PC 0.7311, FF 31x32
+   0.5596. The backprop-to-FF gap goes 1.3 points the wrong way (posted table),
+   5.1 the right way (1 epoch, tuned), 5.8 (5 epochs, tuned).
+13. **Forward-Forward's decay was a learning-rate effect.** At 1e-3 it peaks at
+   two epochs and falls; at its five-epoch rate of 3e-4 it climbs and plateaus
+   (0.597, 0.806, 0.902, 0.905, 0.901). Finding 7 above is corrected by this.
+   The deep FF stack still degrades with training (0.6106 -> 0.5596).
+
 Report: <https://media.tanh.xyz/seewhy/26-09-16/local-learning_report_replication.html>
+Five-epoch report: <https://media.tanh.xyz/seewhy/26-09-16/local-learning_report_five_epochs.html>
 Paper: <https://media.tanh.xyz/seewhy/paper/local-learning_paper.html>

@@ -9,8 +9,9 @@ experiment it belongs to.
 """
 
 import statistics as stats
+from dataclasses import replace
 
-from shared_lib.typst_plot import Figure, bar_chart, cm, line_chart, long_form
+from shared_lib.typst_plot import Figure, Raw, bar_chart, cm, line_chart, long_form
 
 # The tweet being replicated, for the side-by-side bars.
 TWEET = {
@@ -300,6 +301,98 @@ def es_cosine_law(rows: dict[str, dict], name: str = "es_cosine_law") -> Figure:
             "against population size, beside the square-root-of-P-over-d "
             "prediction from random-projection geometry.",
     )
+
+
+# ── five-epoch report (exp19-exp22) ──────────────────────────────────────────
+
+FIVE_EP_ARMS = [
+    ("backprop 32x32 res", ("exp9", "bp", "tuned"), ("exp22", "bp", "5ep")),
+    ("PC 32x32 res", ("exp9", "pc", "tuned"), ("exp22", "pc", "5ep")),
+    ("PC-ALM 32x32 res", ("exp9", "pcalm", "tuned"), ("exp22", "pcalm", "5ep")),
+    ("EGGROLL 32x32 res", ("exp13", "eggroll", "tuned"), ("exp22", "eggroll", "5ep")),
+    ("Forward-Forward 2x66", ("exp9", "ff", "tuned"), ("exp22", "ff", "5ep")),
+    ("backprop 2x66", ("exp9", "bp_plain", "tuned"), ("exp22", "bp_plain", "5ep")),
+    ("EGGROLL 2x66", ("exp16", "eggroll_plain", "tuned"), ("exp22", "eggroll_plain", "5ep")),
+    ("Forward-Forward 31x32", ("exp9", "ff", "tuned_deep"), ("exp22", "ff", "5ep_deep")),
+]
+
+
+def one_vs_five(rows: dict[str, dict], name: str = "one_vs_five") -> Figure:
+    """Each arm at one epoch and at five, both at the rate best for that budget."""
+    labels, accs, budget = [], [], []
+    for label, one_loc, five_loc in FIVE_EP_ARMS:
+        one, five = arm_cells(rows, one_loc), arm_cells(rows, five_loc)
+        if not one or not five:
+            continue
+        labels += [label, label]
+        accs += [mean(c["test_acc"] for c in one), mean(c["test_acc"] for c in five)]
+        budget += ["one epoch", "five epochs"]
+    return bar_chart(
+        name, {"arm": labels, "accuracy": accs, "budget": budget},
+        x="arm", y="accuracy", fill="budget", position="dodge", horizontal=True,
+        x_order=[label for label, _, _ in FIVE_EP_ARMS][::-1],
+        x_label="", y_label="test accuracy", fill_label="",
+        y_limits=(0.0, 1.0), hlines=[(0.1, "chance")],
+        width=cm(14), height=cm(8.5),
+        alt="Bar chart comparing each arm's accuracy after one epoch and after five, "
+            "each at the learning rate best for that budget.",
+    )
+
+
+def five_epoch_curves(rows: dict[str, dict], name: str = "five_epoch_curves") -> Figure:
+    """Test accuracy per epoch over the five-epoch runs."""
+    data = {"epoch": [], "accuracy": [], "arm": []}
+    for label, _, five_loc in FIVE_EP_ARMS:
+        got = arm_cells(rows, five_loc)
+        if not got:
+            continue
+        n = min(len(c["history"]) for c in got)
+        for e in range(n):
+            data["epoch"].append(e + 1)
+            data["accuracy"].append(mean(c["history"][e]["test_acc"] for c in got))
+            data["arm"].append(label)
+    return line_chart(
+        name, data, x="epoch", y="accuracy", colour="arm", points=True,
+        x_label="epoch", y_label="test accuracy", colour_label="",
+        y_limits=(0.0, 1.0), hlines=[(0.1, "chance")],
+        width=cm(14), height=cm(8),
+        alt="Test accuracy against epoch for each arm over five epochs, three "
+            "seeds, each at its own best five-epoch learning rate.",
+    )
+
+
+def five_epoch_rates(rows: dict[str, dict], name: str = "five_epoch_rates") -> Figure:
+    """The five-epoch rate sweep: accuracy against rate, one seed."""
+    got = cells(rows, "exp19") + cells(rows, "exp20") + cells(rows, "exp21")
+    series: dict[str, dict[float, float]] = {}
+    for r in got:
+        deep = r.get("tag", "").startswith("deep")
+        key = METHOD_LABEL[r["method"]] + (" (31x32)" if deep else "")
+        series.setdefault(key, {})[r["lr"]] = r["test_acc"]
+    rates = sorted({lr for v in series.values() for lr in v})
+    data = {"lr": [], "accuracy": [], "arm": []}
+    for key, points in series.items():
+        for lr in rates:
+            if lr in points:
+                data["lr"].append(lr)
+                data["accuracy"].append(points[lr])
+                data["arm"].append(key)
+    fig = line_chart(
+        name, data, x="lr", y="accuracy", colour="arm", points=True, log_x=True,
+        x_label="Adam learning rate (log scale; points run from 1e-4)",
+        y_label="test accuracy at five epochs", colour_label="",
+        y_limits=(0.0, 1.0), hlines=[(0.1, "chance")],
+        width=cm(14), height=cm(8),
+        alt="Five-epoch test accuracy against learning rate for each arm, one "
+            "seed per point, every peak bracketed on both sides.",
+    )
+    # Only the decade ticks are drawn: gribouille formats a 1e-4 tick as "0" on a
+    # log axis, which reads as a rate of zero. The sub-millesimal points are still
+    # plotted, to the left of the first tick.
+    spec = dict(fig.spec)
+    spec["scales"] = Raw(str(spec["scales"]).replace(
+        "scale-log10()", "scale-log10(breaks: (0.001, 0.01, 0.1))", 1))
+    return replace(fig, spec=spec)
 
 
 def build_figures(rows: dict[str, dict]) -> list[Figure]:
