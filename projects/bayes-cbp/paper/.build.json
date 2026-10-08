@@ -1,0 +1,29 @@
+{
+  "name": "bayes-cbp_paper",
+  "published_at": "2026-10-08 16:34 UTC",
+  "stable": false,
+  "urls": {
+    "page": "https://media.tanh.xyz/seewhy/26-10-09/bayes-cbp_paper.html",
+    "pdf": "https://media.tanh.xyz/seewhy/26-10-09/bayes-cbp_paper.pdf"
+  },
+  "files": {
+    "assets/changepoint_posterior.json": "b6c10ca9e3cdca08",
+    "assets/escape_times.json": "c8c038e28dd55df4",
+    "assets/jump_variance.json": "9c5443724d026cdd",
+    "assets/stationary_density.json": "9d866e0e4d68c229",
+    "figures/changepoint_posterior.typ": "e07fa7a129b95a42",
+    "figures/escape_times.typ": "781552187c61ffbd",
+    "figures/jump_variance.typ": "00d276df279272b8",
+    "figures/stationary_density.typ": "a058180a83f800de",
+    "main.typ": "10f02b78577c4e8f",
+    "sections/01-introduction.typ": "357390dc6c0715aa",
+    "sections/02-bayes.typ": "0d6009799fa35897",
+    "sections/03-langevin.typ": "847b5d243e50fb93",
+    "sections/04-jump-sde.typ": "836ad552541cb5f0",
+    "sections/05-task-switch.typ": "cbd96089df2087f6",
+    "sections/06-methods.typ": "ae96a65d19e413bd",
+    "sections/07-design.typ": "f1c78eb29e4a8ed9",
+    "sections/08-conclusion.typ": "595cbf508d4e2750",
+    "template.typ": "8965225303a95695"
+  }
+}

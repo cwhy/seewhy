@@ -1,0 +1,13 @@
+# Paper tree — nested so it can override the project .gitignore above it.
+#
+# Local previews only; the published artefact lives on R2.
+out.*
+.preview.typ
+
+# These ARE tracked. The project .gitignore's `*.json` would otherwise swallow
+# the figure data, and a fresh clone could not rebuild the PDF — the figures
+# read their own assets/*.json. `.build.json` is tracked because publishing
+# happens on the GPU box: without it in git, changed_since_publish() on the Mac
+# sees no prior state and reports every file as new.
+!assets/*.json
+!.build.json

@@ -90,3 +90,15 @@ generalisation are mutually exclusive by construction, which they are not in lan
 | [Plan — what to do next, and what we learned](https://media.tanh.xyz/seewhy/26-08-12/recall-gen_plan.html) | The binding constraint (the context carries no usable signal at M=16), a staged plan to fix it, and the methodological lessons the first phase bought |
 | [5 — Train short, test long; and how far recall travels](https://media.tanh.xyz/seewhy/26-08-12/recall-gen_report_05-transfer.html) | Evaluation-only. Long contexts buy nothing at inference — the M=256 result is a training-time effect. And the recall mechanism is MNIST-shaped: 0.651 on Fashion-MNIST, 0.116 on the same pixels permuted |
 | [3 — Perfect retrieval, chance-level completion](https://media.tanh.xyz/seewhy/26-08-12/recall-gen_report_03-digit-split.html) | Digit split (train 0–4, test 5–9): id. acc. 1.000 and nMSE 1.006 on the same unseen digits. Plus the state-size control and the fine-tuning probe |
+
+---
+
+## bayes-cbp — 跳跃重置即贝叶斯变点滤波
+
+Formulation only, no experiments. Checks a note that derives Continual Backprop
+style resets from Bayesian first principles via a jump-SDE. Source note in
+[source-note.md](bayes-cbp/source-note.md).
+
+| Report | Description |
+|--------|-------------|
+| [Paper (中文) — 跳跃重置即贝叶斯变点滤波](https://media.tanh.xyz/seewhy/26-10-09/bayes-cbp_paper.html) | CBP's jump term is exactly the prediction step of a change-point prior; reset probability = Bayes factor "fresh vs stay", which equals the base rate ρ for dead units. Four formula fixes to the note (forward equation, variance injection, mixing bound, the σ²-ratio reset strength) |
