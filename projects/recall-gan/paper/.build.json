@@ -1,0 +1,40 @@
+{
+  "name": "recall-gan_paper",
+  "published_at": "2026-10-08 17:33 UTC",
+  "stable": true,
+  "urls": {
+    "page": "https://media.tanh.xyz/seewhy/paper/recall-gan_paper.html",
+    "pdf": "https://media.tanh.xyz/seewhy/paper/recall-gan_paper.pdf"
+  },
+  "files": {
+    "assets/class_probe_curve.json": "bd04f4f8142071a2",
+    "assets/classifier_bars.json": "9c42928cfa369f85",
+    "assets/density_hist.json": "c32fd1a680c17b4f",
+    "assets/density_strips.png": "452629eaa1447245",
+    "assets/episode.png": "833b4805b0c2b14b",
+    "assets/gen_context_use.json": "82eafbfd8c97b6b7",
+    "assets/per_digit_bars.json": "d0234c99fd8d4a84",
+    "assets/representative.json": "6bbdf90aaf4e7e46",
+    "assets/same_noise.png": "2d6a5ad50ab47d56",
+    "assets/samples.png": "b6f453a0c8697e34",
+    "assets/swap_curve.json": "5c6c491afde86566",
+    "diagrams/game.typ": "21cedfb576578bb9",
+    "figures/class_probe_curve.typ": "2dee68b76f55ef94",
+    "figures/classifier_bars.typ": "66e2a1b52cc6d73b",
+    "figures/density_hist.typ": "6f0e4b0d2016390e",
+    "figures/gen_context_use.typ": "07c7295e9c692c65",
+    "figures/per_digit_bars.typ": "b6f8f1ea6ef58b80",
+    "figures/swap_curve.typ": "ae30d081d7a25a81",
+    "main.typ": "523bd00115d5063a",
+    "sections/01-introduction.typ": "70ab2022e4a168ef",
+    "sections/02-background.typ": "e2f0deda06be0c54",
+    "sections/03-task.typ": "8050647976ce7bd4",
+    "sections/04-methodology.typ": "9d82e4f82e46220b",
+    "sections/05-experiments.typ": "f3ce4c106cc65bed",
+    "sections/06-results.typ": "565c56d60e6c2f70",
+    "sections/07-analysis.typ": "526ae17db8e21bf8",
+    "sections/08-limitations.typ": "0c1aca7bfead6d34",
+    "sections/09-conclusion.typ": "dd3283cea1abc913",
+    "template.typ": "b5ac382cce4cfec4"
+  }
+}

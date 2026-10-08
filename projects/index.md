@@ -102,3 +102,17 @@ style resets from Bayesian first principles via a jump-SDE. Source note in
 | Report | Description |
 |--------|-------------|
 | [Paper (中文) — 跳跃重置即贝叶斯变点滤波](https://media.tanh.xyz/seewhy/26-10-09/bayes-cbp_paper.html) | CBP's jump term is exactly the prediction step of a change-point prior; reset probability = Bayes factor "fresh vs stay", which equals the base rate ρ for dead units. Four formula fixes to the note (forward equation, variance injection, mixing bound, the σ²-ratio reset strength) |
+
+---
+
+## recall-gan — An In-Context GAN Where the Discriminator Wins
+
+A GAN whose real data is a 16-image context: the discriminator reads the
+context into one KDA state and must accept context images and reject the
+generator's. The discriminator is the product. Method and current results in
+the paper; run history in [experiment_log.md](recall-gan/experiment_log.md).
+
+| Report | Description |
+|--------|-------------|
+| [**Paper** — Recall-GAN](https://media.tanh.xyz/seewhy/paper/recall-gan_paper.html) | **Start here.** The method, self-contained. With a context-aware generator the discriminator relies on its state (swap AUROC 0.970 → 0.570), rejects unseen real images it never trained on (0.961), and classifies digits from 16 examples at 0.839 vs 0.788 for the best pixel RBF density. 0/12 failures with Adam β1 0 / β2 0.99. Stable URL |
+| [1 — The discriminator wins; the generator learns one trick](https://media.tanh.xyz/seewhy/26-10-08/recall-gan_report_01_progress.html) | *Superseded.* Built on experiments outside the project's design (extra negatives, frozen generator, warm start); kept as a record |

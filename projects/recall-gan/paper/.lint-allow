@@ -1,0 +1,7 @@
+384    # tail of "16 384", the KDA state size (4 x 64 x 64), written with a thin space
+784    # MNIST pixels per image (28 x 28), from the dataset
+928    # head of "928 261", discriminator parameters (n_params_d = 928261)
+261    # tail of "928 261", discriminator parameters (n_params_d = 928261)
+576    # middle of "1 576 724", context-aware generator parameters (n_params_g = 1576724)
+724    # tail of "1 576 724", context-aware generator parameters (n_params_g = 1576724)
+4090   # GPU model name (RTX 4090), not a result

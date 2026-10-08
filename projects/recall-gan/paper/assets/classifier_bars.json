@@ -1,0 +1,16 @@
+{
+ "method": [
+  "pixel nearest neighbour",
+  "pixel RBF density (median bandwidth)",
+  "pixel RBF density (best bandwidth)",
+  "discriminator, blind generator",
+  "discriminator, context-aware generator"
+ ],
+ "accuracy": [
+  0.7830081300813008,
+  0.6239634146341464,
+  0.788109756097561,
+  0.0986178861788618,
+  0.8385975609756098
+ ]
+}
