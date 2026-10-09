@@ -18,6 +18,8 @@ it decided. Definitions of the current method and metrics are in
 | 14, 15 | recipe tricks: fake-side penalty, Adam β1 0/β2 0.99 | **Adam (C): 0/12 failures** |
 | 16, 17 | relativistic loss, with/without C | no gain over C |
 | 18, 19 | final recipe, blind generator (control) | all 12 collapse; D ignores its state |
+| 20 | the method, 60k steps (3× longer) | G converges ~45k; D's generalisation declines after ~20–30k |
+| 21, 22 | the method, M = 64 and 256 | item membership falls with M; class probe holds; M=256 still improving at 20k |
 
 ---
 
@@ -305,3 +307,37 @@ discriminator relies on its state first (swap < 0.8 at median step 2750), the
 generator follows (context use > 0.5 at median 4000). v2 only adds the
 per-digit list that v1 lost to a key collision.
 Paper: https://media.tanh.xyz/seewhy/paper/recall-gan_paper.html
+
+**exp20 — the method at M = 16, trained 60k steps (3× the paper), seeds
+50–55.** 0/6 failed, no collapse events. The generator's context use keeps
+rising to ~45k and then levels (median 0.71 at 6k, 1.02 at 21k, 1.13 at 45k,
+1.13 at 60k). The discriminator does not improve with it: digit classifier
+0.855 at 6k → 0.851 at 21k → 0.729 at 60k; context vs unseen real peaks at
+0.964 (30k) and ends at 0.929; context vs generated 0.934 at 60k against 0.971
+for the same seeds at 20k (exp15). Swap test unchanged (0.549). So longer
+training finishes the generator but erodes what the discriminator's state
+generalises to. Cause not tested.
+
+**exp21/22 — the method with contexts of 64 and 256 images, 20k steps,
+seeds 50–55.** 0/6 failed in each. Medians at 20k (paper, M = 16, same seeds:
+context vs unseen real 0.954, vs generated 0.971, generator context use 0.995):
+
+| | M = 64 | M = 256 |
+|---|---|---|
+| context vs unseen real (AUROC) | 0.860 | 0.704 |
+| context vs generated (AUROC) | 0.925 | 0.808 |
+| swap test (wrong context) | 0.602 | 0.629 |
+| digit classifier, 16 per digit | 0.857 | 0.853 |
+| digit classifier, M per digit (`class_acc_m`) | 0.917 | 0.924 |
+| generator context use | 0.625 | 0.290 |
+| time per run | 435 s | 1612 s |
+
+- Item-level membership (context vs unseen real) falls as the context grows
+  past the fixed 16,384-number state; class-level use holds and improves with
+  more examples per digit (0.92).
+- The discriminator still relies on its state at every M (swap 0.60–0.63).
+- M = 256 is still improving at 20k (context vs unseen real 0.684 at 15k,
+  0.704 at 20k; generator context use 0.247 → 0.290), so its numbers are a
+  lower bound. M = 64 has mostly levelled off (0.834 → 0.860).
+- One M = 64 run (seed 50) has swap 0.934 and context-vs-unseen 0.636: its
+  discriminator mostly ignores its state.

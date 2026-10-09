@@ -130,7 +130,7 @@ def load_pools():
     return jnp.asarray(tr), jnp.asarray(te), np.asarray(d.y_test)
 
 
-def make_class_probe(held_pool, held_y, cfg: Cfg, n_query: int = 1000):
+def make_class_probe(held_pool, held_y, cfg: Cfg, n_query: int = 1000, n_ctx: int = 16):
     """Evaluation only: the discriminator as a 10-way classifier.
 
     One fixed context per digit (16 random held-out images of it). Each of
@@ -139,7 +139,7 @@ def make_class_probe(held_pool, held_y, cfg: Cfg, n_query: int = 1000):
     Fixed draws (numpy seed 0), so the number is comparable across steps and runs.
     """
     rng = np.random.default_rng(0)
-    ctx_idx = np.stack([rng.choice(np.where(held_y == k)[0], 16, replace=False) for k in range(10)])
+    ctx_idx = np.stack([rng.choice(np.where(held_y == k)[0], n_ctx, replace=False) for k in range(10)])
     rest = np.setdiff1d(np.arange(len(held_y)), ctx_idx.ravel())
     q_idx = rng.choice(rest, n_query, replace=False)
     ctx10 = held_pool[ctx_idx]                                    # (10,16,784)
@@ -427,11 +427,16 @@ def run_cell(cell: Cell, pools) -> dict:
 
     hist: dict[str, list] = {"step": [], "loss_d": [], "loss_g": [], "g_grad": []}
     class_probe = make_class_probe(held_pool, held_y, cfg) if cell.disc == "membership" else None
+    # with a longer training context, also probe with contexts of that length
+    class_probe_m = (make_class_probe(held_pool, held_y, cfg, n_ctx=cell.m_ctx)
+                     if cell.disc == "membership" and cell.m_ctx != 16 else None)
 
     def log_eval(step, ld, lg, gn):
         ev = {k: float(v) for k, v in evaluate(pd, pg, held_pool, kev).items()}
         if class_probe is not None:
             ev["class_acc"] = float(class_probe(pd))
+        if class_probe_m is not None:
+            ev["class_acc_m"] = float(class_probe_m(pd))
         hist["step"].append(step)
         hist["loss_d"].append(ld)
         hist["loss_g"].append(lg)
