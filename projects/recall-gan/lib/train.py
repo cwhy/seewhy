@@ -43,8 +43,9 @@ import jax.numpy as jnp
 import numpy as np
 import optax
 
-from lib.model import (Cfg, disc_logits, generate, generate_logits, init_disc, init_gen,
-                       init_plain_disc, n_params, plain_logits)
+from lib.model import (Cfg, disc_logits, disc_logits_prefix, encode, generate, generate_from_state,
+                       generate_logits, generate_prefix, init_disc, init_gen, init_plain_disc, n_params,
+                       plain_logits, write_step)
 
 PROJECT = Path(__file__).resolve().parents[1]
 JSONL = PROJECT / "results.jsonl"
@@ -77,6 +78,17 @@ class Cell:
     # to score the context image higher; G to make its image score higher than
     # its paired context image. softplus(-(D(a) - D(b))), as in RpGAN / R3GAN.
     loss: str = "standard"
+    # Train on every prefix of the context (agreed with the user, "teacher
+    # forcing"): after each of the M writes, D answers 2 real queries (the image
+    # just written, one random earlier context image) and 2 fakes (the "twin":
+    # the generator image from the previous prefix, and a fresh one from this
+    # prefix). Requires q_non == 0; q_mem / q_gen are not used.
+    prefix: bool = False
+    # 0: the context is M random real images. >0: the first `nn_warm` are random
+    # (warm start); after that, each next context image is the real training
+    # image nearest in pixel distance to the generator's image at the current
+    # prefix — so that image's "twin" fake is queried right after it is written.
+    nn_warm: int = 0
     d_act: str = "gelu"           # -> Cfg.d_act
     g_ln: bool = False            # -> Cfg.g_ln
     # Mixed context: this many of the M context slots hold GENERATED images.
@@ -197,6 +209,9 @@ def make_fns(cell: Cell, cfg: Cfg):
     q_non = cell.q_non + (0 if has_gen else cell.q_gen)
     mixed = cell.ctx_gen > 0
     rel = cell.loss == "relativistic"
+    assert not cell.prefix or (has_gen and not plain and not mixed and not rel and q_non == 0), \
+        "prefix training is defined for the plain game only"
+    assert cell.nn_warm == 0 or cell.prefix, "the nearest-image context is built inside prefix training"
     assert not rel or (has_gen and not plain and not mixed and q_non == 0 and cell.q_mem == cell.q_gen), \
         "relativistic pairs need the plain game: q_mem context images vs q_gen generated, nothing else"
     frozen = bool(cell.frozen_gen)
@@ -269,6 +284,71 @@ def make_fns(cell: Cell, cfg: Cfg):
             non_lab = jnp.concatenate([non_lab, jnp.zeros((n_ep, n_gen))], 1)
         return ctx, mem_r, mem_g, non_r, non_lab, z, ctx_r, ref
 
+    def build_context(key, pool, pool_sq, pg, n_ep):
+        """Returns (ctx (n_ep,M,P), proposal noise (n_ep,M,z)). With nn_warm > 0
+        the context is built one image at a time from the generator's proposals."""
+        k1, k2 = jax.random.split(key)
+        ctx_rand = pool[jax.random.randint(k1, (n_ep, M), 0, pool.shape[0])]
+        zs = jax.random.normal(k2, (n_ep, M, cfg.z_dim))
+        if cell.nn_warm == 0:
+            return ctx_rand, zs
+        W = cell.nn_warm
+        pgs = jax.lax.stop_gradient(pg)
+
+        def body(carry, t):
+            S, nxt = carry
+            x_t = jnp.where(t < W, ctx_rand[:, t], nxt)
+            if "mem" in pgs:
+                S = write_step(pgs["mem"], S, encode(pgs["enc"], x_t), cfg)
+            prop = generate_from_state(pgs, S, zs[:, t][:, None], cfg)[:, 0]          # (n_ep,P)
+            nn = jnp.argmin(pool_sq[None, :] - 2.0 * prop @ pool.T, axis=1)
+            return (S, pool[nn]), x_t
+
+        S0 = jnp.zeros((n_ep, cfg.n_heads, cfg.dk, cfg.dk))
+        _, xs = jax.lax.scan(body, (S0, ctx_rand[:, 0]), jnp.arange(M))
+        return jax.lax.stop_gradient(xs.transpose(1, 0, 2)), zs
+
+    def prefix_fakes(pg, ctx, zs, zf):
+        """Fakes per prefix t: [twin = G(prefix t-1, zs[t-1]), fresh = G(prefix t, zf)].
+        At t = 0 there is no previous prefix, so the twin slot gets a second fresh image."""
+        props = generate_prefix(pg, ctx, zs[:, :, None], cfg)[:, :, 0]                 # (B,M,P)
+        fresh = generate_prefix(pg, ctx, zf, cfg)                                       # (B,M,2,P)
+        twin = jnp.concatenate([fresh[:, :1, 1], props[:, :-1]], axis=1)                # (B,M,P)
+        return jnp.stack([twin, fresh[:, :, 0]], axis=2)                                # (B,M,2,P)
+
+    def step_prefix(pool, pool_sq, carry, key):
+        pd, pg, sd, sg = carry
+        kc, kr, kf = jax.random.split(key, 3)
+        ctx, zs = build_context(kc, pool, pool_sq, pg, B)
+        r = jnp.floor(jax.random.uniform(kr, (B, M)) * (jnp.arange(M) + 1)).astype(jnp.int32)
+        real = jnp.stack([ctx, jnp.take_along_axis(ctx, r[..., None], axis=1)], axis=2)  # (B,M,2,P)
+        zf = jax.random.normal(kf, (B, M, 2, cfg.z_dim))
+        fake = jax.lax.stop_gradient(prefix_fakes(pg, ctx, zs, zf))
+
+        def d_loss_p(pd):
+            l = disc_logits_prefix(pd, ctx, jnp.concatenate([real, fake], 2), cfg)    # (B,M,4)
+            loss = (bce(l[..., :2], jnp.ones_like(l[..., :2])).mean()
+                    + bce(l[..., 2:], jnp.zeros_like(l[..., 2:])).mean()) / 2
+            if cell.r1:
+                g = jax.grad(lambda x: disc_logits_prefix(pd, ctx, jnp.concatenate([x, fake], 2), cfg)
+                             [..., :2].sum())(real)
+                loss = loss + 0.5 * cell.r1 * (g ** 2).sum(-1).mean()
+            return loss
+
+        ld, gd = jax.value_and_grad(d_loss_p)(pd)
+        ud, sd = opt_d.update(gd, sd, pd)
+        pd = optax.apply_updates(pd, ud)
+
+        def g_loss_p(pg):
+            f = prefix_fakes(pg, ctx, zs, zf)
+            l = disc_logits_prefix(pd, ctx, f, cfg)
+            return bce(l, jnp.ones_like(l)).mean()
+
+        lg, gg = jax.value_and_grad(g_loss_p)(pg)
+        ug, sg = opt_g.update(gg, sg, pg)
+        pg = optax.apply_updates(pg, ug)
+        return (pd, pg, sd, sg), (ld, lg, optax.global_norm(gg))
+
     def step(pool, carry, key):
         pd, pg, sd, sg = carry
         ke, kz = jax.random.split(key)
@@ -309,7 +389,12 @@ def make_fns(cell: Cell, cfg: Cfg):
     def block(pd, pg, sd, sg, pool, key):
         # the pool is an argument, never a closed-over constant (workflow.md)
         keys = jax.random.split(key, cell.eval_every)
-        (pd, pg, sd, sg), (ld, lg, gn) = jax.lax.scan(lambda c, k: step(pool, c, k), (pd, pg, sd, sg), keys)
+        if cell.prefix:
+            pool_sq = (pool ** 2).sum(-1)
+            body = lambda c, k: step_prefix(pool, pool_sq, c, k)
+        else:
+            body = lambda c, k: step(pool, c, k)
+        (pd, pg, sd, sg), (ld, lg, gn) = jax.lax.scan(body, (pd, pg, sd, sg), keys)
         return pd, pg, sd, sg, ld.mean(), lg.mean(), gn.mean()
 
     @jax.jit
@@ -318,6 +403,19 @@ def make_fns(cell: Cell, cfg: Cfg):
         E = cell.eval_episodes
         if mixed:
             return evaluate_mixed(pd, pg, pool, ke, kz)
+        twin = {}
+        if cell.prefix:
+            # Evaluation only: the newest context image vs its twin fake, on
+            # held-out contexts (built from the held-out pool), from prefix
+            # max(nn_warm, 1) on — in the random-context arm the "twin" is just
+            # the previous prefix's fake.
+            kt1, kt2 = jax.random.split(jax.random.fold_in(ke, 7))
+            n_tw = 256
+            ctx_t, zs_t = build_context(kt1, pool, (pool ** 2).sum(-1), pg, n_tw)
+            f_t = prefix_fakes(pg, ctx_t, zs_t, jax.random.normal(kt2, (n_tw, M, 2, cfg.z_dim)))
+            l_t = disc_logits_prefix(pd, ctx_t, jnp.concatenate([ctx_t[:, :, None], f_t[:, :, :1]], 2), cfg)
+            w0 = max(cell.nn_warm, 1)
+            twin = dict(twin_auroc=auroc(l_t[:, w0:, 0], l_t[:, w0:, 1]))
         ctx, mem, non, non_lab, ref = sample_episode(ke, pool, E, M, cell.q_mem, cell.q_mem)
         if plain:
             z = jax.random.normal(kz, (E, cell.q_mem, cfg.z_dim))
@@ -373,7 +471,7 @@ def make_fns(cell: Cell, cfg: Cfg):
                 gen_std=fake.std(axis=(0, 1)).mean(),       # pixel spread across samples; 0 = collapse
                 sat=(jnp.abs(a) > 6.0).mean(),              # output pixels with a dead sigmoid gradient
             )
-        return out
+        return out | twin
 
     def evaluate_mixed(pd, pg, pool, ke, kz):
         E, n = cell.eval_episodes, cell.q_mem

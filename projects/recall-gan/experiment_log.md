@@ -20,6 +20,7 @@ it decided. Definitions of the current method and metrics are in
 | 18, 19 | final recipe, blind generator (control) | all 12 collapse; D ignores its state |
 | 20 | the method, 60k steps (3× longer) | G converges ~45k; D's generalisation declines after ~20–30k |
 | 21, 22 | the method, M = 64 and 256 | item membership falls with M; class probe holds; M=256 still improving at 20k |
+| 23, 24 | prefix training ("teacher forcing"), ± nearest-image context | both weaker on every end-of-context measure; twin AUROC 0.778 with nearest-image context |
 
 ---
 
@@ -341,3 +342,35 @@ context vs unseen real 0.954, vs generated 0.971, generator context use 0.995):
   lower bound. M = 64 has mostly levelled off (0.834 → 0.860).
 - One M = 64 run (seed 50) has swap 0.934 and context-vs-unseen 0.636: its
   discriminator mostly ignores its state.
+
+**exp23/24 — training on every prefix ("teacher forcing", agreed with the
+user), with and without the nearest-image context, M = 16, 20k steps, seeds
+50–55.** Design: after each write, 2 real queries (newest image, a random
+earlier one) and 2 fakes (the "twin" from the previous prefix, a fresh one).
+exp23: first 4 context images random, each later one the real training image
+nearest (pixel L2) to the generator's image at the current prefix. exp24: all
+random. `twin_auroc` = newest context image vs its twin, held-out.
+
+| median [range], end of training | paper (exp15) | prefix only (exp24) | prefix + nearest (exp23) |
+|---|---|---|---|
+| digit classifier | 0.843 [0.826, 0.864] | 0.529 [0.401, 0.627] | 0.429 [0.170, 0.560] |
+| context vs unseen real | 0.954 [0.936, 0.979] | 0.872 [0.854, 0.897] | 0.798 [0.697, 0.832] |
+| context vs generated | 0.971 [0.958, 0.981] | 0.891 [0.780, 0.955] | 0.716 [0.608, 0.934] |
+| swap test | 0.584 | 0.542 | 0.483 |
+| fakes rejected (P < 0.5) | 0.824 | 0.948 | 0.116 |
+| twin AUROC | — | 1.000 (twin unrelated) | 0.778 [0.742, 0.810] |
+| generator context use | 0.995 | 1.409 | 3.539 |
+| generator variety | 0.177 | 0.188 | 0.193 |
+| time per run | 153 s | 355 s | 464 s |
+
+- No generator collapsed in either arm. "Failed" by the old definition
+  (classifier < 0.5): 2/6 and 4/6 — a definition made for the plain game.
+- Caveat: the end-of-context measures use random 16-image contexts. For exp23
+  that is not the context distribution it trained on; `twin_auroc` is its
+  in-distribution measure.
+- exp23's discriminator separates each newly written image from its pixel-
+  nearest fake at AUROC 0.778 (0.80 at 2k, 0.69 at 10k, 0.78 at 20k): above
+  chance, far from the paper's 0.97 on the easier context-vs-generated task.
+  Its generator's output depends on the context 3.5× more than on its noise.
+- Prefix training alone (exp24) already lowers every end-of-context measure;
+  the nearest-image context lowers them further.

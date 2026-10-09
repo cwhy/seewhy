@@ -119,6 +119,43 @@ def read(S, q, cfg: Cfg):
     return jnp.einsum("bhvk,bqhk->bqhv", S, qh).reshape(B, Q, D) / DK ** 0.5
 
 
+# ── prefix states (training on every prefix of the context) ─────────────────
+
+def write_step(p, S, e_t, cfg: Cfg):
+    """Write one item. S (B,H,dk,dk), e_t (B,D) -> S. Same rule as `write`."""
+    B, D = e_t.shape
+    H, DK = cfg.n_heads, cfg.dk
+    sh = lambda t: t.reshape(B, H, DK)
+    k = _l2norm(sh(e_t @ p["Wk"]))
+    v = sh(e_t @ p["Wv"])
+    a = jax.nn.sigmoid(sh(e_t @ p["Wa"] + p["ba"]))
+    b = jax.nn.sigmoid(e_t @ p["Wb"] + p["bb"])                        # (B,H)
+    S = S * a[:, :, None, :]
+    e = b[..., None] * (v - jnp.einsum("bhvk,bhk->bhv", S, k))
+    return S + jnp.einsum("bhv,bhk->bhvk", e, k)
+
+
+def write_states(p, e_ctx, cfg: Cfg):
+    """e_ctx (B,M,D) -> the state after each prefix, (B,M,H,dk,dk)."""
+    B, M, D = e_ctx.shape
+    H, DK = cfg.n_heads, cfg.dk
+
+    def step(S, e_t):
+        S = write_step(p, S, e_t, cfg)
+        return S, S
+
+    _, Ss = jax.lax.scan(step, jnp.zeros((B, H, DK, DK)), e_ctx.transpose(1, 0, 2))
+    return Ss.transpose(1, 0, 2, 3, 4)
+
+
+def read_states(Ss, q, cfg: Cfg):
+    """Ss (B,M,H,dk,dk), q (B,M,Q,D) -> (B,M,Q,D): queries at prefix t read state t."""
+    B, M, Q, D = q.shape
+    H, DK = cfg.n_heads, cfg.dk
+    qh = _l2norm(q.reshape(B, M, Q, H, DK))
+    return jnp.einsum("bthvk,btqhk->btqhv", Ss, qh).reshape(B, M, Q, D) / DK ** 0.5
+
+
 # ── discriminator ─────────────────────────────────────────────────────────────
 
 def init_disc(key, cfg: Cfg):
@@ -141,6 +178,16 @@ def disc_logits(p, ctx, qry, cfg: Cfg):
     S = write(p["mem"], encode(p["enc"], ctx, cfg.d_act), cfg)
     e = encode(p["enc"], qry, cfg.d_act)
     o = read(S, e @ p["Wq"], cfg)
+    h = ACTS[cfg.d_act](jnp.concatenate([o, e], -1) @ p["W_h"] + p["b_h"])
+    return (h @ p["w_out"] + p["b_out"])[..., 0]
+
+
+def disc_logits_prefix(p, ctx, qry, cfg: Cfg):
+    """ctx (B,M,784), qry (B,M,Q,784) -> logits (B,M,Q). Queries at position t
+    are answered from the state after the first t+1 context images."""
+    Ss = write_states(p["mem"], encode(p["enc"], ctx, cfg.d_act), cfg)
+    e = encode(p["enc"], qry, cfg.d_act)
+    o = read_states(Ss, e @ p["Wq"], cfg)
     h = ACTS[cfg.d_act](jnp.concatenate([o, e], -1) @ p["W_h"] + p["b_h"])
     return (h @ p["w_out"] + p["b_out"])[..., 0]
 
@@ -175,6 +222,32 @@ def generate_logits(p, ctx, z, cfg: Cfg):
     h = jax.nn.gelu(norm(h @ p["W1"] + p["b1"]))
     h = jax.nn.gelu(norm(h @ p["W2"] + p["b2"]))
     return h @ p["W3"] + p["b3"]
+
+
+def _gen_mlp(p, h, cfg: Cfg):
+    norm = _ln if cfg.g_ln else (lambda t: t)
+    h = jax.nn.gelu(norm(h @ p["W1"] + p["b1"]))
+    h = jax.nn.gelu(norm(h @ p["W2"] + p["b2"]))
+    return jax.nn.sigmoid(h @ p["W3"] + p["b3"])
+
+
+def generate_prefix(p, ctx, z, cfg: Cfg):
+    """z (B,M,K,z_dim) -> images (B,M,K,784); samples at position t read the
+    generator's state after the first t+1 context images."""
+    h = z
+    if "mem" in p:
+        Ss = write_states(p["mem"], encode(p["enc"], ctx), cfg)
+        h = jnp.concatenate([z, read_states(Ss, z @ p["Wq"], cfg)], -1)
+    return _gen_mlp(p, h, cfg)
+
+
+def generate_from_state(p, S, z, cfg: Cfg):
+    """One generator state S (B,H,dk,dk) (None for the blind generator),
+    z (B,K,z_dim) -> images (B,K,784)."""
+    h = z
+    if "mem" in p:
+        h = jnp.concatenate([z, read(S, z @ p["Wq"], cfg)], -1)
+    return _gen_mlp(p, h, cfg)
 
 
 # ── plain discriminator (generator positive control) ──────────────────────────
