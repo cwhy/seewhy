@@ -180,6 +180,17 @@ if __name__ == "__main__":
     json.dump(dict(urls=urls, stats=stats), open(PROJECT / "scripts" / "tmp" / "report2_figs.json", "w"), indent=1)
     print(json.dumps(urls, indent=1))
     if "--figs-only" not in sys.argv:
-        md = (PROJECT / "scripts" / "report2_text.md").read_text().format(**urls)
+        ca = json.load(open(PROJECT / "scripts" / "tmp" / "copy_analysis.json"))
+        cu = json.load(open(PROJECT / "scripts" / "tmp" / "context_use.json"))
+        S = ca["stats"]
+        f3 = lambda v: f"{v:.3f}"
+        cu_row = lambda a: " | ".join(f3(cu["stats"][a][str(n)]) for n in (1, 2, 4, 8, 16))
+        fields = dict(urls, **ca["urls"], context_use=cu["url"], clf_acc=S["clf_acc"],
+                      corr_prefix=S["corr_copy_class_prefix"],
+                      cu_m=cu_row("method"), cu_p=cu_row("prefix"), cu_n=cu_row("prefix_nn"))
+        for a, k in (("method", "m"), ("prefix", "p"), ("prefix_nn", "n")):
+            fields |= {f"{k}_last": f3(S[a]["match_last"]), f"{k}_early": f3(S[a]["match_earlier"]),
+                       f"{k}_base": f3(S[a]["base_rate"]), f"{k}_dist": f"{S[a]['distinct_digits_of_8']:.1f}"}
+        md = (PROJECT / "scripts" / "report2_text.md").read_text().format(**fields)
         OUT_MD.write_text(md, encoding="utf-8")
         print("report:", save_report("recall-gan_report_02_prefix_training", md))
