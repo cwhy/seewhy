@@ -48,11 +48,18 @@ from shared_lib.media import save_matplotlib_figure  # noqa: E402
 V = "v1"
 ROWS = [json.loads(l) for l in (PROJECT / "results.jsonl").read_text().splitlines()]
 SEEDS = range(50, 56)
-ARMS = {"method": [r for r in ROWS if r["experiment"] == "exp15" and r.get("tag") == "adam" and r["seed"] in SEEDS],
-        "prefix": [r for r in ROWS if r["experiment"] == "exp24"],
-        "prefix_nn": [r for r in ROWS if r["experiment"] == "exp23"]}
-LABEL = {"method": "plain training", "prefix": "prefix only", "prefix_nn": "prefix + nearest image"}
-COL = {"method": "#555555", "prefix": "#2a78d6", "prefix_nn": "#e8590c"}
+ALL_ARMS = {"method": ("exp15", "adam"), "prefix": ("exp24", None), "prefix_nn": ("exp23", None),
+            "prefix_rand": ("exp26", None), "prefix_nn_rand": ("exp25", None)}
+# which arms to analyse: --arms a,b,c (default: the three of report 2)
+_sel = next((x.split("=")[1].split(",") for x in sys.argv if x.startswith("--arms=")), ["method", "prefix", "prefix_nn"])
+ARMS = {a: [r for r in ROWS if r["experiment"] == ALL_ARMS[a][0] and r["seed"] in SEEDS
+            and (ALL_ARMS[a][1] is None or r.get("tag") == ALL_ARMS[a][1])] for a in _sel}
+# output names: --tag=r03 keeps another report's figures from being overwritten
+TAG = next((x.split("=")[1] for x in sys.argv if x.startswith("--tag=")), "r02")
+LABEL = {"method": "plain training", "prefix": "prefix only", "prefix_nn": "prefix + nearest image",
+         "prefix_rand": "prefix only, random reals", "prefix_nn_rand": "prefix + nearest image, random reals"}
+COL = {"method": "#555555", "prefix": "#2a78d6", "prefix_nn": "#e8590c", "prefix_rand": "#7fb3e8",
+       "prefix_nn_rand": "#f5a97a"}
 
 d = load_supervised_image("mnist")
 tr = np.asarray(d.X, np.float32).reshape(len(d.X), -1)
@@ -132,14 +139,14 @@ for arm, rs in ARMS.items():
 
 
 def save(name, fig):
-    url = save_matplotlib_figure(f"recall-gan_r02_{name}_{V}", fig, format="png", dpi=140)
+    url = save_matplotlib_figure(f"recall-gan_{TAG}_{name}_{V}", fig, format="png", dpi=140)
     plt.close(fig)
     return url
 
 
 # figure A: digit match rates
 fig, ax = plt.subplots(figsize=(8, 3.4))
-x = np.arange(3)
+x = np.arange(len(ARMS))
 for i, (k, lab, c) in enumerate([("match_last", "same digit as the LAST context image", "#d73027"),
                                  ("match_earlier", "same digit as an EARLIER context image", "#4575b4"),
                                  ("base_rate", "base rate (share of the context with that digit)", "#bbbbbb")]):
@@ -198,5 +205,5 @@ stats["corr_copy_class_prefix"] = float(np.corrcoef([r["match_last"] - r["match_
 stats["corr_recency_class_prefix"] = float(np.corrcoef([r["recency_gap"] for r in pr], [r["class_acc"] for r in pr])[0, 1])
 stats["clf_acc"] = CLF_ACC
 out = dict(urls=dict(copy_match=u_match, recency=u_pos, copy_scatter=u_scatter), stats=stats)
-json.dump(out, open(PROJECT / "scripts" / "tmp" / "copy_analysis.json", "w"), indent=1)
+json.dump(out, open(PROJECT / "scripts" / "tmp" / (f"copy_analysis_{TAG}.json" if TAG != "r02" else "copy_analysis.json"), "w"), indent=1)
 print(json.dumps(out, indent=1))

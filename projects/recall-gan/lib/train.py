@@ -89,6 +89,10 @@ class Cell:
     # image nearest in pixel distance to the generator's image at the current
     # prefix — so that image's "twin" fake is queried right after it is written.
     nn_warm: int = 0
+    # Real queries at each prefix: "newest" = the image just written + one
+    # random earlier image (exp23/24); "random" = two random images from the
+    # context so far, so no position is guaranteed to be queried (exp25/26).
+    prefix_real: str = "newest"
     d_act: str = "gelu"           # -> Cfg.d_act
     g_ln: bool = False            # -> Cfg.g_ln
     # Mixed context: this many of the M context slots hold GENERATED images.
@@ -320,8 +324,12 @@ def make_fns(cell: Cell, cfg: Cfg):
         pd, pg, sd, sg = carry
         kc, kr, kf = jax.random.split(key, 3)
         ctx, zs = build_context(kc, pool, pool_sq, pg, B)
-        r = jnp.floor(jax.random.uniform(kr, (B, M)) * (jnp.arange(M) + 1)).astype(jnp.int32)
-        real = jnp.stack([ctx, jnp.take_along_axis(ctx, r[..., None], axis=1)], axis=2)  # (B,M,2,P)
+        if cell.prefix_real == "random":
+            r = jnp.floor(jax.random.uniform(kr, (B, M, 2)) * (jnp.arange(M) + 1)[None, :, None]).astype(jnp.int32)
+            real = jnp.stack([jnp.take_along_axis(ctx, r[..., i, None], axis=1) for i in (0, 1)], axis=2)
+        else:
+            r = jnp.floor(jax.random.uniform(kr, (B, M)) * (jnp.arange(M) + 1)).astype(jnp.int32)
+            real = jnp.stack([ctx, jnp.take_along_axis(ctx, r[..., None], axis=1)], axis=2)  # (B,M,2,P)
         zf = jax.random.normal(kf, (B, M, 2, cfg.z_dim))
         fake = jax.lax.stop_gradient(prefix_fakes(pg, ctx, zs, zf))
 

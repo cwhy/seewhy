@@ -21,6 +21,7 @@ it decided. Definitions of the current method and metrics are in
 | 20 | the method, 60k steps (3× longer) | G converges ~45k; D's generalisation declines after ~20–30k |
 | 21, 22 | the method, M = 64 and 256 | item membership falls with M; class probe holds; M=256 still improving at 20k |
 | 23, 24 | prefix training ("teacher forcing"), ± nearest-image context | both weaker on every end-of-context measure; twin AUROC 0.778 with nearest-image context |
+| 25, 26 | as 23/24 with random real queries | copying stronger (0.88); generator copies the newest image pixel by pixel; twin AUROC 0.436 |
 
 ---
 
@@ -374,3 +375,15 @@ random. `twin_auroc` = newest context image vs its twin, held-out.
   Its generator's output depends on the context 3.5× more than on its noise.
 - Prefix training alone (exp24) already lowers every end-of-context measure;
   the nearest-image context lowers them further.
+
+**exp25/26 — as exp23/24, with the two real queries at each prefix drawn at
+random from the context so far (`prefix_real="random"`), seeds 50–55.** Report
+3. Copying of the last context image's digit rises to 0.882 (prefix only) and
+0.832 (with nearest image), against 0.513 / 0.907 with the newest image always
+queried; plain training 0.137 (chance ~0.15). The twin pictures show the
+generator reproducing the image just written almost pixel for pixel, so a fake
+is a near-copy of a context image. Twin AUROC 0.436 (prefix only, falls below
+0.5 after ~13k steps) and 0.602. Digit classifier with 16 per digit 0.418 /
+0.310 (plain 0.843). One run per setup collapsed to one digit (prefix_rand s50,
+prefix_nn_rand s53). The discriminator now scores the most recent context
+images lowest (last 0.35 vs first 0.71, prefix only).
