@@ -93,6 +93,12 @@ class Cell:
     # random earlier image (exp23/24); "random" = two random images from the
     # context so far, so no position is guaranteed to be queried (exp25/26).
     prefix_real: str = "newest"
+    # Pretrain the discriminator alone for this many steps before the GAN
+    # (user's idea, 2026-10-10): each episode asks about 4 context images
+    # ("in") and 4 real dataset images not in the context ("not in"), plain
+    # cross-entropy, no gradient penalty. The GAN then starts from that
+    # discriminator with a fresh optimizer and never sees non-members again.
+    pretrain_steps: int = 0
     d_act: str = "gelu"           # -> Cfg.d_act
     g_ln: bool = False            # -> Cfg.g_ln
     # Mixed context: this many of the M context slots hold GENERATED images.
@@ -511,6 +517,24 @@ def make_fns(cell: Cell, cfg: Cfg):
             sat=(jnp.abs(a) > 6.0).mean(),
         )
 
+    opt_pre = optax.adam(cell.lr_d, b1=cell.beta1, b2=cell.adam_b2)
+
+    def pre_step(pool, carry, key):
+        pd, sp = carry
+        ctx, mem, non, non_lab, _ = sample_episode(key, pool, B, M, 4, 4)
+        lab = jnp.concatenate([jnp.ones((B, 4)), non_lab], 1)
+        l, g = jax.value_and_grad(lambda pd: bce(disc_logits(pd, ctx, jnp.concatenate([mem, non], 1), cfg),
+                                                 lab).mean())(pd)
+        u, sp = opt_pre.update(g, sp, pd)
+        return (optax.apply_updates(pd, u), sp), l
+
+    @jax.jit
+    def pre_block(pd, sp, pool, key):
+        (pd, sp), l = jax.lax.scan(lambda c, k: pre_step(pool, c, k), (pd, sp),
+                                   jax.random.split(key, cell.eval_every))
+        return pd, sp, l.mean()
+
+    make_fns.pretrain = (pre_block, opt_pre)      # used by run_cell when cell.pretrain_steps > 0
     return block, evaluate, opt_d, opt_g
 
 
@@ -554,6 +578,19 @@ def run_cell(cell: Cell, pools) -> dict:
         return ev
 
     t0 = time.time()
+    pre_hist = {"step": [], "loss": [], "auroc_real": [], "class_acc": []}
+    if cell.pretrain_steps:
+        pre_block, opt_pre = make_fns.pretrain
+        sp = opt_pre.init(pd)
+        kp = jax.random.fold_in(kt, 10_000)
+        for b in range(cell.pretrain_steps // cell.eval_every):
+            pd, sp, lp = pre_block(pd, sp, train_pool, jax.random.fold_in(kp, b))
+            ev = {k: float(v) for k, v in evaluate(pd, pg, held_pool, kev).items()}
+            pre_hist["step"].append((b + 1) * cell.eval_every); pre_hist["loss"].append(float(lp))
+            pre_hist["auroc_real"].append(ev["auroc_real"])
+            pre_hist["class_acc"].append(float(class_probe(pd)) if class_probe else float("nan"))
+            logging.info(f"[{cell.run}] pretrain step {(b + 1) * cell.eval_every:6d}  loss {float(lp):.4f}  "
+                         f"auroc_real {ev['auroc_real']:.3f}  class_acc {pre_hist['class_acc'][-1]:.3f}")
     ev = log_eval(0, float("nan"), float("nan"), float("nan"))
     for b in range(cell.steps // cell.eval_every):
         pd, pg, sd, sg, ld, lg, gn = block(pd, pg, sd, sg, train_pool, jax.random.fold_in(kt, b))
@@ -567,7 +604,8 @@ def run_cell(cell: Cell, pools) -> dict:
 
     row = dict(experiment=cell.exp, run=cell.run, **asdict(cell), cfg=cfg._asdict(),
                state_floats=cfg.state_floats, n_params_d=n_params(pd), n_params_g=n_params(pg),
-               time_s=round(elapsed, 1), **{f"final_{k}": v for k, v in ev.items()}, history=hist)
+               time_s=round(elapsed, 1), **{f"final_{k}": v for k, v in ev.items()}, history=hist,
+               **({"pretrain_history": pre_hist} if cell.pretrain_steps else {}))
     try:
         from lib.viz import sample_grid
         row["samples_url"] = sample_grid(cell, cfg, pg, held_pool) if cell.arm != "none" else None

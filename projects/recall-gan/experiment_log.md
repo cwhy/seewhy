@@ -23,6 +23,7 @@ it decided. Definitions of the current method and metrics are in
 | 23, 24 | prefix training ("teacher forcing"), ± nearest-image context | both weaker on every end-of-context measure; twin AUROC 0.778 with nearest-image context |
 | 25, 26 | as 23/24 with random real queries | copying stronger (0.88); generator copies the newest image pixel by pixel; twin AUROC 0.436 |
 | 27, 28 | prefix training with the blind generator (both query mixes) | 12/12 collapse within 500–2,000 steps; D ignores its state |
+| 29, 30 | discriminator pretrained on non-members, then the GAN | skill (AUROC 0.995) erased in 500 GAN steps; 4/6 context-aware collapse |
 
 ---
 
@@ -415,3 +416,13 @@ overwrites the previous one along that shared direction, and the read returns
 the newest image ~6× more often than chance in the prefix arms. Plain training
 has the same key geometry but no copying, so this explains why the target is
 the newest image, not why prefix training brings copying on.
+
+**exp29/30 — discriminator pretrained 5k steps on context vs real non-members
+(no gradient penalty), then the method's GAN, context-aware (29) and blind (30)
+generators, seeds 50–55.** Report 5. After pretraining: context vs unseen real
+0.995, digit classifier 0.710. Within 500 GAN steps both fall to chance-level
+(~0.5 / 0.08–0.19) in every run, before any collapse. Context-aware: 4/6
+collapse (steps ~3k–6k); the 2 survivors end at classifier 0.815 / 0.829
+(scratch median 0.843). Blind: 6/6 collapse, as from scratch. Untested causes:
+the gradient penalty switching on, or the easy early fakes overwriting the
+membership features.
