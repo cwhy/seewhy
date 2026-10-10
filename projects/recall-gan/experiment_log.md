@@ -395,3 +395,23 @@ to one image within 500–2,000 steps (variety < 0.06), as under plain training
 (exp18/19). The discriminator rejects every fake (1.000), ignores its state
 (context vs unseen real 0.500) and the digit classifier sits at chance (0.104 /
 0.087). No copying (the generator cannot read the context).
+
+**copy_target — why the prefix-trained generator copies only the newest image
+(scripts/analyse_copy_target.py, evaluation only, seeds 50–55).** Medians:
+
+| | plain | prefix, newest real | prefix, random reals |
+|---|---|---|---|
+| generated image best matches position 16 (uniform 0.0625) | 0.070 | 0.469 | 0.911 |
+| generator's memory read returns position 16 | 0.067 | 0.382 | 0.404 |
+| cosine between queries of different noise samples | 0.002 | 0.001 | 0.001 |
+| cosine between keys of different context images | 0.942 | 0.965 | 0.874 |
+
+The copy is of the newest image itself (pixel correlation), not just its
+digit. The generator's queries differ with the noise (cosine ~0), so the
+"query ignores noise" explanation is out. The keys of different images in the
+generator's KDA state are nearly parallel (cosine 0.87–0.97) in every arm,
+including plain training: under the delta rule each write then mostly
+overwrites the previous one along that shared direction, and the read returns
+the newest image ~6× more often than chance in the prefix arms. Plain training
+has the same key geometry but no copying, so this explains why the target is
+the newest image, not why prefix training brings copying on.
