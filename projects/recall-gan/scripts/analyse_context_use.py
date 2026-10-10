@@ -38,17 +38,22 @@ from shared_lib.media import save_matplotlib_figure  # noqa: E402
 ROWS = [json.loads(l) for l in (PROJECT / "results.jsonl").read_text().splitlines()]
 SEEDS = range(50, 56)
 ALL_ARMS = {"method": ("exp15", "adam"), "prefix": ("exp24", None), "prefix_nn": ("exp23", None),
-            "prefix_rand": ("exp26", None), "prefix_nn_rand": ("exp25", None)}
+            "prefix_rand": ("exp26", None), "prefix_nn_rand": ("exp25", None),
+            "blind": (("exp18", "exp19"), "adam"), "prefix_blind": ("exp27", None),
+            "prefix_rand_blind": ("exp28", None)}
+_exps = lambda e: e if isinstance(e, tuple) else (e,)
 # which arms to analyse: --arms a,b,c (default: the three of report 2)
 _sel = next((x.split("=")[1].split(",") for x in sys.argv if x.startswith("--arms=")), ["method", "prefix", "prefix_nn"])
-ARMS = {a: [r for r in ROWS if r["experiment"] == ALL_ARMS[a][0] and r["seed"] in SEEDS
+ARMS = {a: [r for r in ROWS if r["experiment"] in _exps(ALL_ARMS[a][0]) and r["seed"] in SEEDS
             and (ALL_ARMS[a][1] is None or r.get("tag") == ALL_ARMS[a][1])] for a in _sel}
 # output names: --tag=r03 keeps another report's figures from being overwritten
 TAG = next((x.split("=")[1] for x in sys.argv if x.startswith("--tag=")), "r02")
 LABEL = {"method": "plain training", "prefix": "prefix only", "prefix_nn": "prefix + nearest image",
-         "prefix_rand": "prefix only, random reals", "prefix_nn_rand": "prefix + nearest image, random reals"}
+         "prefix_rand": "prefix only, random reals", "prefix_nn_rand": "prefix + nearest image, random reals",
+         "blind": "plain training, blind G", "prefix_blind": "prefix, blind G",
+         "prefix_rand_blind": "prefix, random reals, blind G"}
 COL = {"method": "#555555", "prefix": "#2a78d6", "prefix_nn": "#e8590c", "prefix_rand": "#7fb3e8",
-       "prefix_nn_rand": "#f5a97a"}
+       "prefix_nn_rand": "#f5a97a", "blind": "#9b59b6", "prefix_blind": "#2ca02c", "prefix_rand_blind": "#98df8a"}
 NS = (1, 2, 4, 8, 16)
 
 d = load_supervised_image("mnist")

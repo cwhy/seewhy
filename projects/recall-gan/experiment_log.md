@@ -22,6 +22,7 @@ it decided. Definitions of the current method and metrics are in
 | 21, 22 | the method, M = 64 and 256 | item membership falls with M; class probe holds; M=256 still improving at 20k |
 | 23, 24 | prefix training ("teacher forcing"), ± nearest-image context | both weaker on every end-of-context measure; twin AUROC 0.778 with nearest-image context |
 | 25, 26 | as 23/24 with random real queries | copying stronger (0.88); generator copies the newest image pixel by pixel; twin AUROC 0.436 |
+| 27, 28 | prefix training with the blind generator (both query mixes) | 12/12 collapse within 500–2,000 steps; D ignores its state |
 
 ---
 
@@ -387,3 +388,10 @@ is a near-copy of a context image. Twin AUROC 0.436 (prefix only, falls below
 0.310 (plain 0.843). One run per setup collapsed to one digit (prefix_rand s50,
 prefix_nn_rand s53). The discriminator now scores the most recent context
 images lowest (last 0.35 vs first 0.71, prefix only).
+
+**exp27/28 — prefix training with the blind generator, newest-image (27) and
+random (28) real queries, seeds 50–55.** Report 4. All 12 generators collapse
+to one image within 500–2,000 steps (variety < 0.06), as under plain training
+(exp18/19). The discriminator rejects every fake (1.000), ignores its state
+(context vs unseen real 0.500) and the digit classifier sits at chance (0.104 /
+0.087). No copying (the generator cannot read the context).
