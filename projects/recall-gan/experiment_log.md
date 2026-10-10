@@ -24,6 +24,7 @@ it decided. Definitions of the current method and metrics are in
 | 25, 26 | as 23/24 with random real queries | copying stronger (0.88); generator copies the newest image pixel by pixel; twin AUROC 0.436 |
 | 27, 28 | prefix training with the blind generator (both query mixes) | 12/12 collapse within 500–2,000 steps; D ignores its state |
 | 29, 30 | discriminator pretrained on non-members, then the GAN | skill (AUROC 0.995) erased in 500 GAN steps; 4/6 context-aware collapse |
+| 31, 32 | trained on recall-gen's synthetic prior (k ≥ 1 / ≥ 8), tested on MNIST | no transfer; D learns world membership, not items |
 
 ---
 
@@ -426,3 +427,13 @@ collapse (steps ~3k–6k); the 2 survivors end at classifier 0.815 / 0.829
 (scratch median 0.843). Blind: 6/6 collapse, as from scratch. Untested causes:
 the gradient penalty switching on, or the easy early fakes overwriting the
 membership features.
+
+**exp31/32 — the method trained on recall-gen's synthetic prior (lib/synth.py;
+latent dimension ≥ 1 / ≥ 8), one world per 16-item context, tested on MNIST,
+seeds 50–55.** Report 6. MNIST: context vs unseen 0.512 / 0.519, digit
+classifier 0.123 / 0.147 (MNIST-trained 0.954 / 0.843). Held-out worlds:
+context vs unseen items of the same world 0.503 / 0.502 for the whole of
+training. synth_world analysis: context vs other-world items median 0.813 /
+0.867, vs MNIST images 0.997 / 0.917 — the discriminator tests world
+membership, not item membership. Generators imitate the world's texture; on
+MNIST contexts they produce dim noise.

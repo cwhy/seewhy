@@ -99,6 +99,11 @@ class Cell:
     # cross-entropy, no gradient penalty. The GAN then starts from that
     # discriminator with a fresh optimizer and never sees non-members again.
     pretrain_steps: int = 0
+    # Training data. "mnist": random MNIST images. "synth" / "synth_k8":
+    # recall-gen's synthetic prior (lib/synth.py; latent dimension >= 1 / >= 8),
+    # each episode's 16 context items from one world. Evaluation always includes
+    # the usual MNIST measures, plus held-out synthetic worlds for synth runs.
+    data: str = "mnist"
     d_act: str = "gelu"           # -> Cfg.d_act
     g_ln: bool = False            # -> Cfg.g_ln
     # Mixed context: this many of the M context slots hold GENERATED images.
@@ -192,6 +197,22 @@ def sample_episode(key, pool, B, M, q_mem, q_non):
     non_lab = (ni[:, :, None] == ci[:, None, :]).any(-1).astype(jnp.float32)
     ref = pool[jax.random.randint(k4, (B, M), 0, N)]       # M other images, for the distance control
     return ctx, mem, non, non_lab, ref
+
+
+def sample_episode_world(key, pool3, B, M, q_mem, q_non):
+    """Episodes from a pool of worlds (W, N, P): each episode's M context items
+    and q_non non-members come from one world, without replacement, so every
+    non-member is exactly that (label 0). `ref` is M items of another world."""
+    W, N, P = pool3.shape
+    k1, k2, k3, k4 = jax.random.split(key, 4)
+    w = jax.random.randint(k1, (B,), 0, W)
+    idx = jnp.argsort(jax.random.uniform(k2, (B, N)), axis=1)
+    items = pool3[w[:, None], idx]                                       # (B,N,P)
+    ctx, non = items[:, :M], items[:, M:M + q_non]
+    mem = jnp.take_along_axis(ctx, jax.random.randint(k3, (B, q_mem), 0, M)[..., None], axis=1)
+    w2 = (w + 1 + jax.random.randint(k4, (B,), 0, W - 1)) % W
+    ref = pool3[w2][:, :M]
+    return ctx, mem, non, jnp.zeros((B, q_non)), ref
 
 
 def nearest_sq(x, S):
@@ -374,7 +395,8 @@ def make_fns(cell: Cell, cfg: Cfg):
             lab = jnp.concatenate([jnp.ones((B, cell.q_mem + cell.q_gen)), non_lab,
                                    jnp.zeros((B, cell.q_gen))], 1)
             return update(pd, pg, sd, sg, ctx, qry, lab, z)
-        ctx, mem, non, non_lab, _ = sample_episode(ke, pool, B, M, cell.q_mem, q_non)
+        sampler = sample_episode_world if cell.data != "mnist" else sample_episode
+        ctx, mem, non, non_lab, _ = sampler(ke, pool, B, M, cell.q_mem, q_non)
         qry = [mem, non]
         lab = [jnp.ones((B, cell.q_mem)), non_lab]
         if plain:                         # real images vs as many fakes, labels 1 / 0
@@ -535,11 +557,29 @@ def make_fns(cell: Cell, cfg: Cfg):
         return pd, sp, l.mean()
 
     make_fns.pretrain = (pre_block, opt_pre)      # used by run_cell when cell.pretrain_steps > 0
+
+    @jax.jit
+    def evaluate_synth(pd, pg, pool3, key):
+        """Held-out synthetic worlds: context items vs unseen items of the same
+        world, and vs the generator's images (evaluation only)."""
+        ke, kz = jax.random.split(key)
+        E = cell.eval_episodes
+        ctx, mem, non, _, _ = sample_episode_world(ke, pool3, E, M, 4, 4)
+        s_mem, s_non = disc_logits(pd, ctx, mem, cfg), disc_logits(pd, ctx, non, cfg)
+        fake = generate(pg, ctx, jax.random.normal(kz, (E, 4, cfg.z_dim)), cfg)
+        s_gen = disc_logits(pd, ctx, fake, cfg)
+        return dict(synth_auroc_real=auroc(s_mem, s_non), synth_auroc_gen=auroc(s_mem, s_gen),
+                    synth_acc_gen=(s_gen < 0).mean(), synth_gen_std=fake.std(axis=(0, 1)).mean())
+
+    make_fns.evaluate_synth = evaluate_synth
     return block, evaluate, opt_d, opt_g
 
 
-def run_cell(cell: Cell, pools) -> dict:
+def run_cell(cell: Cell, pools, synth=None) -> dict:
     train_pool, held_pool, held_y = pools
+    synth_test = None
+    if cell.data != "mnist":
+        train_pool, synth_test = synth[cell.data]
     cfg = Cfg(m_ctx=cell.m_ctx, d_act=cell.d_act, g_ln=cell.g_ln)
     kd, kg, kt, kev = jax.random.split(jax.random.PRNGKey(cell.seed), 4)
     pd = init_plain_disc(kd, cfg) if cell.disc == "plain" else init_disc(kd, cfg)
@@ -563,6 +603,8 @@ def run_cell(cell: Cell, pools) -> dict:
 
     def log_eval(step, ld, lg, gn):
         ev = {k: float(v) for k, v in evaluate(pd, pg, held_pool, kev).items()}
+        if synth_test is not None:
+            ev |= {k: float(v) for k, v in make_fns.evaluate_synth(pd, pg, synth_test, kev).items()}
         if class_probe is not None:
             ev["class_acc"] = float(class_probe(pd))
         if class_probe_m is not None:
@@ -623,6 +665,11 @@ def run_cells(cells: list[Cell]) -> None:
     if not todo:
         return
     pools = load_pools()
+    synth = {}
+    for name in {c.data for c in todo} - {"mnist"}:
+        from lib.synth import synth_pools
+        tr, te = synth_pools(k_min={"synth": 1.0, "synth_k8": 8.0}[name])
+        synth[name] = (jnp.asarray(tr), jnp.asarray(te))
     for c in todo:
-        append_result(run_cell(c, pools))
+        append_result(run_cell(c, pools, synth))
         logging.info(f"{c.run} appended")

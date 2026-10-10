@@ -40,7 +40,8 @@ SEEDS = range(50, 56)
 ALL_ARMS = {"method": ("exp15", "adam"), "prefix": ("exp24", None), "prefix_nn": ("exp23", None),
             "prefix_rand": ("exp26", None), "prefix_nn_rand": ("exp25", None),
             "blind": (("exp18", "exp19"), "adam"), "prefix_blind": ("exp27", None),
-            "prefix_rand_blind": ("exp28", None), "pre_ctx": ("exp29", None), "pre_blind": ("exp30", None)}
+            "prefix_rand_blind": ("exp28", None), "pre_ctx": ("exp29", None), "pre_blind": ("exp30", None),
+            "synth": ("exp31", None), "synth_k8": ("exp32", None)}
 _exps = lambda e: e if isinstance(e, tuple) else (e,)
 # which arms to analyse: --arms a,b,c (default: the three of report 2)
 _sel = next((x.split("=")[1].split(",") for x in sys.argv if x.startswith("--arms=")), ["method", "prefix", "prefix_nn"])
@@ -52,10 +53,12 @@ LABEL = {"method": "plain training", "prefix": "prefix only", "prefix_nn": "pref
          "prefix_rand": "prefix only, random reals", "prefix_nn_rand": "prefix + nearest image, random reals",
          "blind": "plain training, blind G", "prefix_blind": "prefix, blind G",
          "prefix_rand_blind": "prefix, random reals, blind G", "pre_ctx": "pretrained D, context-aware G",
-         "pre_blind": "pretrained D, blind G"}
+         "pre_blind": "pretrained D, blind G", "synth": "trained on synthetic (k >= 1)",
+         "synth_k8": "trained on synthetic (k >= 8)"}
 COL = {"method": "#555555", "prefix": "#2a78d6", "prefix_nn": "#e8590c", "prefix_rand": "#7fb3e8",
        "prefix_nn_rand": "#f5a97a", "blind": "#9b59b6", "prefix_blind": "#2ca02c", "prefix_rand_blind": "#98df8a",
-       "pre_ctx": "#d62728", "pre_blind": "#ff9896"}
+       "pre_ctx": "#d62728", "pre_blind": "#ff9896",
+       "synth": "#17becf", "synth_k8": "#bcbd22"}
 NS = (1, 2, 4, 8, 16)
 
 d = load_supervised_image("mnist")
