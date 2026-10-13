@@ -1,0 +1,40 @@
+{
+  "name": "bayes-cbp-2_paper",
+  "published_at": "2026-10-08 17:46 UTC",
+  "stable": false,
+  "urls": {
+    "page": "https://media.tanh.xyz/seewhy/26-10-09/bayes-cbp-2_paper.html",
+    "pdf": "https://media.tanh.xyz/seewhy/26-10-09/bayes-cbp-2_paper.pdf"
+  },
+  "files": {
+    "assets/dw_occupancy.json": "2797a199481a3b8a",
+    "assets/dw_stationary.json": "90bcbdb14fa1168f",
+    "assets/kalman_gain.json": "8c071970c0baaa9a",
+    "assets/mfpt_reset.json": "03de33da70c6a93a",
+    "assets/pareto.json": "d76bcd1e6cb44ffc",
+    "assets/soft_vs_hard.json": "b2b2bd148211aaf1",
+    "figures/dw_occupancy.typ": "8c9081f25c512bf0",
+    "figures/dw_stationary.typ": "b924d68829292bf5",
+    "figures/kalman_gain.typ": "952c235be157fdac",
+    "figures/mfpt_reset.typ": "68c41b465de1fa20",
+    "figures/pareto.typ": "f0ac95c17712e545",
+    "figures/soft_vs_hard.typ": "585166f7b6b86fe3",
+    "main.typ": "ecc61f317d2b6919",
+    "sections/01-introduction.typ": "9e1ef500df774665",
+    "sections/02-plasticity.typ": "e9fface54042020b",
+    "sections/03-gaussian.typ": "01f8ff99defbd251",
+    "sections/04-dynamics.typ": "09148ad85442d9a3",
+    "sections/05-mechanisms.typ": "167cc28b7fcb5502",
+    "sections/06-jump-diffusion.typ": "55afb434de670aa0",
+    "sections/07-escape.typ": "10f527e17dfbbb09",
+    "sections/08-task-switch.typ": "b233d6ba3b6417f8",
+    "sections/09-utility.typ": "fcb68f8045317604",
+    "sections/10-unified.typ": "0326cedf444e0bbc",
+    "sections/11-routes.typ": "b9bc2b15123ec7e6",
+    "sections/12-algorithm.typ": "f2b928d1ad3d6963",
+    "sections/13-review.typ": "b3cb3b0fa0a78329",
+    "sections/14-plan.typ": "ec337bf29fdac914",
+    "sections/15-conclusion.typ": "e49a7113543d1ff6",
+    "template.typ": "9913361cb41fe129"
+  }
+}

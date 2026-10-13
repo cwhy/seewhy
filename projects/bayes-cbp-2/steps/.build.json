@@ -1,0 +1,40 @@
+{
+  "name": "bayes-cbp-2_steps",
+  "published_at": "2026-10-08 17:46 UTC",
+  "stable": false,
+  "urls": {
+    "page": "https://media.tanh.xyz/seewhy/26-10-09/bayes-cbp-2_steps.html",
+    "pdf": "https://media.tanh.xyz/seewhy/26-10-09/bayes-cbp-2_steps.pdf"
+  },
+  "files": {
+    "assets/dw_occupancy.json": "2797a199481a3b8a",
+    "assets/dw_stationary.json": "90bcbdb14fa1168f",
+    "assets/kalman_gain.json": "8c071970c0baaa9a",
+    "assets/mfpt_reset.json": "03de33da70c6a93a",
+    "assets/pareto.json": "d76bcd1e6cb44ffc",
+    "assets/soft_vs_hard.json": "b2b2bd148211aaf1",
+    "figures/dw_occupancy.typ": "8c9081f25c512bf0",
+    "figures/dw_stationary.typ": "b924d68829292bf5",
+    "figures/kalman_gain.typ": "952c235be157fdac",
+    "figures/mfpt_reset.typ": "68c41b465de1fa20",
+    "figures/pareto.typ": "f0ac95c17712e545",
+    "figures/soft_vs_hard.typ": "585166f7b6b86fe3",
+    "main.typ": "2add579c2e4c3e7f",
+    "sections/p00-rules.typ": "8ba3f7a9e8687fb6",
+    "sections/p01-definition.typ": "b2366041e5564113",
+    "sections/p02-gaussian.typ": "957344f9f426f82d",
+    "sections/p03-dynamics.typ": "936dc4ac21539f79",
+    "sections/p04-loss.typ": "847658e32dafef18",
+    "sections/p05-unified.typ": "3b54253f00fbe6a2",
+    "sections/p06-generator.typ": "2a80e1907ef7de52",
+    "sections/p07-escape.typ": "289eb2d8c76a3ba7",
+    "sections/p08-switch.typ": "f2221124dc7bed10",
+    "sections/p09-utility.typ": "ad3967cd73104d1d",
+    "sections/p10-cbp.typ": "9ffc0e68bedaf0f2",
+    "sections/p11-routes.typ": "58abbec0b453eb9d",
+    "sections/p12-algorithm.typ": "b811feec4bf48ca6",
+    "sections/p13-review.typ": "4c27e6397e2624ce",
+    "sections/p14-plan.typ": "c6db352c383c613b",
+    "template.typ": "20c4adcadf351671"
+  }
+}
