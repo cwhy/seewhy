@@ -105,6 +105,71 @@ style resets from Bayesian first principles via a jump-SDE. Source note in
 
 ---
 
+## curve-clusters — Clusters as Curves, Not Balls
+
+Can a dataset with no natural order be compressed by storing it as smooth
+curves rather than points? Order N is a dial whose N=1 setting is provably
+online k-means, so the baseline lives inside the method. One report per
+research question; each is readable standalone and carries the full background.
+
+| Report | Description |
+|--------|-------------|
+| [Overview](https://media.tanh.xyz/seewhy/26-09-09/curve_clusters_probe.html) | **Entry point.** All five questions, the short answer, and two retracted claims |
+| [Q1 · Is a curve better than a ball?](https://media.tanh.xyz/seewhy/26-09-09/curve_clusters_q1_shape.html) | Yes at equal stored floats — 35–55%. But it is the straight stick, not the bend |
+| [Q2 · Does it survive more budget and data?](https://media.tanh.xyz/seewhy/26-09-09/curve_clusters_q2_scaling.html) | Yes. The trend suggesting otherwise was budget entangled with points-per-cluster |
+| [Q3 · Is it just buying more addresses?](https://media.tanh.xyz/seewhy/26-09-09/curve_clusters_q3_addresses.html) | Largely yes. At matched rate k-means wins on all five low-dim sets |
+| [Q4 · Which dimension matters?](https://media.tanh.xyz/seewhy/26-09-09/curve_clusters_q4_dimension.html) | Intrinsic, entirely. 3.3× at d=1, nothing by d=32. Real images: 3–7% |
+| [Q5 · K or N?](https://media.tanh.xyz/seewhy/26-09-09/curve_clusters_q5_k_or_n.html) | K. Orders 2–8 are indistinguishable; only N=1 vs N>1 matters |
+| [Q6 · Trim the centre update?](https://media.tanh.xyz/seewhy/26-09-09/curve_clusters_q6_trimmed.html) | Only helps on contaminated data; the half is too aggressive — keep ~80% |
+
+---
+
+## local-learning — Backprop vs Local Learning Rules
+
+Replication of a widely shared ["quick MNIST test"](https://x.com/mayfer/status/2099541904241385615)
+(2026-09-14) that put backprop, Sakana's PC-ALM ([arXiv:2605.31022](https://arxiv.org/abs/2605.31022))
+and Hinton's Forward-Forward in one table at ~56K parameters. All three numbers
+reproduce; the ranking turns out to be two architectures and one shared learning
+rate rather than a comparison of learning rules. Two further arms: plain
+predictive coding, the ablation that isolates what PC-ALM adds; EGGROLL
+([arXiv:2511.16652](https://arxiv.org/abs/2511.16652)), a gradient-free
+evolution strategy; and feedback alignment, which replaces backprop's backward
+weights with fixed random matrices.
+
+| Report | Description |
+|--------|-------------|
+| [**Paper** — Local Learning vs Backprop](https://media.tanh.xyz/seewhy/paper/local-learning_paper.html) | **Start here.** The full write-up for a reader new to the project. Stable URL |
+| [Slides — Can cortex run predictive coding?](https://media.tanh.xyz/seewhy/paper/local-learning_slides.html) | A 12-slide deck on PC and PC-ALM from the biological-plausibility angle alone: what each fixes, what each still owes (weight transport, in both cases), and the one experiment that would settle it. Drawn circuits, stable URL |
+| [Auditing PC-ALM and EGGROLL](https://media.tanh.xyz/seewhy/26-09-16/local-learning_report_audits.html) | Both check out: PC-ALM reproduces its own theorem to six decimals and matches the authors' code to within half a point when run side by side; EGGROLL's estimator is unbiased and its low-rank claim holds. One finding: antithetic sampling costs EGGROLL a factor of sqrt(2) per forward pass here |
+| [Auditing the Forward-Forward implementation](https://media.tanh.xyz/seewhy/26-09-16/local-learning_report_ff_audit.html) | Is our Forward-Forward really Forward-Forward? Mechanics verified; uniform negative labels found to cost 1.7 points shallow and 28.2 deep, which withdraws two of the paper's conclusions |
+| [Five epochs, not one](https://media.tanh.xyz/seewhy/26-09-16/local-learning_report_five_epochs.html) | Does the budget hold the ranking up? Re-tuned per arm for the longer budget — six of eight want a smaller rate — the one-epoch ordering survives and the spread widens. Forward-Forward's apparent decay turns out to be a rate effect |
+| [Replicating a "quick MNIST test"](https://media.tanh.xyz/seewhy/26-09-16/local-learning_report_replication.html) | Lab note: the three numbers reproduced over five seeds, then the controls the table is missing — backprop on Forward-Forward's own architecture (0.9116 vs 0.8869), Forward-Forward on the deep-narrow one (0.5751), and a gradient-free arm that reaches 0.9025 with an update almost orthogonal to the true gradient |
+
+---
+
+## dust — DUST vs EGGROLL: Forward-Only Transformer Pretraining
+
+Replication of Q Labs' [Dust](https://qlabs.sh/research/dust) (Oct 2026): train a transformer language model
+with no backward pass by perturbing *activations*, independently at every token, so one forward pass is one
+population member per token. The question: does its claimed advantage over weight-space evolution strategies
+(EGGROLL, the arm from [local-learning](#local-learning--backprop-vs-local-learning-rules)) hold up with the baseline
+implemented here? JAX port of the authors' released code, the paper's FineWeb protocol at 100K, 1M and 10M tokens.
+Reports and paper explain both algorithms with diagrams. The ordering reproduces, and so does the order of magnitude of
+the efficiency claim, with a wide interval: a three-point extrapolation said hundreds and a fourth point moved it to thousands.
+Under Adam and Muon, backprop gains more than DUST: DUST's equality with backprop at 1,024 draws is a property of SGD.
+
+| Report | Description |
+|--------|-------------|
+| [**Paper** — DUST vs EGGROLL](https://media.tanh.xyz/seewhy/paper/dust_paper.html) | **Start here.** Both algorithms explained for a reader new to them, the 100K / 1M / 10M-token ladders, the alignment study, the extrapolation and its warning, the Adam and Muon runs, and the limitations. Stable URL |
+| [Better optimisers cut DUST's loss, but backprop's more](https://media.tanh.xyz/seewhy/26-10-08/dust_report_6_optimisers.html) | The 1M-token ladder again under Adam and Muon. Muon takes DUST at 1,024 draws from 5.939 to 5.466; backprop falls to 5.358 (Adam) and 5.372 (Muon), so DUST goes from level to 0.095 behind, and at 4,096 draws (one seed) is 0.036 behind. EGGROLL is not helped by Muon |
+| [At 10M tokens DUST trails backprop by 0.25 nats; at 100K nothing clears the floor](https://media.tanh.xyz/seewhy/26-10-08/dust_report_5_other_budgets.html) | The budgets either side of the ladder. DUST at 256 draws 5.232 (paper 5.231), backprop 4.984; EGGROLL 7.128 vs 6.906 published. Six updates at 100K are too few for any method to beat the token-frequency floor |
+| [64 DUST draws beat 4,096 EGGROLL passes: 0.7 nats, at 59× less compute](https://media.tanh.xyz/seewhy/26-10-08/dust_report_4_ladder.html) | The 1M-token ladder. Under SGD, DUST at 1,024 draws (5.939) is level with backprop (5.937), and at 4,096 (one seed) 0.047 below it. Extrapolating EGGROLL's ladder: 3,554× to 16,810× DUST's 64 draws by two line fits, never by a power law; the paper's 6,000–8,200× |
+| [DUST's gradient aligns with backprop's; EGGROLL's stays near zero](https://media.tanh.xyz/seewhy/26-10-08/dust_report_3_alignment.html) | Cosine to the backprop gradient against population on a 100M-token checkpoint. DUST 0.99 on the head and 0.73 on attention at 16,384 draws; EGGROLL 0.024 and 0.010, matching the random-direction prediction; at 131,072 passes EGGROLL is still under 0.05 except the head |
+| [Our EGGROLL baseline trails the paper's](https://media.tanh.xyz/seewhy/26-10-08/dust_report_2_eggroll_baseline.html) | EGGROLL explained, then the tuning grid. Weaker than the paper's by 0.34 nats at 64 passes and 0.08 at 4,096; rate, noise scale, Adam constants, rank shaping and float32 do not close it |
+| [The JAX port reproduces DUST's published numbers](https://media.tanh.xyz/seewhy/26-10-07/dust_report_1_port.html) | How DUST works in one page, then the checks: backprop (5.937 vs 5.959 published), DUST at 256 and 1,024 draws (6.074 vs 6.067; 5.939 vs 5.934), and the gradient estimate against the authors' own PyTorch on identical weights |
+
+---
+
 ## recall-gan — An In-Context GAN Where the Discriminator Wins
 
 A GAN whose real data is a 16-image context: the discriminator reads the
