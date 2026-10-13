@@ -1,0 +1,10 @@
+logs/
+scripts/tmp/
+data/
+*.pkl
+*.npy
+*.json
+!results.jsonl
+!tokenizer.json
+ckpt/
+*.npz

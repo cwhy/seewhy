@@ -1,0 +1,44 @@
+{
+ "population": [
+  256,
+  64,
+  256,
+  1024,
+  4096,
+  16384,
+  256,
+  64,
+  256,
+  1024,
+  4096,
+  16384
+ ],
+ "test loss": [
+  5.232419687158921,
+  5.397,
+  5.231,
+  5.111,
+  5.072,
+  5.049,
+  7.127637414371266,
+  7.056,
+  6.906,
+  6.692,
+  6.352,
+  6.033
+ ],
+ "method": [
+  "DUST (ours)",
+  "DUST (paper)",
+  "DUST (paper)",
+  "DUST (paper)",
+  "DUST (paper)",
+  "DUST (paper)",
+  "EGGROLL (ours)",
+  "EGGROLL (paper)",
+  "EGGROLL (paper)",
+  "EGGROLL (paper)",
+  "EGGROLL (paper)",
+  "EGGROLL (paper)"
+ ]
+}
